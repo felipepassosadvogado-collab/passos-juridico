@@ -25,14 +25,21 @@ export async function POST(req: Request) {
     if (pubAlvo) ({ data: p, error: e1 } = await adm.from("processos").select("*").eq("numero", String(pubAlvo.processo_numero).trim()).maybeSingle<Processo>());
   }
   if (!p) { console.warn("peça: processo", numero, e1); return erro(`Processo ${numero} não encontrado${e1 ? " (" + e1.message + ")" : ""}.`, 404); }
-  const [{ data: cli }, { data: pubs }, { data: ts }] = await Promise.all([
+  const [{ data: cli }, { data: pubs }, { data: ts }, { data: coms }, { data: perfis }] = await Promise.all([
     p.cliente_id ? adm.from("clientes").select("*").eq("id", p.cliente_id).maybeSingle<Cliente>() : Promise.resolve({ data: null }),
-    adm.from("publicacoes").select("id,data,tipo_com,tipo_doc,orgao,texto").eq("processo_numero", p.numero).order("data", { ascending: false }).limit(25),
+    adm.from("publicacoes").select("id,data,tipo_com,tipo_doc,orgao,texto,analise").eq("processo_numero", p.numero).order("data", { ascending: false }).limit(25),
     adm.from("tarefas").select("*").eq("processo_numero", p.numero),
+    adm.from("eventos").select("dados,por,em").eq("processo_numero", p.numero).eq("tipo", "comentario").order("em", { ascending: false }).limit(12),
+    adm.from("profiles").select("id,nome"),
   ]);
+  const nomeDe = (id?: string | null) => (perfis || []).find((x) => x.id === id)?.nome || "equipe";
   const lista = (pubs || []) as Publicacao[];
   const alvo = pd.publicacaoId ? lista.find((x) => x.id === pd.publicacaoId) : undefined;
-  const tarefa = ((ts || []) as Tarefa[]).find((t) => (pd.tarefaId && t.id === pd.tarefaId) || (pd.publicacaoId && t.publicacao_id === pd.publicacaoId));
+  const tarefa = ((ts || []) as Tarefa[]).find((t) => pd.tarefaId && t.id === pd.tarefaId) || ((ts || []) as Tarefa[]).find((t) => pd.publicacaoId && t.publicacao_id === pd.publicacaoId);
+  const anotacoes = ((coms || []) as { dados: { texto?: string }; por: string; em: string }[])
+    .filter((c) => c.dados?.texto && !/^Minuta gerada pelo Claude|^Petição inicial gerada/.test(c.dados.texto)).reverse()
+    .map((c) => `- ${dataBR(c.em.slice(0, 10))}, ${nomeDe(c.por)}: ${corte(c.dados.texto, 800)}`);
+  const an = alvo?.analise as Record<string, unknown> | null | undefined;
   const anos = idade(cli?.nascimento); const prioridade = anos != null && anos >= 60;
   const fem = /a$/i.test((cli?.estado_civil || "").trim()) || /a$/i.test((cli?.profissao || "").trim());
   // publicações em ordem cronológica, com limite de texto
@@ -46,7 +53,12 @@ export async function POST(req: Request) {
     `AUTOR(A): ${nomeBonito(cli?.nome || p.cliente_nome)}${fem ? " (gênero feminino: use “qualificada”, “a autora”)" : ""}${anos != null ? ` · ${anos} anos` : ""}${cli?.nb ? ` · benefício NB ${cli.nb}` : ""}`,
     `RÉUS: ${(p.reus || []).join("; ")}`,
     p.fase ? `FASE: ${p.fase}` : "",
+    tarefa ? `TAREFA (criada por ${nomeDe(tarefa.criado_por)} para ${nomeDe(tarefa.responsavel)}): ${tarefa.descricao}` : "",
     tarefa ? `PRAZO: ${tarefa.dias ? tarefa.dias + " dias úteis, " : ""}vence em ${dataBR(tarefa.vencimento)}` : "",
+    tarefa?.nota_correcao ? `RECADO DA CORREÇÃO: ${tarefa.nota_correcao}` : "",
+    p.notas ? `ANOTAÇÕES FIXAS DO PROCESSO: ${p.notas}` : "",
+    anotacoes.length ? `ANOTAÇÕES DA EQUIPE NA LINHA DO TEMPO (instruções a seguir, quando houver):\n${anotacoes.join("\n")}` : "",
+    an ? `ANÁLISE DO CLAUDE SOBRE A PUBLICAÇÃO: ${[an.ato, an.resumo, an.providencia, an.obs].filter(Boolean).join(" · ")}` : "",
     alvo ? `PUBLICAÇÃO QUE GEROU A PEÇA (${dataBR(alvo.data)} · ${alvo.tipo_doc || alvo.tipo_com || ""}):\n${corte(alvo.texto, 12000)}` : "",
     historico.length ? `OUTRAS PUBLICAÇÕES DO PROCESSO (da mais antiga para a mais recente):\n${historico.join("\n\n")}` : "",
     pd.arquivos?.length ? `DOCUMENTOS ENVIADOS PELO ADVOGADO: ${pd.arquivos.length} arquivo(s) anexados acima (ex.: laudo, sentença, contestação). Use-os como fonte principal dos fatos.` : "",

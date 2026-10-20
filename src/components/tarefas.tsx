@@ -210,7 +210,7 @@ function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
 
 /** detalhe da tarefa com os botões que valem para quem está olhando */
 export function DetalheTarefa({ t, mostrarProc = true }: { t: Tarefa; mostrarProc?: boolean }) {
-  const { eu, titular, nome, aviso, processos, casos } = useDados();
+  const { eu, titular, nome, aviso, processos, casos } = useDados(); const j = useJanelas();
   const acoes = useAcoesTarefa(); const confirmar = useConfirmar();
   const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar">("");
   const done = t.status === "feito"; const souResp = !!t.responsavel && t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
@@ -240,6 +240,7 @@ export function DetalheTarefa({ t, mostrarProc = true }: { t: Tarefa; mostrarPro
         {souResp && done && !t.protocolo_avisado_em && dest && <button className="btn" onClick={() => acoes.protocolo(t, false)}>Avisar protocolo a {nome(dest)}</button>}
         {t.protocolo_avisado_em && <span className="pill ok">protocolo avisado{dest ? " a " + nome(dest) : ""} · {dataHoraBR(t.protocolo_avisado_em)}</span>}
         {souResp && t.status !== "revisao" && <button className={done || t.status === "aprovada" ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "Reabrir" : "Concluir"}</button>}
+        {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" title="O Claude redige a peça em Word, com as instruções da tarefa e os dados do processo" onClick={() => j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}Gerar petição</button>}
         {podeEditar && !done && <button className="btn ghost" onClick={() => alterna("editar")}>{form === "editar" ? "Fechar edição" : "Editar"}</button>}
         {titular && <button className="btn ghost" onClick={() => { if (confirmar("x" + t.id, aviso, "Clique de novo em “Excluir” para confirmar.")) acoes.excluir(t); }}>Excluir</button>}
         {!souResp && !souRev && !done && t.responsavel && <span className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</span>}

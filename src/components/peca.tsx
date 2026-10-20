@@ -37,7 +37,8 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
   return (
     <Janela largo onFechar={onFechar} titulo="Gerar petição" sub={nomeBonito(p?.cliente_nome || "") + (p ? " · " + p.mascara : "")}
       acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "O Claude está redigindo…" : "Gerar Word (.docx)"}</button>}>
-      <div className="muted" style={{ fontSize: 13.5, maxWidth: "70ch" }}>O Claude redige a minuta a partir {pub ? "da publicação " + rotuloPub(pub) + ", " : ""}das publicações do processo e dos documentos que você anexar, no papel timbrado do escritório. O que ele não souber fica entre [colchetes] para você completar. Leva de 1 a 2 minutos.</div>
+      <div className="muted" style={{ fontSize: 13.5, maxWidth: "70ch" }}>O Claude redige a minuta a partir {pub ? "da publicação " + rotuloPub(pub) + ", " : ""}das publicações do processo e dos documentos que você anexar, no papel timbrado do escritório. O que ele não souber fica entre [colchetes] para você completar. Leva de 1 a 2 minutos.
+        {" "}Já vão junto, sem precisar repetir: {ctx.tarefaId ? "a descrição da tarefa e o recado de quem a enviou, " : ""}a análise do Claude, as anotações fixas e as anotações da equipe na linha do tempo.</div>
       <div className="form2">
         <label className="f">Peça<select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">— escolher —</option>{pecas.map((x) => <option key={x}>{x}</option>)}<option value="outra">Outra peça…</option></select></label>
         {tipo === "outra" && <label className="f">Qual peça<input value={outro} placeholder="Ex.: Petição de juntada de procuração" onChange={(e) => setOutro(e.target.value)} /></label>}

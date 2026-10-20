@@ -143,6 +143,26 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
     return data;
   }, [sb, eu.id]);
 
+  // processo citado por uma tarefa, publicação ou aviso que ainda não está na tela (ex.: criado agora pela busca do DJEN): busca na hora
+  const pedidos = useRef(new Set<string>());
+  useEffect(() => {
+    if (!pronto) return;
+    const faltam = new Set<string>();
+    const ver = (n?: string | null) => { if (n && !m.current.processos.has(n) && !pedidos.current.has(n)) faltam.add(n); };
+    for (const t of m.current.tarefas.values()) ver(t.processo_numero);
+    for (const x of m.current.caixa.values()) ver(x.processo_numero);
+    for (const a of m.current.avisos.values()) ver(a.processo_numero);
+    for (const c of m.current.casos.values()) ver(c.processo_numero);
+    if (!faltam.size) return;
+    const lista = [...faltam]; lista.forEach((n) => pedidos.current.add(n));
+    (async () => {
+      for (let i = 0; i < lista.length; i += 100) {
+        const { data } = await sb.from("processos").select(PROC_COLS).in("numero", lista.slice(i, i + 100));
+        for (const x of data || []) aplicar("processos", x);
+      }
+    })();
+  }, [v, pronto, sb, aplicar]);
+
   const valor: Ctx = {
     ...m.current, v, pronto, erroCarga, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, remover, registrar, recarregar: carregar,
     marcarLidaLocal: (c, ate) => setLidas((x) => ({ ...x, [c]: ate })),
