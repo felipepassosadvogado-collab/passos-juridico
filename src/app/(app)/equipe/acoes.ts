@@ -2,14 +2,15 @@
 import { revalidatePath } from "next/cache";
 import { exigirMembro } from "@/lib/sessao";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { enderecoDoSite } from "@/lib/site";
 
 export async function convidar(_: unknown, form: FormData) {
   const { perfil } = await exigirMembro();
   if (perfil.papel !== "titular") return { erro: "Só o titular convida pessoas." };
   const email = String(form.get("email") || "").trim().toLowerCase(), nome = String(form.get("nome") || "").trim();
   if (!email || !nome) return { erro: "Informe nome e e-mail." };
-  const base = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!base) return { erro: "Configure NEXT_PUBLIC_SITE_URL na Vercel para enviar convites." };
+  const base = await enderecoDoSite();
+  if (!base) return { erro: "Não consegui descobrir o endereço do sistema para montar o link do convite." };
   try {
     const adm = await supabaseAdmin();
     const { data, error } = await adm.auth.admin.inviteUserByEmail(email, { data: { nome }, redirectTo: base + "/auth/confirmar" });

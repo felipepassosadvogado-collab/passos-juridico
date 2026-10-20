@@ -1,4 +1,5 @@
 "use server";
+import { enderecoDoSite } from "@/lib/site";
 import { redirect } from "next/navigation";
 import { supabaseServidor } from "@/lib/supabase/server";
 
@@ -17,7 +18,7 @@ export async function esqueciSenha(_: unknown, form: FormData) {
   const email = String(form.get("email") || "").trim();
   if (!email) return { erro: "Informe o e-mail.", ok: "" };
   const sb = await supabaseServidor();
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "";
+  const base = await enderecoDoSite();
   await sb.auth.resetPasswordForEmail(email, { redirectTo: base ? base + "/auth/nova-senha" : undefined });
   return { erro: "", ok: "Se o e-mail estiver cadastrado, enviamos um link para criar nova senha." };
 }
