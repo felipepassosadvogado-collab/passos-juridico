@@ -73,8 +73,13 @@ export default function FichaProcesso({ params }: { params: Promise<{ numero: st
       if (!vivo) return; setPubs((a.data || []) as Publicacao[]); setEvs((b.data || []) as Evento[]);
     })();
     const canal = sb.channel("proc-" + numero)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "eventos", filter: "processo_numero=eq." + numero }, (x: any) => setEvs((l) => l.some((e) => e.id === x.new.id) ? l : [...l, x.new]))
-      .on("postgres_changes", { event: "*", schema: "public", table: "publicacoes", filter: "processo_numero=eq." + numero }, (x: any) => x.new?.id && setPubs((l) => l ? [...l.filter((y) => y.id !== x.new.id), x.new].sort((a, b) => a.data.localeCompare(b.data)) : l))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "eventos", filter: "processo_numero=eq." + numero }, (x: any) => setEvs((l) => l.some((e) => e.id === x.new.id) ? l : [...l, { ...x.new, processo_numero: numero }]))
+      .on("postgres_changes", { event: "*", schema: "public", table: "publicacoes", filter: "processo_numero=eq." + numero }, async (x: any) => {
+        // relê a publicação do banco: o tempo real pode alterar números longos (como o do processo)
+        if (!x.new?.id) return;
+        const { data } = await sb.from("publicacoes").select("*").eq("id", x.new.id).maybeSingle();
+        if (data) setPubs((l) => l ? [...l.filter((y) => y.id !== data.id), data as Publicacao].sort((a, b) => a.data.localeCompare(b.data)) : l);
+      })
       .subscribe();
     return () => { vivo = false; sb.removeChannel(canal); };
   }, [numero, sb]);

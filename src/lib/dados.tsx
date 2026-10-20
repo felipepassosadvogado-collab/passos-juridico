@@ -123,8 +123,15 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
         if (alvo === "lidas") { if (p.eventType !== "DELETE" && novo.usuario === eu.id) setLidas((c) => ({ ...c, [novo.conversa]: novo.ate })); return; }
         if (alvo === "notificacoes" && p.eventType !== "DELETE" && novo.para !== eu.id) return;
         if (alvo === "anexos" && p.eventType !== "DELETE" && !novo.tarefa_id) return;
-        if (p.eventType === "DELETE") { const k = velho[CHAVE[alvo as keyof Mapas]]; if (k != null) remover(alvo as keyof Mapas, k); return; }
-        aplicar(alvo as keyof Mapas, novo);
+        if (p.eventType === "DELETE") { const k = velho[CHAVE[alvo as keyof Mapas]]; if (k != null) remover(alvo as keyof Mapas, String(k).match(/^\d+$/) && alvo === "caixa" ? +k : k); return; }
+        // o aviso do tempo real só diz o que mudou; a linha é lida de novo do banco, para vir com os valores exatos
+        // (o tempo real pode entregar números longos, como o do processo, convertidos e alterados)
+        const chave = CHAVE[alvo as keyof Mapas]; const id = novo[chave];
+        if (id == null || (alvo === "processos" && !/^\d{20}$/.test(String(id)))) return;
+        sb.from(t).select(alvo === "processos" ? PROC_COLS : "*").eq(chave, String(id)).maybeSingle().then(({ data }: { data: Linha | null }) => {
+          if (data) aplicar(alvo as keyof Mapas, data);
+          else if (alvo === "caixa") remover("caixa", +id);
+        });
       });
     }
     canal.subscribe();
