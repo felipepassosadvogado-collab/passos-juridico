@@ -444,3 +444,37 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .m-img img{display:block;max-width:100%;max-height:320px;border-radius:10px;object-fit:contain;background:var(--sunken)}
 .m-img-ph{display:block;width:220px;height:120px;border-radius:10px;background:var(--sunken);color:var(--muted);font-size:12px;display:grid;place-items:center}
 .m-arq{display:inline-flex;gap:8px;align-items:center;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:2px 0 4px;font-size:13px;font-weight:600}
+
+/* gestão no estilo do ADVBOX */
+.gs-top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+.gs-rosca{display:flex;align-items:center;justify-content:center;gap:28px;padding:18px;flex-wrap:wrap}
+.gs-leg{display:flex;flex-direction:column;gap:4px;min-width:220px}
+.gs-li{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13.5px}
+.gs-li:hover,.gs-li.on{background:var(--sunken)}.gs-li:focus-visible{outline:2px solid var(--accent)}
+.gs-li strong{margin-left:auto;font-size:16px}
+.gs-dot{width:11px;height:11px;border-radius:50%;flex:none}
+.gs-ln{text-transform:uppercase;font-size:11.5px;letter-spacing:.04em;color:var(--muted)}
+.gs-lado{padding:18px}
+.gs-rot{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.gs-avs{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+.gs-av{all:unset;cursor:pointer;position:relative}.gs-av .avr{width:42px;height:42px;font-size:14px}
+.gs-badge{position:absolute;top:-6px;right:-8px;background:var(--late);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:1px 6px;box-shadow:0 0 0 2px var(--surface)}
+.gs-ag{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:12px;align-items:center;margin-top:10px}
+.gs-relogio{width:42px;height:42px;border-radius:50%;background:var(--late);color:#fff;display:grid;place-items:center;font-size:20px}
+.gs-num{font-size:17px;font-weight:700;color:var(--accent)}.gs-num.late{color:var(--late)}
+.gs-sep{width:1px;align-self:stretch;background:var(--line)}
+.gs-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.gs-sel select{font-weight:600;background:var(--surface);width:auto;max-width:260px}
+.gs-b{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:8px;color:var(--muted);font-size:14px}
+.gs-b:hover,.gs-b.on{background:var(--sunken);color:var(--fg)}.gs-b:focus-visible{outline:2px solid var(--accent)}
+.gs-ord select{border:0;background:transparent;padding:0 4px;color:inherit;font:inherit;width:auto}
+.gs-busca{max-width:280px}
+.gs-pop-w{position:relative}
+.gs-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;width:min(440px,90vw);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.3);padding:14px;display:flex;flex-direction:column;gap:12px}
+.gs-pop-h{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.gs-presets{display:flex;flex-wrap:wrap;gap:6px}.gs-presets .pill{cursor:pointer;border:1px solid var(--line)}
+.gs-datas{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gs-tab td{vertical-align:middle;padding-top:12px;padding-bottom:12px}
+.gs-cli{font-weight:700;font-size:13.5px}.gs-reu{font-size:12px;color:var(--muted)}
+.gs-tar{font-weight:600;max-width:420px}
+@media (max-width:900px){.gs-top{grid-template-columns:1fr}.gs-ag{grid-template-columns:auto 1fr}.gs-sep{display:none}}
