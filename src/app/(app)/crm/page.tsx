@@ -56,7 +56,7 @@ function CRM() {
     const grupos = new Map(cols.map(([k]) => [k, [] as typeof procs]));
     for (const p of procs) { const f = faseCRM(p.fase); (grupos.get(grupos.has(f) ? f : "") || []).push(p); }
     quadro = <div className="kanban">{cols.map(([k, t]) => <Coluna key={k} chave={"j:" + k} titulo={t} dica={DICAS_FASE[k]} cartoes={(grupos.get(k) || []).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")).map((p) => (
-      <article key={p.numero} className="kcard" data-id={p.numero} tabIndex={0} onClick={() => { if (!arrastou.current) router.push("/processos/" + p.numero); }}>
+      <article key={p.numero} className="kcard" data-id={p.numero} tabIndex={0} onClick={() => { if (!arrastou.current) j.abrirProcesso(p.numero); }}>
         <div className="kc1">{nomeBonito(p.cliente_nome || "—")}</div><div className="kc2">x {bancoCurto(p.banco)}{p.orgao ? " · " + p.orgao : ""}</div>
         <div className="kc3"><span className="mono">{p.mascara}</span>{av(p.responsavel)}</div>
         <ProxTarefa t={proxima.get(p.numero)} />{mover(faseCRM(p.fase), [...cols, ["Encerrado", "Encerrado"]], (f) => moverProc(p.numero, f))}</article>))} />)}</div>;

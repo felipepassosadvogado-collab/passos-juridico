@@ -225,8 +225,8 @@ export function DetalheTarefa({ t, mostrarProc = true }: { t: Tarefa; mostrarPro
         <span>Responsável: <ChipResp id={t.responsavel} /></span>
         {t.criado_por && <span className="muted">Criada por {nome(t.criado_por)} em {dataHoraBR(t.criado_em)}</span>}
         {t.dias && <span className="muted">{t.dias} dias úteis</span>}
-        {t.publicacao_id && t.processo_numero && <Link className="reflink" href={`/processos/${t.processo_numero}#pub-${t.publicacao_id}`}>↳ ver a publicação que gerou o prazo</Link>}
-        {mostrarProc && p && <Link className="reflink" href={"/processos/" + p.numero}>Abrir processo {p.mascara}</Link>}
+        {t.publicacao_id && t.processo_numero && <button className="reflink" onClick={() => j.abrirProcesso(t.processo_numero!, { aba: "intimacoes", alvo: "pub-" + t.publicacao_id })}>↳ ver a publicação que gerou o prazo</button>}
+        {mostrarProc && p && <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "tarefas", alvo: "tar-" + t.id })}>Abrir processo {p.mascara}</button>}
         {!t.processo_numero && t.caso_id && casos.has(t.caso_id) && <Link className="reflink" href={"/crm?caso=" + t.caso_id}>Abrir atendimento pré-processual</Link>}
       </div>
       {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span> {t.nota_correcao}</div>}

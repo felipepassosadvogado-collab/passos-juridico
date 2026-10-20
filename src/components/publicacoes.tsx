@@ -9,6 +9,7 @@ import type { Analise, Publicacao } from "@/lib/tipos";
 import { BlocoTexto, Ic, Janela, useConfirmar } from "./ui";
 import { FormTarefa, MiniTarefa } from "./tarefas";
 import { BlocoAviso, useCriarAviso } from "./avisos";
+import { useJanelas } from "./janelas";
 
 export function CaixaAnalise({ a }: { a: Analise }) {
   return (
@@ -90,7 +91,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
 /** janela grande da caixa: uma publicação por vez, com Anterior / Próxima e "Concluir análise" */
 export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFechar: () => void; onTrocar: (id: number | null) => void }) {
   const d = useDados(); const { caixa, processos, tarefas, avisos, sb, aplicar, remover, registrar, aviso, eu } = d;
-  const { analisar, ocupado } = useAnalisar(); const confirmar = useConfirmar();
+  const { analisar, ocupado } = useAnalisar(); const confirmar = useConfirmar(); const j = useJanelas();
   const lista = [...caixa.values()].sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id);
   const i = lista.findIndex((x) => x.id === id); const pub = lista[i];
   const p = pub ? processos.get(pub.processo_numero) : undefined;
@@ -124,7 +125,7 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
         <div className="top"><div><span className="who">{nomeBonito(p?.cliente_nome || "—")}</span> <span className="muted">x {bancoCurto(p?.banco)}</span></div>
           <div className="tools"><span className="pill">{atoPub(pub)}</span><span className="mono muted">{dataBR(pub.data)}</span></div></div>
         <div className="s"><span className="mono">{p?.mascara || pub.processo_numero}</span> · {pub.orgao || ""}{pub.eproc ? " · intimação pelo eproc" : ""}
-          {p && <> · <Link href={"/processos/" + p.numero} onClick={onFechar}>Ver processo</Link></>}</div>
+          {p && <> · <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "intimacoes", alvo: "pub-" + pub.id })}>Ver processo</button></>}</div>
         <div className="txt">{pub.texto || "(sem texto)"}</div>
       </div>
       <CorpoPublicacao key={pub.id} pub={pub} mostrarTexto={false} comFase faseEscolhida={fase} setFase={(f) => setFases({ ...fases, [pub.id]: f })}

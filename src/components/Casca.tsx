@@ -52,7 +52,7 @@ function Menu() {
 }
 
 function Busca() {
-  const { clientes, processos } = useDados(); const router = useRouter();
+  const { clientes, processos } = useDados(); const router = useRouter(); const j = useJanelas();
   const [q, setQ] = useState(""); const [aberta, setAberta] = useState(false); const [sel, setSel] = useState(0); const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement as HTMLElement)?.tagName || "")) { e.preventDefault(); ref.current?.focus(); } };
@@ -64,7 +64,7 @@ function Busca() {
     for (const c of clientes.values()) { if (semAcento(c.nome).includes(n) || (d.length >= 4 && soDigitos(c.cpf).includes(d))) res.push({ href: "/clientes/" + c.id, tipo: "cliente", t: nomeBonito(c.nome), s: "Cliente" + (c.cpf ? " · " + c.cpf : "") }); if (res.length >= 5) break; }
     for (const p of processos.values()) { if (semAcento(p.cliente_nome).includes(n) || (d.length >= 4 && p.numero.includes(d))) res.push({ href: "/processos/" + p.numero, tipo: "processo", t: nomeBonito(p.cliente_nome || "—") + " x " + bancoCurto(p.banco), s: p.mascara + " · " + (p.orgao || "") }); if (res.length >= 11) break; }
   }
-  const ir = (h: string) => { setAberta(false); setQ(""); ref.current?.blur(); router.push(h); };
+  const ir = (h: string) => { setAberta(false); setQ(""); ref.current?.blur(); if (h.startsWith("/processos/")) j.abrirProcesso(h.slice(11)); else router.push(h); };
   return (
     <div className="gsearch" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAberta(false); }}>
       {I('<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>')}
@@ -106,7 +106,7 @@ function Sino() {
         {avs.slice(0, 15).map((n) => (
           <button key={n.id} className={n.lida ? "lida" : ""} onClick={() => {
             setAberto(false); if (!n.lida) lida([n.id]);
-            if (n.processo_numero) router.push("/processos/" + n.processo_numero + (n.tarefa_id ? "#tar-" + n.tarefa_id : "")); else if (n.caso_id) j.abrirCaso(n.caso_id);
+            if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id);
           }}><span className="nt">{!n.lida && <span className="dot" />}{n.texto}</span>
             <span className="ns">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</span></button>))}
         {!avs.length && !caixa.size && !corrigir.length && <div className="muted" style={{ padding: "10px 12px" }}>Nenhum aviso.</div>}

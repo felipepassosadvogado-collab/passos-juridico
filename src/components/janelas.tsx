@@ -13,11 +13,12 @@ import { BlocoAviso } from "./avisos";
 import { JanelaCaso } from "./crm";
 import { JanelaInicial, type CtxInicial } from "./peticao";
 import { JanelaPeca, type CtxPeca } from "./peca";
+import { JanelaProcesso, type FocoProcesso } from "./processo";
 
-type Aberta = { k: "pub"; id: number } | { k: "aviso"; id: string } | { k: "tarefa"; numero?: string } | { k: "caso"; id: string; tarefa?: boolean } | { k: "inicial"; ctx: CtxInicial } | { k: "peca"; ctx: CtxPeca };
+type Aberta = { k: "pub"; id: number } | { k: "aviso"; id: string } | { k: "tarefa"; numero?: string } | { k: "caso"; id: string; tarefa?: boolean } | { k: "inicial"; ctx: CtxInicial } | { k: "peca"; ctx: CtxPeca } | { k: "processo"; numero: string; foco?: FocoProcesso };
 type Ctx = {
   abrirPub: (id: number) => void; abrirAviso: (id: string) => void; novaTarefa: (numero?: string) => void;
-  abrirCaso: (id: string, comTarefa?: boolean) => void; abrirInicial: (ctx: CtxInicial) => void; gerarPeca: (ctx: CtxPeca) => void; fechar: () => void;
+  abrirCaso: (id: string, comTarefa?: boolean) => void; abrirInicial: (ctx: CtxInicial) => void; gerarPeca: (ctx: CtxPeca) => void; abrirProcesso: (numero: string, foco?: FocoProcesso) => void; fechar: () => void;
 };
 const C = createContext<Ctx | null>(null);
 export function useJanelas() { const c = useContext(C); if (!c) throw new Error("useJanelas fora do provedor"); return c; }
@@ -29,7 +30,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
   const trocar = useCallback((a: Aberta | null) => setPilha((p) => (a ? [...p.slice(0, -1), a] : p.slice(0, -1))), []);
   const v: Ctx = {
     abrirPub: (id) => abrir({ k: "pub", id }), abrirAviso: (id) => abrir({ k: "aviso", id }), novaTarefa: (numero) => abrir({ k: "tarefa", numero }),
-    abrirCaso: (id, tarefa) => abrir({ k: "caso", id, tarefa }), abrirInicial: (ctx) => abrir({ k: "inicial", ctx }), gerarPeca: (ctx) => abrir({ k: "peca", ctx }), fechar,
+    abrirCaso: (id, tarefa) => abrir({ k: "caso", id, tarefa }), abrirInicial: (ctx) => abrir({ k: "inicial", ctx }), gerarPeca: (ctx) => abrir({ k: "peca", ctx }), abrirProcesso: (numero, foco) => abrir({ k: "processo", numero, foco }), fechar,
   };
   const topo = pilha[pilha.length - 1];
   return (
@@ -41,17 +42,18 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
       {topo?.k === "caso" && <JanelaCaso key={topo.id} id={topo.id} comTarefa={topo.tarefa} onFechar={fechar} onTrocar={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "inicial" && <JanelaInicial ctx={topo.ctx} onFechar={fechar} />}
       {topo?.k === "peca" && <JanelaPeca ctx={topo.ctx} onFechar={fechar} />}
+      {topo?.k === "processo" && <JanelaProcesso key={topo.numero} numero={topo.numero} foco={topo.foco} onFechar={fechar} />}
     </C.Provider>
   );
 }
 
 function JanelaAviso({ id, onFechar }: { id: string; onFechar: () => void }) {
-  const { avisos, processos } = useDados();
+  const { avisos, processos } = useDados(); const abrirProc = useJanelas().abrirProcesso;
   const av = avisos.get(id); const p = av ? processos.get(av.processo_numero) : undefined;
   if (!av) return <Janela onFechar={onFechar} titulo="Aviso ao cliente"><div className="empty">Aviso não encontrado.</div></Janela>;
   return (
     <Janela onFechar={onFechar} titulo={nomeBonito(p?.cliente_nome || "—")} sub={<span className="mono">{p?.mascara || ""}</span>}
-      acoes={p && <Link className="btn ghost" href={"/processos/" + p.numero} onClick={onFechar}>Ver processo</Link>}>
+      acoes={p && <button className="btn ghost" onClick={() => abrirProc(p.numero)}>Ver processo</button>}>
       <BlocoAviso key={av.id} av={av} inicioAberto />
     </Janela>
   );

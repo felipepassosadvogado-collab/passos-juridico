@@ -10,9 +10,10 @@ import { faseCRM } from "@/lib/regras";
 import type { Cliente } from "@/lib/tipos";
 import { CamposCliente, DocumentosSalvos, EnvioDocumentos, useFichaCliente } from "@/components/cliente";
 import { useConfirmar } from "@/components/ui";
+import { useJanelas } from "@/components/janelas";
 
 export function FichaCliente({ c }: { c?: Cliente }) {
-  const { processos, sb, aplicar, remover, aviso, titular } = useDados(); const router = useRouter(); const confirmar = useConfirmar();
+  const { processos, sb, aplicar, remover, aviso, titular } = useDados(); const router = useRouter(); const confirmar = useConfirmar(); const j = useJanelas();
   const f = useFichaCliente(c); const [vinc, setVinc] = useState(""); const [n, setN] = useState(0);
   const ps = c ? [...processos.values()].filter((p) => p.cliente_id === c.id).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")) : [];
   return (
@@ -31,7 +32,7 @@ export function FichaCliente({ c }: { c?: Cliente }) {
           }}>Excluir ficha</button>}</div></div></section>
       {c && <section className="panel"><div className="ph"><h3>Processos</h3></div>
         {ps.length ? <div className="rows">{ps.map((p) => (
-          <div key={p.numero} className="row click" onClick={() => router.push("/processos/" + p.numero)}><span className="pill">{bancoCurto(p.banco)}</span>
+          <div key={p.numero} className="row click" onClick={() => j.abrirProcesso(p.numero)}><span className="pill">{bancoCurto(p.banco)}</span>
             <div className="main"><div className="t mono">{p.mascara}</div><div className="s">{(faseCRM(p.fase) || "Sem fase") + " · " + (p.orgao || "")}</div></div><span className="mono muted">{dataBR(p.ultima_data)}</span></div>))}</div>
           : <div className="empty">Nenhum processo vinculado.</div>}
         <div className="tools" style={{ padding: "10px 16px", borderTop: "1px solid var(--line)" }}>

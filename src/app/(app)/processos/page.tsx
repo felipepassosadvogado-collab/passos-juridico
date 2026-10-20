@@ -31,7 +31,7 @@ export default function Processos() {
       {!processos.size ? <div className="panel"><div className="empty"><strong>Nenhum processo ainda.</strong>Importe os dados do painel antigo (Importar dados) ou aguarde a busca do DJEN.</div></div> :
         <div className="panel tscroll"><table className="grid"><thead><tr><th>Cliente</th><th>Réu</th><th>Processo</th><th>Fase</th><th>Último ato</th><th>Prazo</th><th /></tr></thead>
           <tbody>{l.slice(0, 400).map((p) => { const pr = prox[p.numero]; const s = situacaoPrazo(pr); return (
-            <tr key={p.numero} className="click" onClick={() => router.push("/processos/" + p.numero)}>
+            <tr key={p.numero} className="click" onClick={() => j.abrirProcesso(p.numero)}>
               <td><div style={{ fontWeight: 600 }}>{nomeBonito(p.cliente_nome) || "—"}</div><div className="s">{p.orgao || ""}</div></td>
               <td>{bancoCurto(p.banco)}</td><td className="mono">{p.mascara}</td>
               <td>{faseCRM(p.fase) ? <span className="pill acc">{faseCRM(p.fase)}</span> : <span className="muted">—</span>}</td>

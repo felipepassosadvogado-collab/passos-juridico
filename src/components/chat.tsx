@@ -8,6 +8,7 @@ import { dataBR, dataHoraBR, iniciais } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
 import { mascaraCnj } from "@/lib/cnj";
 import type { Mensagem } from "@/lib/tipos";
+import { useJanelas } from "./janelas";
 
 export type Conversa = { id: string; nome: string; sub: string };
 export const idDm = (a: string, b: string) => "dm:" + [a, b].sort().join(":");
@@ -36,11 +37,11 @@ export function useChat() {
 
 /** números de processo no texto viram links para a ficha */
 function TextoComLinks({ t }: { t: string }) {
-  const { processos } = useDados();
+  const { processos } = useDados(); const j = useJanelas();
   const out: React.ReactNode[] = []; const re = /\b(\d{7})-?(\d{2})\.?(\d{4})\.?(\d)\.?(\d{2})\.?(\d{4})\b/g; let i = 0, m: RegExpExecArray | null;
   while ((m = re.exec(t))) {
     out.push(t.slice(i, m.index)); const d = m.slice(1).join("");
-    out.push(processos.has(d) ? <Link key={m.index} className="reflink inl" href={"/processos/" + d}>{mascaraCnj(d)}</Link> : m[0]); i = m.index + m[0].length;
+    out.push(processos.has(d) ? <button key={m.index} className="reflink inl" onClick={() => j.abrirProcesso(d)}>{mascaraCnj(d)}</button> : m[0]); i = m.index + m[0].length;
   }
   out.push(t.slice(i)); return <>{out}</>;
 }
