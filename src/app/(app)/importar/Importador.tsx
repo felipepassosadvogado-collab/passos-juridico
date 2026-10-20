@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import JSZip from "jszip";
-import { importarLote, limparEventosDasTarefas, jaImportado } from "./acoes";
+import { importarLote, limparEventosDasTarefas, jaImportado, clientesPorCpf } from "./acoes";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { semAcento } from "@/lib/formato";
 import type { Perfil } from "@/lib/tipos";
@@ -77,12 +77,28 @@ export function Importador({ equipe, eu }: { equipe: Perfil[]; eu: string }) {
     const d = dados; const inicio = new Date().toISOString();
     try {
       if (await jaImportado()) add("Já houve uma importação antes: os registros serão atualizados, sem duplicar.");
-      // clientes
+      // clientes: o mesmo CPF cadastrado duas vezes no painel antigo vira um cliente só
       const cliId: Record<string, string> = {};
-      for (const c of d.clientes || []) cliId[c.id] = await uuidDe("cli:" + c.id);
+      const jaNoBanco = await clientesPorCpf();
+      const porCpf = new Map<string, Exp[]>(); const semCpf: Exp[] = [];
+      for (const c of d.clientes || []) { const k = String(c.cpf || "").replace(/\D/g, ""); if (k) porCpf.set(k, [...(porCpf.get(k) || []), c]); else semCpf.push(c); }
+      const unicos: { id: string; c: Exp }[] = [];
+      let juntados = 0;
+      for (const [k, grupo] of porCpf) {
+        // o cadastro mais antigo é a base; os outros só preenchem o que estiver vazio
+        grupo.sort((a, b) => String(a.criadoEm || "").localeCompare(String(b.criadoEm || "")));
+        const c: Exp = { ...grupo[0] };
+        for (const o of grupo.slice(1)) for (const [campo, v] of Object.entries(o)) if (v && !c[campo]) c[campo] = v;
+        c.docs = grupo.flatMap((o) => o.docs || []);
+        const id = jaNoBanco[k] || (await uuidDe("cli:" + grupo[0].id));
+        for (const o of grupo) cliId[o.id] = id;
+        unicos.push({ id, c }); juntados += grupo.length - 1;
+      }
+      for (const c of semCpf) { cliId[c.id] = await uuidDe("cli:" + c.id); unicos.push({ id: cliId[c.id], c }); }
+      if (juntados) add(`${juntados} cliente(s) com CPF repetido no painel antigo foram juntados num cadastro só.`);
       add("clientes");
-      await lotes("clientes", (d.clientes || []).map((c: Exp) => ({
-        id: cliId[c.id], nome: c.nome || "Sem nome", cpf: c.cpf || null, rg: c.rg || null, nascimento: dataOuNull(c.nascimento), nacionalidade: c.nacionalidade || null,
+      await lotes("clientes", unicos.map(({ id, c }) => ({
+        id, nome: c.nome || "Sem nome", cpf: c.cpf || null, rg: c.rg || null, nascimento: dataOuNull(c.nascimento), nacionalidade: c.nacionalidade || null,
         estado_civil: c.estadoCivil || null, profissao: c.profissao || null, nome_mae: c.nomeMae || null, telefone: c.telefone || null, email: c.email || null,
         endereco: c.endereco || null, cep: c.cep || null, cidade: c.cidade || null, nb: c.nb || null, obs: c.obs || null, criado_em: tsOuNull(c.criadoEm) || inicio,
       })));

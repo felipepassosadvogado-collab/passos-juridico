@@ -45,3 +45,16 @@ export async function jaImportado() {
   const { count } = await adm.from("eventos").select("id", { count: "exact", head: true }).eq("tipo", "importado");
   return (count || 0) > 0;
 }
+
+/** CPF (só dígitos) → id de quem já está cadastrado, para não criar o mesmo cliente duas vezes. */
+export async function clientesPorCpf(): Promise<Record<string, string>> {
+  const adm = await admTitular();
+  const mapa: Record<string, string> = {};
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await adm.from("clientes").select("id, cpf").not("cpf", "is", null).range(de, de + 999);
+    if (error) throw new Error(error.message);
+    for (const c of data || []) { const d = String(c.cpf).replace(/\D/g, ""); if (d && !mapa[d]) mapa[d] = c.id; }
+    if (!data || data.length < 1000) break;
+  }
+  return mapa;
+}
