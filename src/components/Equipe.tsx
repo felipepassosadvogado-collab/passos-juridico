@@ -103,6 +103,18 @@ export function FotoMembro({ m, pode }: { m: Perfil; pode: boolean }) {
   );
 }
 
+/** "Convidar pessoa" recolhido; abre os campos ao clicar */
+export function CaixaConvite() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <section className="panel">
+      <button type="button" className="ph conv-topo" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+        <h3>{aberto ? "▾" : "▸"} Convidar pessoa</h3><span className="muted" style={{ fontSize: 12 }}>{aberto ? "fechar" : "a pessoa recebe um e-mail para criar a senha"}</span></button>
+      {aberto && <div className="pb"><FormConvite /></div>}
+    </section>
+  );
+}
+
 export function LinhaMembro({ m, eu, titular }: { m: Perfil; eu: string; titular: boolean }) {
   const [st, acao, salvando] = useActionState(alterarMembro, null);
   const podeEditar = titular || m.id === eu;

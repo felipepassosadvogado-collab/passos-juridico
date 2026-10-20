@@ -525,3 +525,4 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .enq-mascara::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgb(255 255 255 / .85)}
 .enq-zoom{display:flex;align-items:center;gap:10px;width:100%;max-width:280px;font-weight:700;color:var(--muted)}
 .enq-zoom input{flex:1;accent-color:var(--accent);padding:0}
+.conv-topo{all:unset;box-sizing:border-box;cursor:pointer;display:flex;width:100%;align-items:center;justify-content:space-between;padding:14px 16px}.conv-topo:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.conv-topo h3{margin:0}
