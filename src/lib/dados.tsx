@@ -53,7 +53,11 @@ export function msgErro(e: unknown, padrao = "Não foi possível salvar. Tente d
   if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para fazer isso.";
   if (/duplicate key/i.test(m)) return "Esse registro já existe.";
   if (/^[A-ZÁÉÍÓÚ].*[.!]$/.test(m) && /[áéíóúãõç]|\b(tarefa|responsável|corrigir|titular)\b/i.test(m)) return m;
-  return padrao;
+  if (/foreign key/i.test(m) && /processo/i.test(m)) return "Este processo não está cadastrado no sistema. Cadastre-o em Processos → Novo processo e tente de novo.";
+  if (/JWT|token|not authenticated/i.test(m)) return "Sua sessão expirou. Recarregue a página (F5) e entre de novo.";
+  console.warn("erro ao salvar", e);
+  // mostra o motivo técnico resumido, para dar para corrigir
+  return m ? `${padrao} (${m.slice(0, 160)})` : padrao;
 }
 
 export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equipeInicial: Perfil[]; children: React.ReactNode }) {

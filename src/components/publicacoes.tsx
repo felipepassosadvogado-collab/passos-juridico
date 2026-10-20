@@ -114,7 +114,7 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
     aviso("Análise concluída" + (ts.length ? ". As tarefas seguem em Atividades." : "."));
   };
   return (
-    <Janela largo onFechar={onFechar} titulo={nomeBonito(p?.cliente_nome || "—")} sub={`${i + 1} de ${lista.length} na caixa`}
+    <Janela largo onFechar={onFechar} titulo={p ? nomeBonito(p.cliente_nome || "—") : "Processo " + pub.processo_numero} sub={`${i + 1} de ${lista.length} na caixa`}
       acoes={<>
         <button className="btn primary" title="A publicação sai da caixa; tarefas e avisos continuam" onClick={concluir}>✓ Concluir análise</button>
         <button className="btn ghost" disabled={i <= 0} onClick={() => onTrocar(lista[i - 1].id)}>‹ Anterior</button>
