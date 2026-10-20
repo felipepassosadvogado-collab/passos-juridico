@@ -517,3 +517,11 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .foto-btn:disabled{cursor:default}.foto-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .foto-cam{position:absolute;right:-4px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:11px}
 .avr img{font-size:0;color:transparent}
+.modal.enq{width:min(420px,100%)}
+.enq-quadro{position:relative;overflow:hidden;border-radius:12px;background:#000;cursor:grab;touch-action:none;user-select:none}
+.enq-quadro:active{cursor:grabbing}
+.enq-quadro img{position:absolute;left:0;top:0;max-width:none;pointer-events:none}
+.enq-mascara{position:absolute;inset:0;pointer-events:none;border-radius:12px;background:radial-gradient(circle closest-side,transparent 99%,rgb(0 0 0 / .62) 100%)}
+.enq-mascara::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgb(255 255 255 / .85)}
+.enq-zoom{display:flex;align-items:center;gap:10px;width:100%;max-width:280px;font-weight:700;color:var(--muted)}
+.enq-zoom input{flex:1;accent-color:var(--accent);padding:0}
