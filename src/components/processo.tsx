@@ -43,6 +43,10 @@ function useHistorico(numero: string) {
   return { pubs, setPubs, evs, setEvs };
 }
 
+function InfoProtocolo({ d }: { d: Record<string, any> }) {
+  if (!d.protocolo && !d.protocolo_em && !d.protocolo_obs) return null;
+  return <div className="bs prot">{d.protocolo ? <>Protocolo nº <strong className="mono">{d.protocolo}</strong></> : "Protocolo"}{d.protocolo_em ? " · " + dataHoraBR(d.protocolo_em) : ""}{d.protocolo_obs && <div className="bt nota">“{d.protocolo_obs}”</div>}</div>;
+}
 const NOME_EV: Record<string, string> = { tarefa_iniciada: "Começou a tarefa", tarefa_reaberta: "Reabriu a tarefa" };
 export function CorpoEvento({ e, t, nome }: { e: Evento; t?: Tarefa; nome: (id?: string | null) => string }) {
   const d = e.dados as Record<string, any>; const desc = d.descricao || d.texto || "";
@@ -55,12 +59,12 @@ export function CorpoEvento({ e, t, nome }: { e: Evento; t?: Tarefa; nome: (id?:
       return <><div className="bt">{selos}{d.origem ? d.origem + " → " : ""}tarefa para <strong>{quem}</strong>: {desc}{d.dias ? ` (${d.dias} dias úteis)` : ""}</div>
         {d.vencimento && <div className="bs">Vence em {dataBR(d.vencimento)}</div>}{s && <div className="bs">Situação agora: <span className={"pill " + s[0]}>{s[1]}</span></div>}</>;
     }
-    case "tarefa_concluida": return <><div className="bt">Concluiu a tarefa: <strong>{desc}</strong>{d.protocolo_avisado ? " · protocolo avisado" : ""}</div>
+    case "tarefa_concluida": return <><div className="bt">{d.protocolo_avisado ? "Protocolou e concluiu" : "Concluiu a tarefa"}: <strong>{desc}</strong></div>{d.protocolo_avisado && <InfoProtocolo d={d} />}
       {d.vencimento && <div className="bs">{diferencaDias(d.vencimento, new Date(e.em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })) >= 0 ? "No prazo · vencia " : "Após o vencimento · vencia "}{dataBR(d.vencimento)}</div>}</>;
     case "correcao_enviada": return <><div className="bt">Enviou para correção de <strong>{nome(d.revisor || d.responsavel || d.resp)}</strong>: {desc}</div>{d.nota && <div className="bt nota">“{d.nota}”</div>}{d.arquivos?.length > 0 && <div className="bs">Anexo: {d.arquivos.join(", ")}</div>}</>;
     case "correcao_devolvida": return <><div className="bt">Devolveu com ajustes para <strong>{quem}</strong>: {desc}</div>{d.nota && <div className="bt nota">“{d.nota}”</div>}{d.arquivos?.length > 0 && <div className="bs">Versão corrigida: {d.arquivos.join(", ")}</div>}</>;
     case "correcao_aprovada": return <><div className="bt">Aprovou a peça: <strong>{desc}</strong></div><div className="bs">{quem} pode protocolar e concluir.</div></>;
-    case "protocolo_avisado": return <div className="bt">Protocolo realizado: <strong>{desc}</strong></div>;
+    case "protocolo_avisado": return <><div className="bt">Protocolo realizado: <strong>{desc}</strong></div><InfoProtocolo d={d} /></>;
     case "tarefa_editada": return <><div className="bt">Editou a tarefa: <strong>{desc}</strong></div>{(d.mudancas || []).map((m: string, i: number) => <div key={i} className="bs">{m}</div>)}
       {d.antes && d.depois && <>{d.antes.vencimento !== d.depois.vencimento && <div className="bs">vencimento: {dataBR(d.antes.vencimento)} → {dataBR(d.depois.vencimento)}</div>}
         {d.antes.descricao !== d.depois.descricao && <div className="bs">descrição: “{d.antes.descricao}” → “{d.depois.descricao}”</div>}

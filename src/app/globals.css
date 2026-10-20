@@ -402,3 +402,5 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .tj-rot{font-size:12.5px;color:var(--muted)}
 .tj-wa{display:inline-flex;align-items:center;gap:6px;color:#25a35a;font-weight:600}
 @media (max-width:820px){.tj-kv{grid-template-columns:92px minmax(0,1fr);gap:10px}.tj-esq{padding:16px}.tj-corpo{grid-template-columns:1fr;overflow-y:auto}.tj-esq,.tj-dir{overflow:visible}.tj-dir{border-left:0;border-top:1px solid var(--line)}}
+
+.tj-prot{gap:8px}.bs.prot{margin-top:2px}

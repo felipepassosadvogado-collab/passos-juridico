@@ -57,9 +57,11 @@ export function useAcoesTarefa() {
     flag: (t: Tarefa, campo: "importante" | "urgente") => gravar(t, { [campo]: !t[campo] }),
     editar: (t: Tarefa, campos: Partial<Tarefa>) => gravar(t, campos, "Tarefa atualizada."),
     aprovar: (t: Tarefa) => gravar(t, { status: "aprovada" }, "Aprovada. " + nome(t.responsavel) + " pode protocolar e concluir."),
-    protocolo: (t: Tarefa, concluir: boolean) => {
+    /** registra o protocolo (nº e observação); data e hora são carimbadas pelo servidor no clique */
+    protocolo: (t: Tarefa, concluir: boolean, numero = "", obs = "") => {
       const dest = destinoProtocolo(t, eu.id);
-      return gravar(t, concluir ? { protocolo_avisado_em: new Date().toISOString(), status: "feito" } : { protocolo_avisado_em: new Date().toISOString() }, nome(dest) + " foi avisado do protocolo.");
+      const campos: Partial<Tarefa> = { protocolo_avisado_em: new Date().toISOString(), protocolo_numero: numero.trim() || null, protocolo_obs: obs.trim() || null };
+      return gravar(t, concluir && t.status !== "feito" ? { ...campos, status: "feito" } : campos, dest ? "Protocolo registrado. " + nome(dest) + " foi avisado." : "Protocolo registrado.");
     },
     enviar: async (t: Tarefa, files: File[], nota: string, revisor: string) => {
       try { await subir(t, files, "envio"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; }
@@ -208,52 +210,6 @@ export function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
   );
 }
 
-/** detalhe da tarefa com os botões que valem para quem está olhando */
-export function DetalheTarefa({ t, mostrarProc = true }: { t: Tarefa; mostrarProc?: boolean }) {
-  const { eu, titular, nome, aviso, processos, casos } = useDados(); const j = useJanelas();
-  const acoes = useAcoesTarefa(); const confirmar = useConfirmar();
-  const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar">("");
-  const done = t.status === "feito"; const souResp = !!t.responsavel && t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
-  const s = situacaoPrazo(t.vencimento); const dest = destinoProtocolo(t, eu.id);
-  const podeEditar = titular || t.criado_por === eu.id;
-  const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
-  const alterna = (x: typeof form) => setForm(form === x ? "" : x);
-  return (
-    <div className="det" onClick={(e) => e.stopPropagation()}>
-      <div className="det-info">
-        <span>Situação: {done ? <span className="pill ok">cumprida</span> : <span className={"pill " + s.cor}>{s.texto}</span>}</span>
-        <span>Responsável: <ChipResp id={t.responsavel} /></span>
-        {t.criado_por && <span className="muted">Criada por {nome(t.criado_por)} em {dataHoraBR(t.criado_em)}</span>}
-        {t.dias && <span className="muted">{t.dias} dias úteis</span>}
-        {t.publicacao_id && t.processo_numero && <button className="reflink" onClick={() => j.abrirProcesso(t.processo_numero!, { aba: "intimacoes", alvo: "pub-" + t.publicacao_id })}>↳ ver a publicação que gerou o prazo</button>}
-        {mostrarProc && p && <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "tarefas", alvo: "tar-" + t.id })}>Abrir processo {p.mascara}</button>}
-        {!t.processo_numero && t.caso_id && casos.has(t.caso_id) && <Link className="reflink" href={"/crm?caso=" + t.caso_id}>Abrir atendimento pré-processual</Link>}
-      </div>
-      {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span> {t.nota_correcao}</div>}
-      <div className="tools">
-        {!t.responsavel && titular && !done && <label className="f">Atribuir a<SelResp valor={null} vazio="— escolher —" onChange={(v) => v && acoes.atribuir(t, v)} /></label>}
-        {souResp && t.status === "aberto" && <button className="btn" onClick={() => acoes.status(t, "andamento")}>Iniciar</button>}
-        {souResp && !done && t.status !== "revisao" && <button className="btn" onClick={() => alterna("enviar")}>{form === "enviar" ? "Cancelar envio" : "Enviar p/ correção"}</button>}
-        {souRev && <button className="btn primary" onClick={() => acoes.aprovar(t)}>Aprovar</button>}
-        {souRev && <button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button>}
-        {souResp && t.status === "aprovada" && dest && <button className="btn primary" onClick={() => acoes.protocolo(t, true)}>Protocolado: concluir e avisar {nome(dest)}</button>}
-        {souResp && done && !t.protocolo_avisado_em && dest && <button className="btn" onClick={() => acoes.protocolo(t, false)}>Avisar protocolo a {nome(dest)}</button>}
-        {t.protocolo_avisado_em && <span className="pill ok">protocolo avisado{dest ? " a " + nome(dest) : ""} · {dataHoraBR(t.protocolo_avisado_em)}</span>}
-        {souResp && t.status !== "revisao" && <button className={done || t.status === "aprovada" ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "Reabrir" : "Concluir"}</button>}
-        {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" title="O Claude redige a peça em Word, com as instruções da tarefa e os dados do processo" onClick={() => j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}Gerar petição</button>}
-        {podeEditar && !done && <button className="btn ghost" onClick={() => alterna("editar")}>{form === "editar" ? "Fechar edição" : "Editar"}</button>}
-        {titular && <button className="btn ghost" onClick={() => { if (confirmar("x" + t.id, aviso, "Clique de novo em “Excluir” para confirmar.")) acoes.excluir(t); }}>Excluir</button>}
-        {!souResp && !souRev && !done && t.responsavel && <span className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</span>}
-      </div>
-      <ListaAnexos t={t} />
-      {form === "enviar" && <FormRevisao t={t} modo="enviar" onFim={() => setForm("")} />}
-      {form === "devolver" && <FormRevisao t={t} modo="devolver" onFim={() => setForm("")} />}
-      {form === "editar" && <FormEdicao t={t} onFim={() => setForm("")} />}
-    </div>
-  );
-}
-
-/** tabela de atividades (estrela, urgente, situação, tarefa, partes, prazo, responsável) */
 export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lista: Tarefa[]; mostrarProc?: boolean; limite?: number }) {
   const { nome, eu, titular, aviso } = useDados(); const acoes = useAcoesTarefa(); const partes = usePartes(); const j = useJanelas();
   if (!lista.length) return <div className="empty">Nenhuma tarefa.</div>;
