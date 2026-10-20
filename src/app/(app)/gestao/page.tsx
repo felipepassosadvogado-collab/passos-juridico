@@ -4,7 +4,8 @@ import { useDados } from "@/lib/dados";
 import { dataBR, dataHoraBR } from "@/lib/formato";
 import { dataValida, diferencaDias, hojeBR, isoData, paraData, situacaoPrazo, somaDias } from "@/lib/prazos";
 import type { Tarefa } from "@/lib/tipos";
-import { DetalheTarefa, usePartes } from "@/components/tarefas";
+import { usePartes } from "@/components/tarefas";
+import { useJanelas } from "@/components/janelas";
 import { Avatar, ChipResp, Ic } from "@/components/ui";
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -59,7 +60,7 @@ function Grafico({ ts, ini, fim, modo }: { ts: Tarefa[]; ini: string; fim: strin
 export default function Gestao() {
   const { tarefas, equipe, titular, nome, v } = useDados(); const partes = usePartes();
   const [g, setG] = useState<G>({ modo: "dia", ref: hojeBR(), pessoa: "", lista: "pend" });
-  const [aberta, setAberta] = useState<string | null>(null);
+  const j = useJanelas();
   const per = periodo(g); const t0 = hojeBR();
   const todas = useMemo(() => [...tarefas.values()], [tarefas, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const ts = g.pessoa ? todas.filter((t) => t.responsavel === g.pessoa) : todas;
@@ -102,12 +103,12 @@ export default function Gestao() {
       {g.modo !== "dia" && <Grafico ts={ts} ini={per.ini} fim={per.fim} modo={g.modo} />}
       <section className="panel"><div className="ph"><h3>{tit}</h3><span className="muted" style={{ fontSize: 12 }}>{lista.length} {lista.length === 1 ? "tarefa" : "tarefas"}</span></div>
         {lista.length ? <div className="lx">{lista.slice(0, 400).flatMap((t) => {
-          const exp = aberta === t.id; const fd = diaLocal(t.feito_em); const conc = g.lista === "conc"; const atrasada = conc && t.vencimento && fd > t.vencimento;
+          const fd = diaLocal(t.feito_em); const conc = g.lista === "conc"; const atrasada = conc && t.vencimento && fd > t.vencimento;
           const [cls, txt] = conc ? [atrasada ? "late" : "ok", atrasada ? `concluída ${diferencaDias(fd, t.vencimento!)} dia(s) após o prazo` : "concluída no prazo"] : [situacaoPrazo(t.vencimento).cor, situacaoPrazo(t.vencimento).texto];
-          return [<div key={t.id} className="lx-row g" tabIndex={0} role="button" onClick={() => setAberta(exp ? null : t.id)}>
+          return [<div key={t.id} className="lx-row g" tabIndex={0} role="button" onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
             <Avatar id={t.responsavel} pequeno /><div className="lx-main"><div className="lx-t">{t.descricao}</div><div className="lx-s">{[nome(t.responsavel), partes(t).cli].filter(Boolean).join(" · ")}</div></div>
             <span className={"lx-prazo " + cls}><span className="lx-data">{conc ? dataHoraBR(t.feito_em) : t.vencimento ? dataBR(t.vencimento) : "sem prazo"}</span><span className="lx-rel">{conc ? "prazo " + dataBR(t.vencimento) + " · " + txt : txt}</span></span></div>,
-          exp ? <div key={t.id + "d"} className="lx-det"><DetalheTarefa t={t} /></div> : null];
+          null];
         })}</div> : <div className="empty">Nada aqui.</div>}
       </section>
     </>

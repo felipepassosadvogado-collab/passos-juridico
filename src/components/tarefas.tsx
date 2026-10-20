@@ -3,7 +3,7 @@
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { calcularVencimento, dataValida, hojeBR, situacaoPrazo } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
@@ -150,7 +150,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
 }
 
 /** envio para correção (responsável) e devolução com ajustes (quem corrige) */
-function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "devolver"; onFim: () => void }) {
+export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "devolver"; onFim: () => void }) {
   const { eu, equipe, aviso } = useDados();
   const acoes = useAcoesTarefa();
   const ops = equipe.filter((p) => p.ativo && p.id !== eu.id);
@@ -182,7 +182,7 @@ function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "devolver
   );
 }
 
-function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
+export function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
   const { aviso } = useDados(); const acoes = useAcoesTarefa();
   const detalhe = t.tipo && t.descricao.startsWith(t.tipo + ": ") ? t.descricao.slice(t.tipo.length + 2) : t.tipo === t.descricao ? "" : t.descricao;
   const [f, setF] = useState({ tipo: t.tipo || "", desc: detalhe, venc: t.vencimento || "", imp: t.importante, urg: t.urgente });
@@ -255,10 +255,9 @@ export function DetalheTarefa({ t, mostrarProc = true }: { t: Tarefa; mostrarPro
 
 /** tabela de atividades (estrela, urgente, situação, tarefa, partes, prazo, responsável) */
 export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lista: Tarefa[]; mostrarProc?: boolean; limite?: number }) {
-  const { nome, eu, titular, aviso } = useDados(); const acoes = useAcoesTarefa(); const partes = usePartes();
-  const [aberta, setAberta] = useState<string | null>(null);
+  const { nome, eu, titular, aviso } = useDados(); const acoes = useAcoesTarefa(); const partes = usePartes(); const j = useJanelas();
   if (!lista.length) return <div className="empty">Nenhuma tarefa.</div>;
-  const hoje = hojeBR(); const cols = mostrarProc ? 5 : 4;
+  const hoje = hojeBR();
   const flag = (t: Tarefa, campo: "importante" | "urgente") => {
     if (!(titular || t.criado_por === eu.id) || t.status === "feito") { aviso("Só quem criou a tarefa pode marcar como " + campo + "."); return; }
     acoes.flag(t, campo);
@@ -267,10 +266,10 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
     <div className="tscroll">
       <table className="grid ativ"><thead><tr><th /><th>Tarefa</th>{mostrarProc && <th>Partes</th>}<th>Prazo fatal</th><th>Responsável</th></tr></thead>
         <tbody>{lista.slice(0, limite).flatMap((t) => {
-          const done = t.status === "feito"; const fatal = !!t.vencimento && !done && t.vencimento <= hoje; const exp = aberta === t.id;
+          const done = t.status === "feito"; const fatal = !!t.vencimento && !done && t.vencimento <= hoje;
           const { cli, reus } = partes(t); const rc = rotuloCorrecao(t, nome);
           return [
-            <tr key={t.id} id={"tar-" + t.id} className={"tr-t" + (exp ? " aberto" : "") + (done ? " feita" : "")} onClick={() => setAberta(exp ? null : t.id)}>
+            <tr key={t.id} id={"tar-" + t.id} className={"tr-t" + (done ? " feita" : "")} tabIndex={0} onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
               <td className="marcas" onClick={(e) => e.stopPropagation()}>
                 <button className={"mk estrela" + (t.importante ? " on" : "")} title={t.importante ? "Importante" : "Marcar como importante"} onClick={() => flag(t, "importante")}>{Ic.estrela(t.importante)}</button>
                 <button className={"mk urg" + (t.urgente ? " on" : "")} title={t.urgente ? "Urgente" : "Marcar como urgente"} onClick={() => flag(t, "urgente")}>!</button>
@@ -282,7 +281,6 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
               <td className={"num" + (fatal ? " fatal" : "") + (done ? " ok" : "")}>{dataBR(t.vencimento)}</td>
               <td className="rcol"><Avatar id={t.responsavel} /><span className="rn">{t.responsavel ? nome(t.responsavel) : "Sem responsável"}</span></td>
             </tr>,
-            exp ? <tr key={t.id + "d"} className="tr-det"><td colSpan={cols}><DetalheTarefa t={t} mostrarProc={mostrarProc} /></td></tr> : null,
           ];
         })}</tbody></table>
       {lista.length > limite && <div className="muted" style={{ padding: "10px 16px" }}>Mostrando {limite} de {lista.length}. Use a busca.</div>}
@@ -292,25 +290,25 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
 
 /** lista enxuta: uma linha por tarefa; o clique abre o detalhe */
 export function ListaEnxuta({ lista, limite = 8, abrirId }: { lista: Tarefa[]; limite?: number; abrirId?: string | null }) {
-  const { nome } = useDados(); const partes = usePartes();
-  const [aberta, setAberta] = useState<string | null>(abrirId || null); const [todos, setTodos] = useState(false);
+  const { nome } = useDados(); const partes = usePartes(); const j = useJanelas();
+  const [todos, setTodos] = useState(false);
+  useEffect(() => { if (abrirId) j.abrirTarefa(abrirId); }, [abrirId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!lista.length) return <div className="empty">Nada aqui.</div>;
   const l = [...lista].sort(ordemPrazo); const vis = todos ? l : l.slice(0, limite);
   return (
     <div className="lx">
       {vis.flatMap((t) => {
-        const done = t.status === "feito"; const s = done ? { cor: "ok", texto: "cumprida" } : situacaoPrazo(t.vencimento); const exp = aberta === t.id;
+        const done = t.status === "feito"; const s = done ? { cor: "ok", texto: "cumprida" } : situacaoPrazo(t.vencimento);
         const { cli, banco } = partes(t); const rc = rotuloCorrecao(t, nome);
         return [
-          <div key={t.id} className={"lx-row" + (exp ? " aberto" : "")} tabIndex={0} role="button" aria-expanded={exp}
-            onClick={() => setAberta(exp ? null : t.id)} onKeyDown={(e) => { if (e.key === "Enter") setAberta(exp ? null : t.id); }}>
+          <div key={t.id} className="lx-row" tabIndex={0} role="button"
+            onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
             <CirculoStatus t={t} />
             <div className="lx-main"><div className="lx-t">{t.urgente && <span className="lx-flag urg" title="Urgente">!</span>}{t.importante && <span className="lx-flag imp" title="Importante">★</span>}{t.descricao}</div>
               <div className="lx-s">{[cli, banco ? bancoCurto(banco) : "", t.responsavel ? nome(t.responsavel) : "sem responsável"].filter(Boolean).join(" · ")}</div></div>
             {rc && !done ? <span className={"pill " + rc[0]}>{rc[0] === "acc" ? "em correção" : rc[0] === "soon" ? "ajustes" : "aprovada"}</span> : <span />}
             <span className={"lx-prazo " + s.cor} title={s.texto}><span className="lx-data">{t.vencimento ? dataBR(t.vencimento) : "sem prazo"}</span><span className="lx-rel">{t.vencimento ? s.texto : ""}</span></span>
           </div>,
-          exp ? <div key={t.id + "d"} className="lx-det"><DetalheTarefa t={t} /></div> : null,
         ];
       })}
       {l.length > limite && <button className="lx-mais" onClick={() => setTodos(!todos)}>{todos ? "Mostrar menos" : `Ver todas (${l.length})`}</button>}
@@ -320,6 +318,7 @@ export function ListaEnxuta({ lista, limite = 8, abrirId }: { lista: Tarefa[]; l
 
 /** tarefa em miniatura (na publicação e na linha do tempo) */
 export function MiniTarefa({ t, onClick }: { t: Tarefa; onClick?: () => void }) {
+  const j = useJanelas(); onClick = onClick || (() => j.abrirTarefa(t.id));
   const s = situacaoPrazo(t.vencimento); const done = t.status === "feito", and = t.status === "andamento";
   return (
     <button className="mini" onClick={onClick}>

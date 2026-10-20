@@ -9,7 +9,7 @@ import { cidadeDoJuizo, infoCnj } from "@/lib/cnj";
 import { diferencaDias, situacaoPrazo } from "@/lib/prazos";
 import { FASES, atoPub, faseCRM } from "@/lib/regras";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
-import { DetalheTarefa, FormTarefa, ListaAnexos } from "./tarefas";
+import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CorpoPublicacao, useAnalisar } from "./publicacoes";
 import { useCriarAviso } from "./avisos";
 import { useJanelas } from "./janelas";
@@ -83,12 +83,12 @@ export function CorpoEvento({ e, t, nome }: { e: Evento; t?: Tarefa; nome: (id?:
 }
 
 /** cartão de tarefa no estilo do ADVBOX: bolinha, título, prazo, anexos e quem fez */
-function CartaoTarefa({ t, aberto, onAbrir }: { t: Tarefa; aberto: boolean; onAbrir: () => void }) {
+function CartaoTarefa({ t, onAbrir }: { t: Tarefa; onAbrir: () => void }) {
   const { nome } = useDados(); const done = t.status === "feito"; const s = situacaoPrazo(t.vencimento);
   const cor = done ? "var(--ok)" : t.status === "revisao" || t.status === "ajustes" ? "var(--soon)" : s.cor === "late" ? "var(--late)" : s.cor === "soon" ? "var(--soon)" : "var(--accent)";
   return (
-    <div className={"tcard" + (aberto ? " aberto" : "")} id={"tar-" + t.id}>
-      <button className="tc-topo" onClick={onAbrir} aria-expanded={aberto}>
+    <div className="tcard" id={"tar-" + t.id}>
+      <button className="tc-topo" onClick={onAbrir}>
         <span className="tc-dot" style={{ background: cor }} />
         <span className="tc-tit">{t.urgente && <span className="lx-flag urg">!</span>}{t.importante && <span className="lx-flag imp">★</span>}{t.descricao}</span>
         <span className="tc-data">{dataBR(t.vencimento)}</span>
@@ -96,10 +96,9 @@ function CartaoTarefa({ t, aberto, onAbrir }: { t: Tarefa; aberto: boolean; onAb
       <div className="tc-corpo">
         <div className="tc-linha">{done ? <span className="pill ok">cumprida em {dataHoraBR(t.feito_em).slice(0, 10)}</span> : <span className={"pill " + s.cor}>Prazo fatal: {dataBR(t.vencimento)} · {s.texto}</span>}
           {t.status === "revisao" && <span className="pill acc">em correção com {nome(t.revisor)}</span>}{t.status === "ajustes" && <span className="pill soon">ajustes pedidos</span>}{t.status === "aprovada" && <span className="pill ok">aprovada · protocolar</span>}{t.status === "andamento" && <span className="pill acc">em andamento</span>}</div>
-        {!aberto && <ListaAnexos t={t} />}
+        <ListaAnexos t={t} />
       </div>
       <div className="tc-pe"><span className="muted">{dataHoraBR(t.criado_em)} · criada por {nome(t.criado_por)}</span><span className="tc-av"><Avatar id={t.criado_por} pequeno /><Avatar id={t.responsavel} pequeno /></span></div>
-      {aberto && <div className="tc-det"><DetalheTarefa t={t} mostrarProc={false} /></div>}
     </div>
   );
 }
@@ -110,7 +109,6 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
   const { pubs, setPubs, evs, setEvs } = useHistorico(numero);
   const [aba, setAba] = useState<Aba>(foco?.aba || "tarefas");
   const [filtro, setFiltro] = useState<"todas" | "abertas" | "feitas">("todas");
-  const [aberta, setAberta] = useState<string | null>(foco?.alvo?.startsWith("tar-") ? foco.alvo.slice(4) : null);
   const [tf, setTf] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" });
   const { analisar, ocupado } = useAnalisar(); const criarAviso = useCriarAviso(); const corpo = useRef<HTMLDivElement>(null); const rolou = useRef(false);
   useEffect(() => { if (p) setEd({ fase: faseCRM(p.fase), notas: p.notas || "" }); }, [p?.numero]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -170,7 +168,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           <div className="tools"><select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)}><option value="todas">Todas as atividades</option><option value="abertas">Em aberto</option><option value="feitas">Cumpridas</option></select>
             <button className={tf ? "btn ghost" : "btn primary"} onClick={() => setTf(!tf)}>{tf ? "Cancelar" : <>{Ic.tarefa}Nova tarefa</>}</button></div>
           {tf && <FormTarefa numero={p.numero} resp={p.responsavel || eu.id} onCriada={() => setTf(false)} />}
-          {tsF.length ? tsF.map((t) => <CartaoTarefa key={t.id} t={t} aberto={aberta === t.id} onAbrir={() => setAberta(aberta === t.id ? null : t.id)} />) : <div className="empty">Nenhuma tarefa {filtro === "abertas" ? "em aberto" : filtro === "feitas" ? "cumprida" : ""} neste processo.</div>}
+          {tsF.length ? tsF.map((t) => <CartaoTarefa key={t.id} t={t} onAbrir={() => j.abrirTarefa(t.id)} />) : <div className="empty">Nenhuma tarefa {filtro === "abertas" ? "em aberto" : filtro === "feitas" ? "cumprida" : ""} neste processo.</div>}
         </>}
         {aba === "andamentos" && <>
           <div className="composer" style={{ padding: 0, border: 0 }}><textarea rows={2} value={nota} placeholder="Escreva uma anotação para a equipe…  (Ctrl+Enter envia)" onChange={(e) => setNota(e.target.value)}
@@ -181,7 +179,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
               <div className={"av" + (e.por ? "" : " sys")}>{e.por ? iniciais(autor) : "DJ"}</div>
               <div className="bub"><div className="bh"><strong>{autor}</strong> · {dataHoraBR(e.em)}</div><CorpoEvento e={e} t={t} nome={nome} />
                 {px && e.tipo !== "analise_concluida" && <button className="reflink" onClick={() => irPub(px.id)}>↳ referente a: {atoPub(px)} de {dataBR(px.data)}</button>}
-                {t && e.tipo === "tarefa_criada" && <button className="reflink" onClick={() => { setAba("tarefas"); setAberta(t.id); }}>↳ abrir a tarefa</button>}
+                {t && e.tipo === "tarefa_criada" && <button className="reflink" onClick={() => j.abrirTarefa(t.id)}>↳ abrir a tarefa</button>}
               </div></div>;
           }) : <div className="empty">Nenhum andamento registrado ainda.</div>}</div>
         </>}

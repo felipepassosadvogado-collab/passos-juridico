@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useDados, useOpcoesEquipe } from "@/lib/dados";
 import { dataBR, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
@@ -10,6 +11,12 @@ import { useJanelas } from "@/components/janelas";
 import { Ic, baixar } from "@/components/ui";
 
 const TIT: Record<string, string> = { abertos: "Em aberto", correcao: "Em correção", marcadas: "Importantes e urgentes", vencidas: "Vencidas", feitas: "Cumpridas" };
+
+function AbreDoLink() {
+  const sp = useSearchParams(); const id = sp.get("tarefa"); const j = useJanelas(); const { pronto } = useDados();
+  useEffect(() => { if (id && pronto) j.abrirTarefa(id); }, [id, pronto]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 
 export default function Atividades() {
   const { tarefas, eu, processos, nome, pronto, v } = useDados(); const ops = useOpcoesEquipe(); const partes = usePartes(); const j = useJanelas();
@@ -35,6 +42,7 @@ export default function Atividades() {
   };
   return (
     <>
+      <Suspense fallback={null}><AbreDoLink /></Suspense>
       <div className="pg-title"><h2>Atividades</h2><span className="muted">{l.length} · {TIT[f.st]}</span></div>
       <div className="toolbar">
         <button className="btn primary" onClick={() => j.novaTarefa()}>Nova tarefa</button>
