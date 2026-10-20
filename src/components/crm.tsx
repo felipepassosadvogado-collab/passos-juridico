@@ -13,6 +13,7 @@ import type { Caso, Tarefa } from "@/lib/tipos";
 import { Ic, Janela, SelResp } from "./ui";
 import { FormTarefa, TabelaTarefas } from "./tarefas";
 import { useJanelas } from "./janelas";
+import { CampoValores } from "./valores";
 
 /** arrasto dos cartões: segue o ponteiro, rola o quadro e a coluna nas bordas, solta em qualquer ponto da coluna */
 export function useArrasto(onDrop: (id: string, coluna: string) => void) {
@@ -76,11 +77,12 @@ export function useArrasto(onDrop: (id: string, coluna: string) => void) {
   return arrastou;
 }
 
-export function Coluna({ chave, titulo, dica, cartoes }: { chave: string; titulo: string; dica?: string; cartoes: React.ReactNode[] }) {
+export function Coluna({ chave, titulo, dica, cartoes, extra }: { chave: string; titulo: string; dica?: string; cartoes: React.ReactNode[]; extra?: string }) {
   const [lim, setLim] = useState(40);
   return (
     <section className="kcol" data-k={chave}>
       <header className="kh"><span className="kt">{titulo}</span><span className="count">{cartoes.length}</span></header>
+      {extra && <div className="kextra">{extra}</div>}
       {dica && <div className="kdica">{dica}</div>}
       <div className="kbody">{cartoes.slice(0, lim)}
         {cartoes.length > lim && <button className="btn ghost" onClick={() => setLim(lim + 40)}>Mostrar mais {Math.min(40, cartoes.length - lim)}</button>}
@@ -137,6 +139,10 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
         {!novo && <button className="btn" onClick={() => j.abrirInicial({ clienteId: c.cliente_id || null, banco: c.banco || "", casoId: id })}>Criar petição inicial (Word)</button>}
         {!novo && c.processo_numero && processos.has(c.processo_numero) && <button className="btn" onClick={() => j.abrirProcesso(c.processo_numero!)}>Abrir processo {mascaraCnj(c.processo_numero)}</button>}
       </div>
+      {!novo && <CampoValores compacto valor={c.valor_causa} pct={c.honorarios_pct} onSalvar={async (v) => {
+        const { data, error } = await sb.from("casos").update(v).eq("id", id).select().single();
+        if (error) { aviso(/valor_causa|honorarios/.test(error.message) ? "Falta instalar a etapa 10 (0009_valores.sql) no Supabase." : msgErro(error)); return; } aplicar("casos", data); aviso("Valores salvos.");
+      }} />}
       {!novo && <section className="panel"><div className="ph"><h3>Tarefas do atendimento</h3>
         <button className={tf ? "btn ghost" : "btn primary"} onClick={() => setTf(!tf)}>{tf ? "Fechar" : <>{Ic.tarefa}Criar tarefa</>}</button></div>
         {tf && <div style={{ padding: "12px 16px" }}><FormTarefa casoId={id} tipo="Elaboração de inicial" desc={"contra o " + (c.banco || "banco")} resp={c.responsavel || eu.id} onCriada={() => setTf(false)} /></div>}

@@ -20,7 +20,9 @@ const TABELA: Record<string, Tab> = {
   processos: "processos", clientes: "clientes", tarefas: "tarefas", publicacoes: "caixa", casos: "casos", avisos_cliente: "avisos",
   notificacoes: "notificacoes", mensagens: "mensagens", profiles: "equipe", config: "config", mensagens_lidas: "lidas", documentos: "anexos",
 };
-const PROC_COLS = "numero,mascara,tribunal,orgao,cidade,classe,cliente_id,cliente_nome,reus,banco,fase,notas,responsavel,ultima_data,ultimo_ato,cadastro_manual,criado_em";
+const PROC_COLS_BASE = "numero,mascara,tribunal,orgao,cidade,classe,cliente_id,cliente_nome,reus,banco,fase,notas,responsavel,ultima_data,ultimo_ato,cadastro_manual,criado_em";
+// valor da causa e honorários (etapa 0009); se a etapa ainda não foi instalada, lê sem eles
+let PROC_COLS = PROC_COLS_BASE + ",valor_causa,honorarios_pct";
 
 type Ctx = Mapas & {
   v: number; pronto: boolean; erroCarga: string;
@@ -87,7 +89,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
   const carregar = useCallback(async () => {
     try {
       const [ps, cs, ts, pubs, ca, av, no, ms, eq, cf, li, an] = await Promise.all([
-        todas(() => sb.from("processos").select(PROC_COLS).order("numero")),
+        todas(() => sb.from("processos").select(PROC_COLS).order("numero")).catch((e) => { if (!/valor_causa|honorarios_pct/.test(String(e?.message))) throw e; PROC_COLS = PROC_COLS_BASE; return todas(() => sb.from("processos").select(PROC_COLS).order("numero")); }),
         todas(() => sb.from("clientes").select("*").order("id")),
         todas(() => sb.from("tarefas").select("*").order("id")),
         todas(() => sb.from("publicacoes").select("*").eq("triagem", "pendente").order("id")),

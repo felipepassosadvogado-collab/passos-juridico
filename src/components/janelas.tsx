@@ -16,11 +16,12 @@ import { JanelaPeca, type CtxPeca } from "./peca";
 import { JanelaProcesso, type FocoProcesso } from "./processo";
 import { JanelaTarefa } from "./tarefa-janela";
 import { JanelaNovoCliente, JanelaNovoProcesso, type CtxNovoProcesso } from "./novos";
+import { JanelaCliente } from "./FichaCliente";
 
-type Aberta = { k: "pub"; id: number } | { k: "aviso"; id: string } | { k: "tarefa"; numero?: string } | { k: "caso"; id: string; tarefa?: boolean } | { k: "inicial"; ctx: CtxInicial } | { k: "peca"; ctx: CtxPeca } | { k: "processo"; numero: string; foco?: FocoProcesso } | { k: "verTarefa"; id: string } | { k: "novoProcesso"; ctx: CtxNovoProcesso } | { k: "novoCliente" };
+type Aberta = { k: "pub"; id: number } | { k: "aviso"; id: string } | { k: "tarefa"; numero?: string } | { k: "caso"; id: string; tarefa?: boolean } | { k: "inicial"; ctx: CtxInicial } | { k: "peca"; ctx: CtxPeca } | { k: "processo"; numero: string; foco?: FocoProcesso } | { k: "verTarefa"; id: string } | { k: "novoProcesso"; ctx: CtxNovoProcesso } | { k: "novoCliente" } | { k: "cliente"; id: string };
 type Ctx = {
   abrirPub: (id: number) => void; abrirAviso: (id: string) => void; novaTarefa: (numero?: string) => void;
-  abrirCaso: (id: string, comTarefa?: boolean) => void; abrirInicial: (ctx: CtxInicial) => void; gerarPeca: (ctx: CtxPeca) => void; abrirProcesso: (numero: string, foco?: FocoProcesso) => void; abrirTarefa: (id: string) => void; novoProcesso: (ctx?: CtxNovoProcesso) => void; novoCliente: () => void; fechar: () => void;
+  abrirCaso: (id: string, comTarefa?: boolean) => void; abrirInicial: (ctx: CtxInicial) => void; gerarPeca: (ctx: CtxPeca) => void; abrirProcesso: (numero: string, foco?: FocoProcesso) => void; abrirTarefa: (id: string) => void; novoProcesso: (ctx?: CtxNovoProcesso) => void; novoCliente: () => void; abrirCliente: (id: string) => void; fechar: () => void;
 };
 const C = createContext<Ctx | null>(null);
 export function useJanelas() { const c = useContext(C); if (!c) throw new Error("useJanelas fora do provedor"); return c; }
@@ -32,7 +33,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
   const trocar = useCallback((a: Aberta | null) => setPilha((p) => (a ? [...p.slice(0, -1), a] : p.slice(0, -1))), []);
   const v: Ctx = {
     abrirPub: (id) => abrir({ k: "pub", id }), abrirAviso: (id) => abrir({ k: "aviso", id }), novaTarefa: (numero) => abrir({ k: "tarefa", numero }),
-    abrirCaso: (id, tarefa) => abrir({ k: "caso", id, tarefa }), abrirInicial: (ctx) => abrir({ k: "inicial", ctx }), gerarPeca: (ctx) => abrir({ k: "peca", ctx }), abrirProcesso: (numero, foco) => abrir({ k: "processo", numero, foco }), abrirTarefa: (id) => abrir({ k: "verTarefa", id }), novoProcesso: (ctx) => abrir({ k: "novoProcesso", ctx: ctx || {} }), novoCliente: () => abrir({ k: "novoCliente" }), fechar,
+    abrirCaso: (id, tarefa) => abrir({ k: "caso", id, tarefa }), abrirInicial: (ctx) => abrir({ k: "inicial", ctx }), gerarPeca: (ctx) => abrir({ k: "peca", ctx }), abrirProcesso: (numero, foco) => abrir({ k: "processo", numero, foco }), abrirTarefa: (id) => abrir({ k: "verTarefa", id }), novoProcesso: (ctx) => abrir({ k: "novoProcesso", ctx: ctx || {} }), novoCliente: () => abrir({ k: "novoCliente" }), abrirCliente: (id) => abrir({ k: "cliente", id }), fechar,
   };
   const topo = pilha[pilha.length - 1];
   return (
@@ -46,6 +47,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
       {topo?.k === "peca" && <JanelaPeca ctx={topo.ctx} onFechar={fechar} />}
       {topo?.k === "novoProcesso" && <JanelaNovoProcesso ctx={topo.ctx} onFechar={fechar} onCriado={(n) => trocar({ k: "processo", numero: n })} onCaso={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "novoCliente" && <JanelaNovoCliente onFechar={fechar} />}
+      {topo?.k === "cliente" && <JanelaCliente key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "verTarefa" && <JanelaTarefa key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "processo" && <JanelaProcesso key={topo.numero} numero={topo.numero} foco={topo.foco} onFechar={fechar} />}
     </C.Provider>

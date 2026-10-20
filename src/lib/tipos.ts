@@ -10,6 +10,7 @@ export type Processo = {
   numero: string; mascara: string; tribunal: string | null; orgao: string | null; cidade: string | null; classe: string | null;
   cliente_id: string | null; cliente_nome: string; reus: string[]; banco: string | null; fase: string | null; notas: string | null;
   responsavel: string | null; ultima_data: string | null; ultimo_ato: string | null; cadastro_manual: boolean; criado_em: string;
+  valor_causa?: number | null; honorarios_pct?: number | null;
 };
 export type Publicacao = {
   id: number; processo_numero: string; data: string; tipo_com: string | null; tipo_doc: string | null; orgao: string | null;
@@ -26,6 +27,7 @@ export type Tarefa = {
 export type Caso = {
   id: string; cliente_id: string | null; nome: string; banco: string | null; contratos: string | null; etapa: string;
   responsavel: string | null; obs: string | null; processo_numero: string | null; criado_por: string | null; criado_em: string;
+  valor_causa?: number | null; honorarios_pct?: number | null;
 };
 export type Modalidade = "video" | "jf_agendado" | "jf_balcao";
 export type Aviso = {

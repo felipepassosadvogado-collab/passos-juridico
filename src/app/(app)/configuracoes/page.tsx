@@ -1,4 +1,5 @@
 "use client";
+import { PCT_PADRAO } from "@/lib/valores";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR } from "@/lib/formato";
@@ -9,7 +10,7 @@ import { baixar } from "@/components/ui";
 export default function Configuracoes() {
   const { config, titular, sb, aviso, processos, clientes, tarefas, casos, avisos } = useDados();
   const g = config.geral || {}; const dj = config.djen || {};
-  const [url, setUrl] = useState(g.atendeUrl || "");
+  const [url, setUrl] = useState(g.atendeUrl || ""); const [pct, setPct] = useState(String(g.honorariosPct ?? PCT_PADRAO));
   if (!titular) return <div className="empty">As configurações são do titular do escritório.</div>;
   const salvarGeral = async (campos: Record<string, unknown>, ok: string) => {
     const { error } = await sb.from("config").upsert({ chave: "geral", valor: { ...g, ...campos } }, { onConflict: "chave" });
@@ -29,6 +30,12 @@ export default function Configuracoes() {
           <label className="chk" style={{ fontWeight: 500 }}><input type="checkbox" checked={g.analiseAutomatica !== false} onChange={(e) => salvarGeral({ analiseAutomatica: e.target.checked }, e.target.checked ? "As publicações novas serão analisadas sozinhas." : "Análise automática desligada.")} />
             Analisar sozinho cada publicação nova que chegar do DJEN</label>
           <div className="muted" style={{ fontSize: 13 }}>O Claude lê o ato, sugere a tarefa, o prazo em dias úteis e a fase, e já marca para avisar o cliente quando houver perícia, audiência ou coleta. Quem decide continua sendo a equipe. Usa a chave ANTHROPIC_API_KEY cadastrada na Vercel.</div>
+        </div></section>
+      <section className="panel"><div className="ph"><h3>Honorários contratuais</h3></div>
+        <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: "72ch" }}>
+          <p style={{ margin: 0 }}>Percentual padrão sobre o valor da causa, usado no CRM e na ficha quando o processo não tem um percentual próprio.</p>
+          <div className="tools"><input style={{ width: 110 }} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} /><span>%</span>
+            <button className="btn primary" onClick={() => { const v = parseFloat(pct.replace(",", ".")); if (!(v > 0 && v <= 100)) { aviso("Informe um percentual entre 0 e 100."); return; } salvarGeral({ honorariosPct: v }, "Percentual salvo."); }}>Salvar</button></div>
         </div></section>
       <section className="panel"><div className="ph"><h3>Atende Direito</h3></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>

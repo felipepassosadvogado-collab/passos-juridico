@@ -51,6 +51,12 @@ export async function POST(req: Request) {
   const buf = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   const nome = "Peticao_Inicial_" + bancoCurto(pi.banco).replace(/\W+/g, "") + "_e_INSS-_" + semAcento(cli.nome).toUpperCase().replace(/[^A-Z0-9]+/g, "_") + ".docx";
 
+  // o valor da causa da inicial fica gravado no processo ou no atendimento (gestão de honorários)
+  if (causa > 0) {
+    const num = String(pi.numero || "").replace(/\D/g, "");
+    if (num.length === 20) await m.sb.from("processos").update({ valor_causa: Math.round(causa * 100) / 100 }).eq("numero", num).then(() => {}, () => {});
+    else if (pi.casoId) await m.sb.from("casos").update({ valor_causa: Math.round(causa * 100) / 100 }).eq("id", pi.casoId).then(() => {}, () => {});
+  }
   // guarda a qualificação do banco para as próximas petições (só o titular grava a configuração)
   const kb = chaveBanco(pi.banco);
   if (kb && bq && !/\[/.test(bq) && m.perfil.papel === "titular") {
