@@ -53,3 +53,24 @@ describe("formatação", () => {
     expect(numeroBR("5.446,28")).toBe(5446.28);
   });
 });
+
+import { limparHtml } from "./djen";
+import { mensagemPadrao, sugerirFase, avisoDaAnalise, chaveBanco } from "./regras";
+
+describe("DJEN e regras do escritório", () => {
+  it("tira o HTML do texto da publicação", () => {
+    expect(limparHtml("<p>Intime-se&nbsp;a parte</p><br>Prazo: <b>15 dias</b>")).toBe("Intime-se a parte\n\nPrazo: 15 dias");
+    expect(limparHtml("texto simples")).toBe("texto simples");
+  });
+  it("monta a mensagem do WhatsApp", () => {
+    const m = mensagemPadrao({ tipo_evento: "Perícia", data_evento: "2026-11-05", hora: "14:00:00", local: "sede do juízo", orientacoes: "levar RG" }, "MARIA DAS GRAÇAS", "BANCO C6 CONSIGNADO S.A.");
+    expect(m).toContain("Olá, Maria!");
+    expect(m).toContain("contra o C6, a Justiça marcou perícia no dia 05/11/2026 (quinta-feira, 5 de novembro), às 14:00, em sede do juízo.");
+  });
+  it("sugere a fase e lê a análise", () => {
+    expect(sugerirFase({ orgao: "2ª Turma Recursal de SC", classe: "RECURSO CÍVEL", ultimo_ato: "" })).toBe("Recurso");
+    expect(sugerirFase({ orgao: "6ª Vara Federal de Joinville", classe: "PROCEDIMENTO", ultimo_ato: "LAUDO PERICIAL" })).toBe("Perícia / instrução");
+    expect(avisoDaAnalise({ evento: { tipo: "Perícia", data: "2026-11-05", hora: "14:00" } })).toMatchObject({ tipo_evento: "Perícia", data_evento: "2026-11-05", hora: "14:00" });
+    expect(chaveBanco("Banco C6 Consignado S.A.")).toBe("c6");
+  });
+});

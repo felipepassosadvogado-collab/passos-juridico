@@ -20,7 +20,31 @@ export type Tarefa = {
   id: string; processo_numero: string | null; caso_id: string | null; publicacao_id: number | null; tipo: string | null;
   descricao: string; vencimento: string | null; dias: number | null; responsavel: string | null; revisor: string | null;
   status: StatusTarefa; importante: boolean; urgente: boolean; criado_por: string | null; criado_em: string; feito_em: string | null;
+  feito_por: string | null; iniciado_em: string | null; enviado_em: string | null; devolvido_em: string | null; aprovado_em: string | null;
+  aprovado_por: string | null; protocolo_avisado_em: string | null; editado_em: string | null; nota_correcao: string | null;
 };
-export type Evento = { id: number; processo_numero: string | null; tarefa_id: string | null; publicacao_id: number | null; tipo: string; dados: Record<string, unknown>; por: string | null; em: string };
+export type Caso = {
+  id: string; cliente_id: string | null; nome: string; banco: string | null; contratos: string | null; etapa: string;
+  responsavel: string | null; obs: string | null; processo_numero: string | null; criado_por: string | null; criado_em: string;
+};
+export type Aviso = {
+  id: string; processo_numero: string; publicacao_id: number | null; tipo_evento: string | null; data_evento: string | null; hora: string | null;
+  local: string | null; orientacoes: string | null; mensagem: string | null; status: "pendente" | "avisado"; canal: string | null;
+  aberto_em: string | null; avisado_em: string | null; avisado_por: string | null; criado_por: string | null; criado_em: string;
+};
+export type Notificacao = {
+  id: string; para: string; de: string | null; tipo: string; texto: string; processo_numero: string | null; caso_id: string | null;
+  tarefa_id: string | null; lida: boolean; em: string;
+};
+export type Documento = {
+  id: string; cliente_id: string | null; tarefa_id: string | null; tipo: string | null; etapa: string | null; nome: string;
+  caminho: string; tamanho: number | null; mime: string | null; por: string | null; em: string;
+};
+export type Mensagem = { id: string; conversa: string; de: string; texto: string; em: string };
+export type Analise = {
+  ato?: string; resumo?: string; providencia?: string; tarefa?: string | null; prazoDias?: number | null; fase?: string | null; obs?: string;
+  intimarCliente?: boolean; evento?: { tipo?: string; data?: string | null; hora?: string | null; local?: string | null; orientacoes?: string } | null;
+};
+export type Evento = { id: number; processo_numero: string | null; caso_id: string | null; tarefa_id: string | null; publicacao_id: number | null; tipo: string; dados: Record<string, unknown>; por: string | null; em: string };
 
 export const FASES = ["Protocolo / citação", "Réplica", "Perícia / instrução", "Sentença", "Recurso", "Cumprimento de sentença", "Petição nos próprios autos", "Encerrado"] as const;

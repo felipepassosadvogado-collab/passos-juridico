@@ -15,7 +15,8 @@ export async function middleware(req: NextRequest) {
     },
   });
   const { data: { user } } = await sb.auth.getUser();
-  const publica = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/auth");
+  // as rotas /api conferem o acesso sozinhas (a busca automática do DJEN chega sem sessão, com a chave CRON_SECRET)
+  const publica = /^\/(login|auth|api)(\/|$)/.test(req.nextUrl.pathname);
   if (!user && !publica) {
     const url = req.nextUrl.clone(); url.pathname = "/login"; url.searchParams.set("de", req.nextUrl.pathname);
     return NextResponse.redirect(url);

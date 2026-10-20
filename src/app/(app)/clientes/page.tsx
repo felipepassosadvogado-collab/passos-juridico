@@ -1,39 +1,52 @@
+"use client";
 import Link from "next/link";
-import { exigirMembro } from "@/lib/sessao";
-import { mascaraCpf, nomeBonito } from "@/lib/formato";
-import type { Cliente } from "@/lib/tipos";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useDados } from "@/lib/dados";
+import { nomeBonito, semAcento } from "@/lib/formato";
+import { soDigitos } from "@/lib/cnj";
 
-export const metadata = { title: "Clientes" };
-
-export default async function Clientes({ searchParams }: { searchParams: Promise<{ q?: string; p?: string }> }) {
-  const { sb } = await exigirMembro();
-  const sp = await searchParams; const q = (sp.q || "").trim(); const pag = Math.max(1, +(sp.p || 1)); const por = 50;
-  let consulta = sb.from("clientes").select("id,nome,cpf,telefone,cidade,nb", { count: "exact" }).order("nome").range((pag - 1) * por, pag * por - 1);
-  if (q) {
-    const d = q.replace(/\D/g, "");
-    consulta = d.length >= 3 && d.length === q.replace(/[\s.\-()/]/g, "").length
-      ? consulta.or(`cpf.ilike.${mascaraCpf(d)}%,telefone.ilike.%${d}%,nb.ilike.%${d}%`)
-      : consulta.ilike("nome", `%${q.replace(/[%,()]/g, " ")}%`);
-  }
-  const { data, count } = await consulta;
-  const lista = (data || []) as Pick<Cliente, "id" | "nome" | "cpf" | "telefone" | "cidade" | "nb">[];
-  const total = count || 0;
+export default function Clientes() {
+  const { clientes, processos, tarefas, titular, sb, aplicar, aviso, v } = useDados(); const router = useRouter();
+  const [q, setQ] = useState(""); const [ocupado, setOcupado] = useState(false);
+  const { qtd, prz, semCli } = useMemo(() => {
+    const qtd: Record<string, number> = {}, prz: Record<string, number> = {}; let semCli = 0;
+    for (const p of processos.values()) { if (p.cliente_id) qtd[p.cliente_id] = (qtd[p.cliente_id] || 0) + 1; else semCli++; }
+    for (const t of tarefas.values()) if (t.status !== "feito" && t.processo_numero) { const c = processos.get(t.processo_numero)?.cliente_id; if (c) prz[c] = (prz[c] || 0) + 1; }
+    return { qtd, prz, semCli };
+  }, [processos, tarefas, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  let l = [...clientes.values()];
+  if (q) { const n = semAcento(q), d = soDigitos(q); l = l.filter((c) => semAcento(c.nome + " " + (c.cidade || "") + " " + (c.email || "")).includes(n) || (d.length >= 3 && [c.cpf, c.telefone, c.nb].some((x) => soDigitos(x).includes(d)))); }
+  l.sort((a, b) => semAcento(a.nome).localeCompare(semAcento(b.nome)));
+  /** liga os processos sem ficha ao cliente de mesmo nome (cria a ficha quando não existe) */
+  const vincular = async () => {
+    setOcupado(true); let ok = 0;
+    const porNome = new Map([...clientes.values()].map((c) => [semAcento(c.nome), c.id]));
+    try {
+      for (const p of processos.values()) {
+        if (p.cliente_id) continue; const nome = (p.cliente_nome || "").split(" / ")[0].trim();
+        if (!nome || /\bbanco\b|s\.?a\.?$|ltda|instituto nacional|sigilo/i.test(nome)) continue;
+        let id = porNome.get(semAcento(nome));
+        if (!id) { const { data } = await sb.from("clientes").insert({ nome: nomeBonito(nome) }).select().single(); if (!data) continue; aplicar("clientes", data); id = data.id; porNome.set(semAcento(nome), id!); }
+        const { data } = await sb.from("processos").update({ cliente_id: id }).eq("numero", p.numero).select().single(); if (data) { aplicar("processos", data); ok++; }
+      }
+      aviso(ok + " processos ligados a clientes.");
+    } finally { setOcupado(false); }
+  };
   return (
     <>
-      <div className="pg"><div><h1>Clientes</h1><div className="sub">{total} cadastrados</div></div>
-        <div className="tools"><form><input name="q" defaultValue={q} placeholder="Nome, CPF, telefone ou NB" aria-label="Buscar cliente" /></form>
-          <Link className="btn primary" href="/clientes/novo">Novo cliente</Link></div></div>
-      <section className="panel tscroll">
-        {lista.length ? <table className="grid"><thead><tr><th>Cliente</th><th>CPF</th><th>Telefone</th><th>Cidade</th></tr></thead><tbody>
-          {lista.map((c) => <tr key={c.id}><td className="forte"><Link href={"/clientes/" + c.id} style={{ color: "inherit" }}>{nomeBonito(c.nome)}</Link>{c.nb && <div className="s">NB {c.nb}</div>}</td>
-            <td className="mono">{c.cpf || "—"}</td><td className="mono">{c.telefone || "—"}</td><td>{c.cidade || "—"}</td></tr>)}
-        </tbody></table> : <div className="empty"><strong>Nenhum cliente encontrado.</strong>{q ? "Tente outra busca." : "Cadastre o primeiro ou importe os dados do painel antigo."}</div>}
-      </section>
-      {total > por && <div className="tools">
-        {pag > 1 && <Link className="btn" href={`?q=${encodeURIComponent(q)}&p=${pag - 1}`}>‹ Anterior</Link>}
-        <span className="muted">Página {pag} de {Math.ceil(total / por)}</span>
-        {pag * por < total && <Link className="btn" href={`?q=${encodeURIComponent(q)}&p=${pag + 1}`}>Próxima ›</Link>}
-      </div>}
+      <div className="head"><div><h2>Clientes</h2><div className="sub">{l.length} de {clientes.size}</div></div>
+        <div className="tools"><input type="search" placeholder="Nome, CPF, telefone ou NB" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar cliente" />
+          <Link className="btn primary" href="/clientes/novo">Novo cliente (com documentos)</Link>
+          {titular && semCli > 0 && <button className="btn" disabled={ocupado} onClick={vincular}>{ocupado ? "Ligando…" : `Ligar ${semCli} processos sem cliente`}</button>}</div></div>
+      {!clientes.size ? <div className="panel"><div className="empty"><strong>Nenhum cliente cadastrado ainda.</strong>Importe os dados do painel antigo ou cadastre o primeiro cliente.</div></div> :
+        <div className="panel tscroll"><table className="grid"><thead><tr><th>Cliente</th><th>CPF</th><th>Telefone</th><th>Processos</th><th>Prazos</th></tr></thead>
+          <tbody>{l.slice(0, 500).map((c) => (
+            <tr key={c.id} className="click" onClick={() => router.push("/clientes/" + c.id)}>
+              <td><div style={{ fontWeight: 600 }}>{nomeBonito(c.nome)}</div><div className="s">{[c.cidade, c.nb ? "NB " + c.nb : ""].filter(Boolean).join(" · ")}</div></td>
+              <td className="mono">{c.cpf || "—"}</td><td className="mono">{c.telefone || "—"}</td><td>{qtd[c.id] || 0}</td>
+              <td>{prz[c.id] ? <span className="pill soon">{prz[c.id]} em aberto</span> : !(c.cpf && c.telefone) ? <span className="pill">ficha incompleta</span> : ""}</td></tr>))}</tbody></table></div>}
+      {l.length > 500 && <div className="muted">Mostrando 500. Use a busca para encontrar os demais.</div>}
     </>
   );
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import JSZip from "jszip";
 import { importarLote, limparEventosDasTarefas, jaImportado, clientesPorCpf } from "./acoes";
 import { supabaseNavegador } from "@/lib/supabase/client";
+import { useDados } from "@/lib/dados";
 import { semAcento } from "@/lib/formato";
 import type { Perfil } from "@/lib/tipos";
 
@@ -28,6 +29,7 @@ export function Importador({ equipe, eu }: { equipe: Perfil[]; eu: string }) {
   const [log, setLog] = useState<string[]>([]);
   const [rodando, setRodando] = useState(false);
   const [erro, setErro] = useState("");
+  const { recarregar } = useDados();
   const add = (l: string) => setLog((x) => [...x, l]);
 
   async function abrir(f: File) {
@@ -201,6 +203,7 @@ export function Importador({ equipe, eu }: { equipe: Perfil[]; eu: string }) {
         }
         await lotes("documentos", docs, 100);
       } else add("Sem .zip: os arquivos (RG, procurações, anexos) não foram trazidos.");
+      add("Atualizando as telas…"); await recarregar();
       add("Importação concluída.");
     } catch (e) { setErro(e instanceof Error ? e.message : "A importação parou."); }
     finally { setRodando(false); }

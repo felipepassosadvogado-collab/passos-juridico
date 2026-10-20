@@ -6,3 +6,8 @@ create function auth.uid() returns uuid language sql stable as $$ select nullif(
 create publication supabase_realtime;
 grant usage on schema public, auth to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
+-- armazenamento de arquivos (só o necessário para as políticas)
+create schema if not exists storage;
+create table if not exists storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
+create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+alter table storage.objects enable row level security;

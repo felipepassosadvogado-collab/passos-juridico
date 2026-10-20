@@ -1,0 +1,92 @@
+// Listas e regras do escritório usadas em várias telas (as mesmas do painel antigo).
+import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Processo } from "./tipos";
+import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
+import { paraData } from "./prazos";
+
+export const TAREFAS = ["Elaboração de inicial", "Petição simples", "Petição de juntada", "Alegações finais", "Réplica com pedido de perícia",
+  "Manifestação ao laudo pericial", "Recurso inominado", "Contrarrazões ao recurso inominado", "Embargos de declaração",
+  "Cumprimento de sentença / cálculos", "Contato com o cliente", "Audiência", "Outra"];
+
+export const ETAPAS = ["Primeiro atendimento", "Documentos pendentes", "Elaboração da inicial", "Revisão da inicial", "Pronto para protocolar", "Protocolado"];
+export const DICAS_ETAPA: Record<string, string> = {
+  "Primeiro atendimento": "Conversa inicial e análise do extrato", "Documentos pendentes": "RG, comprovante, procuração, extratos",
+  "Elaboração da inicial": "Tarefa: elaboração de inicial contra o banco", "Revisão da inicial": "Correção antes do protocolo",
+  "Pronto para protocolar": "Peça aprovada, protocolar no eproc", "Protocolado": "Vira processo no quadro judicial",
+};
+export const DICAS_FASE: Record<string, string> = {
+  "": "Sem fase definida", "Protocolo / citação": "Inicial protocolada, aguardando citação", "Réplica": "Contestação apresentada, prazo de réplica",
+  "Perícia / instrução": "Perícia grafotécnica, laudo e audiência", "Sentença": "Aguardando ou analisando sentença", "Recurso": "Recurso inominado e contrarrazões",
+  "Cumprimento de sentença": "Cálculos, RPV, alvará e prestação de contas", "Petição nos próprios autos": "Pedidos incidentais no processo", "Encerrado": "Arquivado",
+};
+export const BANCOS = ["Banco C6 Consignado S.A.", "Itaú Unibanco S.A.", "Banco Daycoval S.A.", "Banco BMG S.A.", "Banco Bradesco S.A.", "Banco Pan S.A.",
+  "Banco Santander S.A.", "Banco Mercantil do Brasil S.A.", "Facta Financeira S.A.", "Crefisa S.A."];
+export const TIPOS_EV = ["Perícia", "Coleta de padrão grafotécnico", "Audiência", "Comparecimento", "Outro"];
+export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: "Comprovante de residência", procuracao: "Procuração", contrato: "Contrato de honorários", extrato: "Extrato do INSS", outro: "Outro" };
+
+const MAPA_FASE: Record<string, string> = { "Inicial / citação": "Protocolo / citação", "Contestação / réplica": "Réplica", "Perícia grafotécnica": "Perícia / instrução", "Manifestação ao laudo": "Perícia / instrução", "Audiência": "Perícia / instrução" };
+export const faseCRM = (f?: string | null) => MAPA_FASE[f || ""] || f || "";
+
+/** sugestão de fase pelos dados do processo (juízo, classe e último ato) */
+export function sugerirFase(p: Pick<Processo, "orgao" | "classe" | "ultimo_ato">): string {
+  const o = p.orgao || "", c = (p.classe || "").toUpperCase(), u = (p.ultimo_ato || "").toUpperCase();
+  if (/CUMPRIMENTO|EXECU/.test(c) || /Precat|Contadoria|RPV/i.test(o)) return "Cumprimento de sentença";
+  if (/Turma Recursal|Câmara|Vice-Presid|Presidência|Turma/i.test(o) || /RECURSO|AGRAVO|APELA/.test(c)) return "Recurso";
+  if (/SENTEN/.test(u)) return "Sentença";
+  if (/LAUDO|PER[IÍ]CIA/.test(u)) return "Perícia / instrução";
+  if (/CONTESTA|R[EÉ]PLICA/.test(u)) return "Réplica";
+  if (/DISTRIBUI|CITA/.test(u)) return "Protocolo / citação";
+  return "";
+}
+
+export const STATUS_NOME: Record<string, string> = { aberto: "Em aberto", andamento: "Em andamento", revisao: "Em correção", ajustes: "Ajustes pedidos", aprovada: "Aprovada", feito: "Cumprida" };
+/** rótulo do passo da correção, com o nome de quem corrige */
+export function rotuloCorrecao(t: Tarefa, nome: (id?: string | null) => string): [string, string] | null {
+  const r = nome(t.revisor);
+  return ({ revisao: ["acc", "em correção com " + r], ajustes: ["soon", "ajustes pedidos por " + r], aprovada: ["ok", "aprovada por " + r + " · protocolar"] } as Record<string, [string, string]>)[t.status] || null;
+}
+/** a quem avisar o protocolo: quem corrigiu ou quem criou a tarefa */
+export const destinoProtocolo = (t: Tarefa, eu: string) => { const d = t.revisor || t.criado_por || null; return d && d !== eu ? d : null; };
+
+export const rotuloPub = (x: Pick<Publicacao, "tipo_doc" | "tipo_com" | "data">) => (x.tipo_doc && x.tipo_doc !== "Outros" ? x.tipo_doc : x.tipo_com || "Publicação") + " de " + dataBR(x.data);
+export const atoPub = (x: Pick<Publicacao, "tipo_doc" | "tipo_com">) => (x.tipo_doc && x.tipo_doc !== "Outros" ? x.tipo_doc : x.tipo_com || "Publicação");
+
+const RX_CLIENTE = /audi[eê]ncia|per[ií]cia|coleta d[eo] (padr|assinatura|material)|padr[aã]o grafot|grafot[eé]cnic|comparec(er|imento)|depoimento pessoal/i;
+export const precisaAvisar = (x?: Pick<Publicacao, "texto" | "analise"> | null) => RX_CLIENTE.test(x?.texto || "") || !!(x?.analise as Analise | null)?.intimarCliente;
+
+export const descDaAnalise = (a?: Analise | null) => (a?.providencia && !/^nenhuma/i.test(a.providencia) ? a.providencia : "");
+
+/** dados do aviso ao cliente a partir da análise do Claude */
+export function avisoDaAnalise(an?: Analise | null): Partial<Aviso> {
+  const ev = an?.evento || {};
+  return {
+    tipo_evento: TIPOS_EV.includes(ev.tipo || "") ? ev.tipo! : ev.tipo ? "Outro" : null,
+    data_evento: /^\d{4}-\d\d-\d\d$/.test(ev.data || "") ? ev.data! : null,
+    hora: /^\d\d:\d\d$/.test(ev.hora || "") ? ev.hora! : null,
+    local: ev.local || null, orientacoes: ev.orientacoes || null,
+  };
+}
+
+export const primeiroNome = (n?: string | null) => nomeBonito((n || "").split(/\s+/)[0] || "");
+export function dataExtenso(iso?: string | null) {
+  if (!iso) return "";
+  return paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+}
+/** mensagem padrão do WhatsApp para avisar o cliente */
+export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes">, nomeCliente: string, banco?: string | null) {
+  const nome = primeiroNome(nomeCliente); const b = bancoCurto(banco || ""); const tipo = (av.tipo_evento || "um ato").toLowerCase();
+  const hora = (av.hora || "").slice(0, 5);
+  const quando = av.data_evento ? ` no dia ${dataBR(av.data_evento)} (${dataExtenso(av.data_evento)})${hora ? ", às " + hora : ""}` : "";
+  return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`,
+    `No seu processo${b && b !== "—" ? " contra o " + b : ""}, a Justiça marcou ${tipo}${quando}${av.local ? ", em " + av.local : ""}.`,
+    av.orientacoes || "",
+    "Sua presença é importante. Por favor, responda esta mensagem confirmando que recebeu."].filter(Boolean).join("\n\n");
+}
+
+export { FASES };
+
+/** chave curta do banco ("c6", "itau"…) para guardar a qualificação dele */
+export const chaveBanco = (b: string) => semAcento(bancoCurto(b || "")).replace(/[^a-z0-9]/g, "");
+
+/** qualificação do C6 já conhecida pelo modelo */
+export const QUALIF_PADRAO: Record<string, string> = { c6: ", pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 61.348.538/0001-86, com sede na Avenida Nove de Julho, nº 3.148, Bairro Jardim Paulista, na cidade de São Paulo/SP, CEP 01406-000; e" };
+export const ESPECIES = ["aposentadoria por idade", "aposentadoria por tempo de contribuição", "aposentadoria por invalidez", "aposentadoria especial", "pensão por morte", "benefício assistencial ao idoso (LOAS)", "benefício assistencial à pessoa com deficiência (LOAS)", "auxílio-doença"];
