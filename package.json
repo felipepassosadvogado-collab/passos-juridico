@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "2.118.0",
     "jszip": "3.10.2",
     "next": "15.5.28",
+    "pdf-lib": "1.17.1",
     "react": "19.1.10",
     "react-dom": "19.1.10",
     "unpdf": "1.9.0"

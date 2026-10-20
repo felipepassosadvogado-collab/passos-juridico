@@ -7,7 +7,7 @@ import { chaveBanco } from "@/lib/regras";
 
 type Pedido = {
   clienteId: string; genero: "F" | "M"; cidadeJuizo: string; especie: string; nb: string; pagador: string; banco: string; bancoQualif: string;
-  contratos: { numero: string; parcela: string; inclusao: string }[]; total: string; moral: string; numero?: string | null; casoId?: string | null;
+  contratos: { numero: string; parcela: string; inclusao: string }[]; total: string; moral: string; indebitoAtualizado?: string; numero?: string | null; casoId?: string | null;
 };
 const xmlEsc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (falta.length) return erro("Falta: " + falta.join(", ") + ".");
 
   const F = pi.genero === "F", a = F ? "a" : "o";
-  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral), causa = dobro + moral;
+  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral), causa = (numeroBR(pi.indebitoAtualizado) || dobro) + moral;
   const anos = idade(cli.nascimento); const um = cs.length === 1;
   const fatos = um
     ? "ao contrato nº " + cs[0].numero + (cs[0].parcela ? ", no valor de parcela mensal de R$ " + moeda(cs[0].parcela) : "") + (cs[0].inclusao ? ", incluído em " + dataBR(cs[0].inclusao) : "")

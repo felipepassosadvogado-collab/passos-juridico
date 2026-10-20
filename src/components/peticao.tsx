@@ -6,9 +6,11 @@ import { idade, moeda, nomeBonito, numeroBR, porExtenso } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { ESPECIES, QUALIF_PADRAO, chaveBanco } from "@/lib/regras";
 import { Janela, baixar } from "./ui";
+import { REGIMES, calcular, mesBR, somaMes, type Indices, type Regime, type Resultado } from "@/lib/calculo";
 
 export type CtxInicial = { clienteId: string | null; banco?: string | null; cidade?: string | null; numero?: string | null; casoId?: string | null };
-type Contrato = { numero: string; parcela: string; inclusao: string };
+type Contrato = { numero: string; parcela: string; inclusao: string; inicio?: string; qtd?: string };
+const mesAtual = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
 
 export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: () => void }) {
   const { clientes, config, sb, eu, aviso } = useDados();
@@ -23,11 +25,13 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
   const [contratos, setContratos] = useState<Contrato[]>([{ numero: "", parcela: "", inclusao: "" }]);
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
   const [confirmQ, setConfirmQ] = useState(false);
+  const [calc, setCalc] = useState({ regime: "jf" as Regime, ate: mesAtual(), dobro: true, modulacao: false, usarNaCausa: true });
+  const [ix, setIx] = useState<(Indices & { fonte: string }) | null>(null); const [res, setRes] = useState<Resultado | null>(null); const [calculando, setCalculando] = useState(false);
   if (!cli) return <Janela onFechar={onFechar} titulo="Petição inicial"><div className="banner">Escolha ou cadastre o cliente primeiro (o processo ou o atendimento precisa estar ligado a uma ficha de cliente).</div></Janela>;
   const set = (c: Partial<typeof pi>) => setPi({ ...pi, ...c });
   const faltam = [["nome", "nome"], ["cpf", "CPF"], ["endereco", "endereço"], ["cep", "CEP"], ["cidade", "cidade"]].filter(([c]) => !cli[c as keyof typeof cli]).map(([, r]) => r);
   const anos = idade(cli.nascimento);
-  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral), causa = dobro + moral;
+  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral); const atualizado = res && calc.usarNaCausa ? res.tot.total : 0; const causa = (atualizado || dobro) + moral;
 
   const lerExtrato = async () => {
     setLendo(true); setNota("");
@@ -39,10 +43,10 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       if (d.especie && !pi.especie) { novo.especie = String(d.especie).toLowerCase(); notas.push("espécie"); }
       if (d.nb && !pi.nb) { novo.nb = String(d.nb); notas.push("nº do benefício"); }
       if (d.bancoPagador && !pi.pagador) { novo.pagador = nomeBonito(String(d.bancoPagador)); notas.push("banco pagador"); }
-      const todos = (d.contratos || []) as { numero?: string; banco?: string; parcela?: number; inclusao?: string; parcelasDescontadas?: number }[];
+      const todos = (d.contratos || []) as { numero?: string; banco?: string; parcela?: number; inclusao?: string; inicioDesconto?: string; parcelasDescontadas?: number }[];
       const doBanco = todos.filter((c) => !pi.banco || !c.banco || chaveBanco(c.banco) === chaveBanco(pi.banco));
       const lista = doBanco.length ? doBanco : todos;
-      if (lista.length) { setContratos(lista.map((c) => ({ numero: String(c.numero || ""), parcela: c.parcela != null ? moeda(+c.parcela) : "", inclusao: /^\d{4}-\d\d-\d\d$/.test(c.inclusao || "") ? c.inclusao! : "" }))); notas.push(lista.length + (lista.length === 1 ? " contrato" : " contratos")); }
+      if (lista.length) { setContratos(lista.map((c) => ({ numero: String(c.numero || ""), parcela: c.parcela != null ? moeda(+c.parcela) : "", inclusao: /^\d{4}-\d\d-\d\d$/.test(c.inclusao || "") ? c.inclusao! : "", inicio: /^\d{4}-\d\d/.test(c.inicioDesconto || "") ? c.inicioDesconto!.slice(0, 7) : "", qtd: c.parcelasDescontadas ? String(c.parcelasDescontadas) : "" }))); setRes(null); notas.push(lista.length + (lista.length === 1 ? " contrato" : " contratos")); }
       const est = lista.reduce((s, c) => s + (+(c.parcelasDescontadas || 0)) * (+(c.parcela || 0)), 0);
       if (est > 0 && !pi.total) { novo.total = moeda(est); notas.push("total estimado pelas parcelas descontadas"); }
       set(novo);
@@ -54,17 +58,41 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
     if (/\[[A-ZÇÃ\/ ]+\]/.test(pi.bancoQualif) && !confirmQ) { setConfirmQ(true); aviso("A qualificação do banco ainda tem campos entre colchetes. Clique de novo para gerar assim mesmo."); return; }
     setGerando(true);
     try {
-      const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
+      const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, indebitoAtualizado: atualizado ? moeda(atualizado) : "", contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
       if (!r.ok) { const j = await r.json().catch(() => ({})); aviso(j.erro || "Não foi possível gerar o arquivo."); return; }
       const nome = decodeURIComponent(r.headers.get("x-nome-arquivo") || "Peticao_Inicial.docx");
       baixar(nome, await r.blob()); aviso("Petição gerada. Revise no Word antes de protocolar.");
     } catch { aviso("Não foi possível gerar o arquivo. Tente de novo."); }
     finally { setGerando(false); }
   };
+  /** contratos prontos para o cálculo: 1º desconto (ou o mês seguinte à inclusão) e nº de parcelas (vazio = até a data-base) */
+  const paraCalculo = () => contratos.map((c) => {
+    const inicio = c.inicio || (c.inclusao ? somaMes(c.inclusao.slice(0, 7), 1) : "");
+    const ate = calc.ate; let n = 0; if (inicio) for (let m = inicio; m < ate; m = somaMes(m, 1)) n++;
+    return { numero: c.numero, parcela: numeroBR(c.parcela), inicio, qtd: c.qtd ? Math.min(+c.qtd || 0, n) : n };
+  });
+  const rodarCalculo = async (pdf: boolean) => {
+    const cs = paraCalculo().filter((c) => c.parcela > 0 && c.inicio && c.qtd > 0);
+    if (!cs.length) { aviso("Informe, em cada contrato, a parcela e o mês do 1º desconto (ou a data de inclusão)."); return; }
+    setCalculando(true);
+    try {
+      let indices = ix;
+      if (!indices) { const r = await fetch("/api/calculo/indices"); const j = await r.json().catch(() => ({})); if (!r.ok) { aviso(j.erro || "Não consegui buscar os índices."); return; } indices = j; setIx(j); }
+      const r = calcular(cs, indices!, calc); setRes(r);
+      if (!numeroBR(pi.total)) set({ total: moeda(r.tot.valor) });
+      if (pdf) {
+        const { pdfCalculo } = await import("@/lib/calculoPdf");
+        const bytes = await pdfCalculo(r, calc, { autor: nomeBonito(cli.nome), cpf: cli.cpf, reus: [pi.banco || "banco", "Instituto Nacional do Seguro Social - INSS"].join(" e "), processo: ctx.numero ? ctx.numero.replace(/^(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})$/, "$1-$2.$3.$4.$5.$6") : null, nb: pi.nb, moral }, indices!.fonte);
+        baixar(`Calculo_-_${nomeBonito(cli.nome).replace(/\s+/g, "_")}.pdf`, new Blob([bytes as BlobPart], { type: "application/pdf" }));
+        aviso("Cálculo gerado em PDF.");
+      }
+    } catch (e) { aviso((e as Error).message || "O cálculo falhou."); }
+    finally { setCalculando(false); }
+  };
   const campo = (c: keyof typeof pi, rot: string, ph?: string, list?: string) => <label className="f">{rot}<input value={pi[c]} placeholder={ph} list={list} onChange={(e) => set({ [c]: e.target.value })} /></label>;
   return (
     <Janela largo onFechar={onFechar} titulo="Petição inicial" sub={nomeBonito(cli.nome) + " x " + (pi.banco || "banco") + " e INSS · modelo do escritório"}
-      acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "Gerando…" : "Gerar Word (.docx)"}</button>}>
+      acoes={<><button className="btn" disabled={calculando} onClick={() => rodarCalculo(true)}>{calculando ? "Calculando…" : "Gerar cálculo (PDF)"}</button><button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "Gerando…" : "Gerar Word (.docx)"}</button></>}>
       {faltam.length > 0 && <div className="banner">Falta na ficha do cliente: {faltam.join(", ")}. Complete a ficha antes de gerar.</div>}
       <div className="muted" style={{ fontSize: 13 }}>Qualificação: {[nomeBonito(cli.nome), cli.nacionalidade || (pi.genero === "F" ? "brasileira" : "brasileiro"), cli.estado_civil, cli.profissao, "CPF " + (cli.cpf || "—"), cli.endereco, cli.cep, cli.cidade].filter(Boolean).join(", ")}{anos != null ? ` · ${anos} anos${anos >= 60 ? " (pede prioridade de idoso)" : ""}` : ""}</div>
       <section className="novo-cli">
@@ -90,10 +118,36 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
             <label className="f">Nº do contrato<input value={c.numero} onChange={(e) => setContratos(contratos.map((x, j) => (j === i ? { ...x, numero: e.target.value } : x)))} /></label>
             <label className="f">Parcela (R$)<input inputMode="decimal" value={c.parcela} onChange={(e) => setContratos(contratos.map((x, j) => (j === i ? { ...x, parcela: e.target.value } : x)))} /></label>
             <label className="f">Incluído em<input type="date" value={c.inclusao} onChange={(e) => setContratos(contratos.map((x, j) => (j === i ? { ...x, inclusao: e.target.value } : x)))} /></label>
+            <label className="f">1º desconto (mês)<input type="month" value={c.inicio || ""} placeholder={c.inclusao ? mesBR(somaMes(c.inclusao.slice(0, 7), 1)) : ""} onChange={(e) => { setRes(null); setContratos(contratos.map((x, j) => (j === i ? { ...x, inicio: e.target.value } : x))); }} /></label>
+            <label className="f">Parcelas descontadas<input inputMode="numeric" value={c.qtd || ""} placeholder="até hoje" onChange={(e) => { setRes(null); setContratos(contratos.map((x, j) => (j === i ? { ...x, qtd: e.target.value.replace(/\D/g, "") } : x))); }} /></label>
             {contratos.length > 1 && <div className="tools"><button className="btn ghost" onClick={() => setContratos(contratos.filter((_, j) => j !== i))}>Tirar</button></div>}
           </div>))}</div></section>
       <div className="form2">{campo("total", "Total já descontado (R$)", "5.446,28")}{campo("moral", "Danos morais (R$)")}</div>
-      <div className="valores"><span>Restituição em dobro: <strong>R$ {moeda(dobro)}</strong></span><span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
+      <section className="panel calc"><div className="ph"><h3>Cálculo atualizado</h3><span className="muted" style={{ fontSize: 12 }}>parcelas em dobro, com correção e juros desde cada desconto</span></div>
+        <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="form2">
+            <label className="f full">Critério de atualização<select value={calc.regime} onChange={(e) => { setRes(null); setCalc({ ...calc, regime: e.target.value as Regime }); }}>{(Object.keys(REGIMES) as Regime[]).map((k) => <option key={k} value={k}>{REGIMES[k].nome}</option>)}</select></label>
+            <label className="f">Data-base (mês do cálculo)<input type="month" value={calc.ate} onChange={(e) => { setRes(null); setCalc({ ...calc, ate: e.target.value || mesAtual() }); }} /></label>
+            <div className="f" style={{ justifyContent: "flex-end", gap: 6 }}>
+              <label className="chk"><input type="checkbox" checked={calc.dobro} onChange={(e) => { setRes(null); setCalc({ ...calc, dobro: e.target.checked }); }} /> Restituição em dobro (art. 42 do CDC)</label>
+              <label className="chk"><input type="checkbox" checked={calc.modulacao} disabled={!calc.dobro} onChange={(e) => { setRes(null); setCalc({ ...calc, modulacao: e.target.checked }); }} /> Dobro só após 30/03/2021 (STJ, EAREsp 676.608)</label>
+            </div>
+          </div>
+          <div className="muted" style={{ fontSize: 12.5 }}>{REGIMES[calc.regime].texto} Índices do Banco Central, buscados na hora.</div>
+          <div className="tools"><button className="btn" disabled={calculando} onClick={() => rodarCalculo(false)}>{calculando ? "Calculando…" : "Calcular"}</button>
+            {res && <button className="btn primary" disabled={calculando} onClick={() => rodarCalculo(true)}>Baixar PDF</button>}</div>
+          {res && <div className="calc-res">
+            <table className="grid"><thead><tr><th>Contrato</th><th>Parcelas</th><th className="num">Descontado</th><th className="num">{calc.dobro ? "Em dobro" : "Valor"}</th><th className="num">Correção</th><th className="num">Juros</th><th className="num">Atualizado</th></tr></thead>
+              <tbody>{res.porContrato.map((c) => <tr key={c.contrato}><td className="mono">{c.contrato}</td><td>{c.n}</td><td className="num">{moeda(c.valor)}</td><td className="num">{moeda(c.base)}</td><td className="num">{moeda(c.correcao)}</td><td className="num">{moeda(c.juros)}</td><td className="num"><strong>{moeda(c.total)}</strong></td></tr>)}
+                <tr><td><strong>Total</strong></td><td>{res.linhas.length}</td><td className="num"><strong>{moeda(res.tot.valor)}</strong></td><td className="num">{moeda(res.tot.base)}</td><td className="num">{moeda(res.tot.correcao)}</td><td className="num">{moeda(res.tot.juros)}</td><td className="num"><strong>R$ {moeda(res.tot.total)}</strong></td></tr></tbody></table>
+            <div className="tools" style={{ marginTop: 8 }}>
+              <span className="muted" style={{ fontSize: 12.5 }}>Atualizado até {mesBR(res.ultimoMes)}.{res.faltam.length ? " Índices ainda não divulgados (contados como zero): " + res.faltam.slice(0, 4).join(", ") + "." : ""}</span>
+              {numeroBR(pi.total) !== res.tot.valor && <button className="reflink" onClick={() => set({ total: moeda(res.tot.valor) })}>Usar R$ {moeda(res.tot.valor)} como total descontado</button>}
+              <label className="chk"><input type="checkbox" checked={calc.usarNaCausa} onChange={(e) => setCalc({ ...calc, usarNaCausa: e.target.checked })} /> Usar o valor atualizado no valor da causa</label>
+            </div>
+          </div>}
+        </div></section>
+      <div className="valores"><span>Restituição em dobro: <strong>R$ {moeda(dobro)}</strong></span>{atualizado ? <span>Indébito atualizado: <strong>R$ {moeda(atualizado)}</strong></span> : null}<span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
     </Janela>
   );
 }
