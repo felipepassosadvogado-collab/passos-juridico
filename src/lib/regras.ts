@@ -29,7 +29,7 @@ export const MODALIDADES: Record<Modalidade, { nome: string; curto: string }> = 
   jf_balcao: { nome: "Na Justiça Federal, no horário de atendimento ao público", curto: "na JF · atendimento ao público" },
 };
 export const ehAgenda = (a: Pick<Aviso, "tipo_evento" | "modalidade">) => !!a.modalidade || ATOS_AGENDA.includes(a.tipo_evento || "");
-export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: "Comprovante de residência", procuracao: "Procuração", contrato: "Contrato de honorários", extrato: "Extrato do INSS", outro: "Outro" };
+export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: "Comprovante de residência", procuracao: "Procuração", hipo: "Declaração de hipossuficiência", contrato: "Contrato de honorários", proc_hipo_contrato: "Procuração, hipo e contrato (juntos)", extrato: "Extrato de empréstimos (HISCON)", extrato_pagamento: "Extrato de pagamento (HISCRE)", inicial: "Petição inicial", calculo: "Cálculo da causa", outro: "Outro" };
 
 const MAPA_FASE: Record<string, string> = { "Inicial / citação": "Protocolo / citação", "Contestação / réplica": "Réplica", "Perícia grafotécnica": "Perícia / instrução", "Manifestação ao laudo": "Perícia / instrução", "Audiência": "Perícia / instrução" };
 export const faseCRM = (f?: string | null) => MAPA_FASE[f || ""] || f || "";

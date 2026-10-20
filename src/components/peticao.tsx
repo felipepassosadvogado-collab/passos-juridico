@@ -6,6 +6,7 @@ import { idade, moeda, nomeBonito, numeroBR, porExtenso } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { ESPECIES, QUALIF_PADRAO, chaveBanco } from "@/lib/regras";
 import { Janela, baixar } from "./ui";
+import { PastaProtocolo, guardarNaFicha } from "./kit";
 import { REGIMES, calcular, mesBR, somaMes, type Indices, type Regime, type Resultado } from "@/lib/calculo";
 
 export type CtxInicial = { clienteId: string | null; banco?: string | null; cidade?: string | null; numero?: string | null; casoId?: string | null };
@@ -24,7 +25,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
   });
   const [contratos, setContratos] = useState<Contrato[]>([{ numero: "", parcela: "", inclusao: "" }]);
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
-  const [confirmQ, setConfirmQ] = useState(false); const [totalManual, setTotalManual] = useState(false);
+  const [confirmQ, setConfirmQ] = useState(false); const [kitV, setKitV] = useState(0); const [totalManual, setTotalManual] = useState(false);
   const [calc, setCalc] = useState({ regime: "jf" as Regime, ate: mesAtual(), dobro: true, modulacao: false, usarNaCausa: true });
   const [ix, setIx] = useState<(Indices & { fonte: string }) | null>(null); const [res, setRes] = useState<Resultado | null>(null); const [calculando, setCalculando] = useState(false);
   // qualificação cadastrada no réu (cadastro de réus) tem preferência sobre o texto com [colchetes]
@@ -70,7 +71,8 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, total: totalStr, indebitoAtualizado: atualizado ? moeda(atualizado) : "", contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
       if (!r.ok) { const j = await r.json().catch(() => ({})); aviso(j.erro || "Não foi possível gerar o arquivo."); return; }
       const nome = decodeURIComponent(r.headers.get("x-nome-arquivo") || "Peticao_Inicial.docx");
-      baixar(nome, await r.blob()); aviso("Petição gerada. Revise no Word antes de protocolar.");
+      const blob = await r.blob(); baixar(nome, blob); aviso("Petição gerada e guardada na pasta para protocolo. Revise no Word antes de protocolar.");
+      guardarNaFicha(sb, cli.id, "inicial", nome, blob).then(() => setKitV((x) => x + 1));
     } catch { aviso("Não foi possível gerar o arquivo. Tente de novo."); }
     finally { setGerando(false); }
   };
@@ -91,8 +93,9 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       if (pdf) {
         const { pdfCalculo } = await import("@/lib/calculoPdf");
         const bytes = await pdfCalculo(r, calc, { autor: nomeBonito(cli.nome), cpf: cli.cpf, reus: [pi.banco || "banco", "Instituto Nacional do Seguro Social - INSS"].join(" e "), processo: ctx.numero ? ctx.numero.replace(/^(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})$/, "$1-$2.$3.$4.$5.$6") : null, nb: pi.nb, moral }, indices!.fonte);
-        baixar(`Calculo_-_${nomeBonito(cli.nome).replace(/\s+/g, "_")}.pdf`, new Blob([bytes as BlobPart], { type: "application/pdf" }));
-        aviso("Cálculo gerado em PDF.");
+        const nomePdf = `Calculo_-_${nomeBonito(cli.nome).replace(/\s+/g, "_")}.pdf`; const blobPdf = new Blob([bytes as BlobPart], { type: "application/pdf" });
+        baixar(nomePdf, blobPdf); aviso("Cálculo gerado em PDF e guardado na pasta para protocolo.");
+        guardarNaFicha(sb, cli.id, "calculo", nomePdf, blobPdf).then(() => setKitV((x) => x + 1));
       }
     } catch (e) { aviso((e as Error).message || "O cálculo falhou."); }
     finally { setCalculando(false); }
@@ -159,6 +162,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
           </div>}
         </div></section>
       <div className="valores"><span>Restituição em dobro: <strong>R$ {moeda(dobro)}</strong></span>{atualizado ? <span>Indébito atualizado: <strong>R$ {moeda(atualizado)}</strong></span> : null}<span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
+      <PastaProtocolo clienteId={cli.id} nomeCliente={cli.nome} banco={pi.banco} atualizar={kitV} />
     </Janela>
   );
 }
