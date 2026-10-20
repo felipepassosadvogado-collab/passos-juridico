@@ -499,3 +499,12 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .cx-pagina{max-width:640px}.cx-pagina .cx-corpo{overflow:visible}
 @media (max-width:640px){.modal.compacto{max-height:100%}.cx-princ{min-width:0;flex:1}}
 .cx-campos div.f{display:flex;flex-direction:column;gap:6px}.cx-campos div.f>span{font-size:12.5px;color:var(--muted);font-weight:500}
+.cx-modo{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;gap:3px;align-self:flex-start;flex-wrap:wrap}
+.cx-modo button{all:unset;cursor:pointer;padding:6px 14px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.cx-modo button.on{background:var(--accent);color:var(--accent-ink)}.cx-modo button:focus-visible{outline:2px solid var(--accent)}
+.sel-reus{display:flex;flex-direction:column;gap:8px}
+.reus-chips{display:flex;flex-wrap:wrap;gap:6px}
+.reu-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 12px;font-size:13px;font-weight:600}
+.reu-chip button{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:11px}
+.reu-chip button:hover{background:var(--sunken);color:var(--fg)}
+.cx-motivo{font-size:12.5px;margin-right:auto;align-self:center}

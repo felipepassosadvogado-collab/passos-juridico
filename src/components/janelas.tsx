@@ -44,7 +44,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
       {topo?.k === "caso" && <JanelaCaso key={topo.id} id={topo.id} comTarefa={topo.tarefa} onFechar={fechar} onTrocar={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "inicial" && <JanelaInicial ctx={topo.ctx} onFechar={fechar} />}
       {topo?.k === "peca" && <JanelaPeca ctx={topo.ctx} onFechar={fechar} />}
-      {topo?.k === "novoProcesso" && <JanelaNovoProcesso ctx={topo.ctx} onFechar={fechar} onCriado={(n) => trocar({ k: "processo", numero: n })} />}
+      {topo?.k === "novoProcesso" && <JanelaNovoProcesso ctx={topo.ctx} onFechar={fechar} onCriado={(n) => trocar({ k: "processo", numero: n })} onCaso={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "novoCliente" && <JanelaNovoCliente onFechar={fechar} />}
       {topo?.k === "verTarefa" && <JanelaTarefa key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "processo" && <JanelaProcesso key={topo.numero} numero={topo.numero} foco={topo.foco} onFechar={fechar} />}

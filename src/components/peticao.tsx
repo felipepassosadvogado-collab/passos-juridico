@@ -1,6 +1,6 @@
 "use client";
 // Petição inicial em Word a partir do modelo do escritório, com leitura do extrato do INSS pelo Claude.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { idade, moeda, nomeBonito, numeroBR, porExtenso } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
@@ -27,6 +27,13 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
   const [confirmQ, setConfirmQ] = useState(false); const [totalManual, setTotalManual] = useState(false);
   const [calc, setCalc] = useState({ regime: "jf" as Regime, ate: mesAtual(), dobro: true, modulacao: false, usarNaCausa: true });
   const [ix, setIx] = useState<(Indices & { fonte: string }) | null>(null); const [res, setRes] = useState<Resultado | null>(null); const [calculando, setCalculando] = useState(false);
+  // qualificação cadastrada no réu (cadastro de réus) tem preferência sobre o texto com [colchetes]
+  useEffect(() => {
+    const b = pi.banco.trim(); if (!b || !/\[CNPJ\]|\[ENDEREÇO\]/.test(pi.bancoQualif)) return;
+    sb.from("reus").select("nome,qualificacao").ilike("nome", b).limit(1).then(({ data }: { data: { qualificacao: string | null }[] | null }) => {
+      const q = data?.[0]?.qualificacao; if (q) setPi((x) => ({ ...x, bancoQualif: q.startsWith(",") ? q : ", " + q }));
+    });
+  }, [pi.banco]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!cli) return <Janela onFechar={onFechar} titulo="Petição inicial"><div className="banner">Escolha ou cadastre o cliente primeiro (o processo ou o atendimento precisa estar ligado a uma ficha de cliente).</div></Janela>;
   const set = (c: Partial<typeof pi>) => setPi({ ...pi, ...c });
   const faltam = [["nome", "nome"], ["cpf", "CPF"], ["endereco", "endereço"], ["cep", "CEP"], ["cidade", "cidade"]].filter(([c]) => !cli[c as keyof typeof cli]).map(([, r]) => r);

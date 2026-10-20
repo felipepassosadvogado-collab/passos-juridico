@@ -8,7 +8,7 @@ function Novo() {
   return (
     <>
       <div className="head"><div><h2>Novo processo</h2></div></div>
-      <section className="panel cx-pagina"><FormNovoProcesso ctx={{ clienteId: sp.get("cliente"), casoId: sp.get("caso") }} onCriado={(n) => router.replace("/processos/" + n)} /></section>
+      <section className="panel cx-pagina"><FormNovoProcesso ctx={{ clienteId: sp.get("cliente"), casoId: sp.get("caso") }} onCriado={(n) => router.replace("/processos/" + n)} onCaso={(id) => router.replace("/crm?caso=" + id)} /></section>
     </>
   );
 }
