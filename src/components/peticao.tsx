@@ -113,7 +113,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       <section className="novo-cli">
         <div className="av-top"><strong>Extrato de empréstimos do INSS (HISCON)</strong><span className="muted" style={{ fontSize: 12.5 }}>o Claude lê benefício, banco pagador e contratos</span></div>
         <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])]); e.target.value = ""; }} />
-        {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Tirar</button></span>)}</div>}
+        {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>)}</div>}
         {files.length > 0 && <div><button className="btn primary" disabled={lendo} onClick={lerExtrato}>{lendo ? "Lendo o extrato…" : "Ler extrato com Claude"}</button></div>}
         {nota && <div className="ai" style={{ whiteSpace: "pre-wrap" }}>{nota}</div>}
       </section>
@@ -135,7 +135,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
             <label className="f">Incluído em<input type="date" value={c.inclusao} onChange={(e) => setContratos(contratos.map((x, j) => (j === i ? { ...x, inclusao: e.target.value } : x)))} /></label>
             <label className="f">1º desconto (mês)<input type="month" value={c.inicio || ""} placeholder={c.inclusao ? mesBR(somaMes(c.inclusao.slice(0, 7), 1)) : ""} onChange={(e) => { setRes(null); setContratos(contratos.map((x, j) => (j === i ? { ...x, inicio: e.target.value } : x))); }} /></label>
             <label className="f">Parcelas descontadas<input inputMode="numeric" value={c.qtd || ""} placeholder="até hoje" onChange={(e) => { setRes(null); setContratos(contratos.map((x, j) => (j === i ? { ...x, qtd: e.target.value.replace(/\D/g, "") } : x))); }} /></label>
-            {contratos.length > 1 && <div className="tools"><button className="btn ghost" onClick={() => setContratos(contratos.filter((_, j) => j !== i))}>Tirar</button></div>}
+            {contratos.length > 1 && <div className="tools"><button className="btn ghost" onClick={() => setContratos(contratos.filter((_, j) => j !== i))}>Excluir</button></div>}
           </div>))}</div></section>
       <div className="form2">
         <label className="f">Total já descontado (R$){!totalManual && autoTotal > 0 ? <span className="muted" style={{ fontWeight: 400 }}> · soma das parcelas dos contratos</span> : null}

@@ -118,7 +118,7 @@ export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCli
           <select value={x.tipo} onChange={(e) => f.setFiles(f.files.map((y, j) => (j === i ? { ...y, tipo: e.target.value } : y)))} style={{ padding: "2px 4px", fontSize: 12 }}>
             <option value="">tipo…</option>{Object.entries(TIPOS_DOC).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
           <button type="button" className="btn ghost" title="Ver o documento numa caixa ao lado" onClick={() => visor.verArquivo(x.file)}>👁 Ver</button>
-          <button className="btn ghost" onClick={() => f.setFiles(f.files.filter((_, j) => j !== i))}>Tirar</button></span>))}</div>}
+          <button className="btn ghost" onClick={() => f.setFiles(f.files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
       {f.files.length > 0 && <div><button className="btn primary" disabled={f.lendo} onClick={f.ler}>{f.lendo ? "Lendo os documentos…" : "Ler documentos com Claude"}</button> <span className="muted" style={{ fontSize: 12.5 }}>Os arquivos são guardados na ficha ao salvar.</span></div>}
       {f.nota && <div className="ai" style={{ whiteSpace: "pre-wrap" }}>{f.nota}</div>}
     </div>

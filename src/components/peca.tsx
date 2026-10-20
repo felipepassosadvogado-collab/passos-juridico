@@ -72,7 +72,7 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
         <div className="av-top"><strong>Documentos do processo (opcional, mas faz muita diferença)</strong><span className="muted" style={{ fontSize: 12.5 }}>laudo, sentença, contestação, ou a cópia integral do eproc — em PDF ou foto</span></div>
         <input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])].slice(0, 6)); e.target.value = ""; }} />
         {etapa && <div className="banner">{etapa}</div>}
-        {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Tirar</button></span>)}</div>}
+        {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>)}</div>}
         <div className="muted" style={{ fontSize: 12.5 }}>A publicação do DJEN costuma trazer só o despacho. Anexe o laudo ou a sentença baixados do eproc, ou a cópia integral do processo: PDFs grandes (mais de 80 páginas ou 12 MB) são lidos só pelo texto, então páginas escaneadas como imagem não entram. Em processos muito longos, o meio pode ser resumido, e o começo e os atos mais recentes têm prioridade.</div>
       </section>
       {erroMsg && <div className="banner erro">{erroMsg}</div>}

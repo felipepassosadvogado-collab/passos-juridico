@@ -177,7 +177,7 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
         }} /></label>
       {files.length > 0 && <div className="wide anexos">{files.map((f, i) => (
         <span key={i} className="anexo"><span className="ext">{(f.name.split(".").pop() || "").toUpperCase()}</span><span className="an">{f.name}</span><span className="muted">{tamanhoBR(f.size)}</span>
-          <button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Tirar</button></span>))}</div>}
+          <button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
       <label className="f wide">{modo === "enviar" ? "Recado para quem vai corrigir" : "O que precisa ser ajustado"}<textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></label>
       {modo === "enviar" && <label className="f">Enviar para<select value={rev} onChange={(e) => setRev(e.target.value)}>{ops.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>}
       <div className="tools"><button className="btn primary" disabled={ocupado} onClick={ir}>{ocupado ? "Enviando…" : modo === "enviar" ? "Enviar para correção" : "Devolver com ajustes"}</button></div>
