@@ -13,6 +13,7 @@ import { CamposCliente, DocumentosSalvos, EnvioDocumentos, useFichaCliente } fro
 import { useConfirmar } from "@/components/ui";
 import { useJanelas } from "@/components/janelas";
 import { CampoValores } from "@/components/valores";
+import { KitProcuracao } from "@/components/kitProcuracao";
 
 const S = (d: string) => <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 type Aba = "dados" | "docs" | "processos";
@@ -56,6 +57,7 @@ export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?
         {aba === "dados" && <div className="fc-campos">
           {!c && <div className="cx-docs"><EnvioDocumentos f={f} texto="Anexe RG ou CNH, comprovante e procuração: o Claude preenche a ficha" /></div>}
           <CamposCliente f={f} />
+          <KitProcuracao f={f} bancoSugerido={ps[0]?.banco || cs[0]?.banco || ""} />
           <button className="btn primary fc-salvar" disabled={f.salvando} onClick={async () => { const id = await f.salvar(); if (id && !c) router.replace("/clientes/" + id); else setN(n + 1); }}>{f.salvando ? "Salvando…" : c ? "Atualizar dados do cliente" : "Cadastrar cliente"}</button>
           {c && !ps.length && titular && <button className="btn ghost" onClick={async () => {
             if (!confirmar("del" + c.id, aviso, "Clique de novo em “Excluir ficha” para confirmar.")) return;

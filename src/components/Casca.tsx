@@ -127,7 +127,6 @@ function Adicionar() {
         <button onClick={() => { setAberto(false); j.novaTarefa(); }}>Nova tarefa</button>
         <button onClick={() => { setAberto(false); j.novoProcesso(); }}>Novo processo</button>
         <button onClick={() => { setAberto(false); j.novoCliente(); }}>Novo cliente</button>
-        <button onClick={() => { setAberto(false); j.abrirCaso("novo"); }}>Novo atendimento (CRM)</button>
       </div>}
     </div>
   );

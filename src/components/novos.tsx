@@ -8,6 +8,7 @@ import { cidadeDoJuizo, cnjValido, infoCnj, mascaraCnj, soDigitos } from "@/lib/
 import { ETAPAS, FASES } from "@/lib/regras";
 import { CamposCliente, EnvioDocumentos, useFichaCliente } from "./cliente";
 import { useJanelas } from "./janelas";
+import { KitProcuracao } from "./kitProcuracao";
 import { SelResp } from "./ui";
 
 type PubDjen = { id: number; data: string; tipo_com: string | null; tipo_doc: string | null; orgao: string | null; texto: string; link: string | null };
@@ -257,6 +258,7 @@ export function JanelaNovoCliente({ onFechar }: { onFechar: () => void }) {
       <div className="cx-campos">
         <div className="cx-docs"><EnvioDocumentos f={f} texto="Documentos (RG ou CNH, comprovante, procuração): o Claude preenche a ficha" /></div>
         <CamposCliente f={f} />
+        <KitProcuracao f={f} />
       </div>
     </CaixaCompacta>
   );

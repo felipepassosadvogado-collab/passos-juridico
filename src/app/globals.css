@@ -602,3 +602,6 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .kit-doc{display:flex;align-items:center;gap:8px;font-size:13px;min-width:0}
 .kit-doc .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kit-doc input{width:15px;height:15px;accent-color:var(--accent)}
+.kitp{display:flex;flex-direction:column;gap:10px}.kitp>.btn{align-self:flex-start}
+.kitp-ct{display:grid;grid-template-columns:1.2fr 1fr .8fr auto;gap:6px;align-items:center}
+@media (max-width:560px){.kitp-ct{grid-template-columns:1fr 1fr}}
