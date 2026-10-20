@@ -15,7 +15,7 @@ const mesAtual = () => new Date().toLocaleDateString("en-CA", { timeZone: "Ameri
 export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: () => void }) {
   const { clientes, config, sb, eu, aviso } = useDados();
   const cli = ctx.clienteId ? clientes.get(ctx.clienteId) : undefined;
-  const banco = nomeBonito(ctx.banco || ""); const k = chaveBanco(banco);
+  const banco = nomeBonito((ctx.banco || "").replace(/\s*(?:\be\b|;|,|\/)\s*(?:o\s+)?(?:INSS|Instituto Nacional do Seguro Social).*$/i, "").trim()); const k = chaveBanco(banco);
   const fem = /a$/i.test((cli?.estado_civil || "").trim()) || /a$/i.test((cli?.profissao || "").trim());
   const [pi, setPi] = useState({
     genero: fem ? "F" : "M", especie: "", nb: cli?.nb || "", pagador: "", banco,
@@ -24,14 +24,16 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
   });
   const [contratos, setContratos] = useState<Contrato[]>([{ numero: "", parcela: "", inclusao: "" }]);
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
-  const [confirmQ, setConfirmQ] = useState(false);
+  const [confirmQ, setConfirmQ] = useState(false); const [totalManual, setTotalManual] = useState(false);
   const [calc, setCalc] = useState({ regime: "jf" as Regime, ate: mesAtual(), dobro: true, modulacao: false, usarNaCausa: true });
   const [ix, setIx] = useState<(Indices & { fonte: string }) | null>(null); const [res, setRes] = useState<Resultado | null>(null); const [calculando, setCalculando] = useState(false);
   if (!cli) return <Janela onFechar={onFechar} titulo="Petição inicial"><div className="banner">Escolha ou cadastre o cliente primeiro (o processo ou o atendimento precisa estar ligado a uma ficha de cliente).</div></Janela>;
   const set = (c: Partial<typeof pi>) => setPi({ ...pi, ...c });
   const faltam = [["nome", "nome"], ["cpf", "CPF"], ["endereco", "endereço"], ["cep", "CEP"], ["cidade", "cidade"]].filter(([c]) => !cli[c as keyof typeof cli]).map(([, r]) => r);
   const anos = idade(cli.nascimento);
-  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral); const atualizado = res && calc.usarNaCausa ? res.tot.total : 0; const causa = (atualizado || dobro) + moral;
+  function somaDescontada() { return Math.round(paraCalculo().reduce((s, c) => s + c.parcela * c.qtd, 0) * 100) / 100; }
+  const autoTotal = somaDescontada(); const totalStr = !totalManual && autoTotal > 0 ? moeda(autoTotal) : pi.total;
+  const tot = numeroBR(totalStr), dobro = tot * 2, moral = numeroBR(pi.moral); const atualizado = res && calc.usarNaCausa ? res.tot.total : 0; const causa = (atualizado || dobro) + moral;
 
   const lerExtrato = async () => {
     setLendo(true); setNota("");
@@ -48,7 +50,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       const lista = doBanco.length ? doBanco : todos;
       if (lista.length) { setContratos(lista.map((c) => ({ numero: String(c.numero || ""), parcela: c.parcela != null ? moeda(+c.parcela) : "", inclusao: /^\d{4}-\d\d-\d\d$/.test(c.inclusao || "") ? c.inclusao! : "", inicio: /^\d{4}-\d\d/.test(c.inicioDesconto || "") ? c.inicioDesconto!.slice(0, 7) : "", qtd: c.parcelasDescontadas ? String(c.parcelasDescontadas) : "" }))); setRes(null); notas.push(lista.length + (lista.length === 1 ? " contrato" : " contratos")); }
       const est = lista.reduce((s, c) => s + (+(c.parcelasDescontadas || 0)) * (+(c.parcela || 0)), 0);
-      if (est > 0 && !pi.total) { novo.total = moeda(est); notas.push("total estimado pelas parcelas descontadas"); }
+      if (est > 0) notas.push("total calculado pelas parcelas descontadas");
       set(novo);
       setNota((notas.length ? "Preenchido pelo Claude: " + notas.join(", ") + "." : "Não encontrei dados no extrato.") + (todos.length > lista.length ? " Há outros contratos no extrato, de outros bancos, que ficaram de fora." : "") + " Confira tudo antes de gerar.");
     } catch (e) { setNota((e as Error).message || "A leitura falhou. Tente de novo."); }
@@ -58,7 +60,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
     if (/\[[A-ZÇÃ\/ ]+\]/.test(pi.bancoQualif) && !confirmQ) { setConfirmQ(true); aviso("A qualificação do banco ainda tem campos entre colchetes. Clique de novo para gerar assim mesmo."); return; }
     setGerando(true);
     try {
-      const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, indebitoAtualizado: atualizado ? moeda(atualizado) : "", contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
+      const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, total: totalStr, indebitoAtualizado: atualizado ? moeda(atualizado) : "", contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
       if (!r.ok) { const j = await r.json().catch(() => ({})); aviso(j.erro || "Não foi possível gerar o arquivo."); return; }
       const nome = decodeURIComponent(r.headers.get("x-nome-arquivo") || "Peticao_Inicial.docx");
       baixar(nome, await r.blob()); aviso("Petição gerada. Revise no Word antes de protocolar.");
@@ -66,11 +68,11 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
     finally { setGerando(false); }
   };
   /** contratos prontos para o cálculo: 1º desconto (ou o mês seguinte à inclusão) e nº de parcelas (vazio = até a data-base) */
-  const paraCalculo = () => contratos.map((c) => {
+  function paraCalculo() { return contratos.map((c) => {
     const inicio = c.inicio || (c.inclusao ? somaMes(c.inclusao.slice(0, 7), 1) : "");
     const ate = calc.ate; let n = 0; if (inicio) for (let m = inicio; m < ate; m = somaMes(m, 1)) n++;
     return { numero: c.numero, parcela: numeroBR(c.parcela), inicio, qtd: c.qtd ? Math.min(+c.qtd || 0, n) : n };
-  });
+  }); }
   const rodarCalculo = async (pdf: boolean) => {
     const cs = paraCalculo().filter((c) => c.parcela > 0 && c.inicio && c.qtd > 0);
     if (!cs.length) { aviso("Informe, em cada contrato, a parcela e o mês do 1º desconto (ou a data de inclusão)."); return; }
@@ -79,7 +81,6 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       let indices = ix;
       if (!indices) { const r = await fetch("/api/calculo/indices"); const j = await r.json().catch(() => ({})); if (!r.ok) { aviso(j.erro || "Não consegui buscar os índices."); return; } indices = j; setIx(j); }
       const r = calcular(cs, indices!, calc); setRes(r);
-      if (!numeroBR(pi.total)) set({ total: moeda(r.tot.valor) });
       if (pdf) {
         const { pdfCalculo } = await import("@/lib/calculoPdf");
         const bytes = await pdfCalculo(r, calc, { autor: nomeBonito(cli.nome), cpf: cli.cpf, reus: [pi.banco || "banco", "Instituto Nacional do Seguro Social - INSS"].join(" e "), processo: ctx.numero ? ctx.numero.replace(/^(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})$/, "$1-$2.$3.$4.$5.$6") : null, nb: pi.nb, moral }, indices!.fonte);
@@ -122,7 +123,11 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
             <label className="f">Parcelas descontadas<input inputMode="numeric" value={c.qtd || ""} placeholder="até hoje" onChange={(e) => { setRes(null); setContratos(contratos.map((x, j) => (j === i ? { ...x, qtd: e.target.value.replace(/\D/g, "") } : x))); }} /></label>
             {contratos.length > 1 && <div className="tools"><button className="btn ghost" onClick={() => setContratos(contratos.filter((_, j) => j !== i))}>Tirar</button></div>}
           </div>))}</div></section>
-      <div className="form2">{campo("total", "Total já descontado (R$)", "5.446,28")}{campo("moral", "Danos morais (R$)")}</div>
+      <div className="form2">
+        <label className="f">Total já descontado (R$){!totalManual && autoTotal > 0 ? <span className="muted" style={{ fontWeight: 400 }}> · soma das parcelas dos contratos</span> : null}
+          <input inputMode="decimal" value={totalStr} placeholder="preencha parcela e 1º desconto dos contratos" onChange={(e) => { setTotalManual(true); set({ total: e.target.value }); }} />
+          {totalManual && autoTotal > 0 && numeroBR(pi.total) !== autoTotal && <button className="reflink" style={{ alignSelf: "flex-start" }} onClick={() => setTotalManual(false)}>Voltar à soma dos contratos (R$ {moeda(autoTotal)})</button>}</label>
+        {campo("moral", "Danos morais (R$)")}</div>
       <section className="panel calc"><div className="ph"><h3>Cálculo atualizado</h3><span className="muted" style={{ fontSize: 12 }}>parcelas em dobro, com correção e juros desde cada desconto</span></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div className="form2">
@@ -142,7 +147,6 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
                 <tr><td><strong>Total</strong></td><td>{res.linhas.length}</td><td className="num"><strong>{moeda(res.tot.valor)}</strong></td><td className="num">{moeda(res.tot.base)}</td><td className="num">{moeda(res.tot.correcao)}</td><td className="num">{moeda(res.tot.juros)}</td><td className="num"><strong>R$ {moeda(res.tot.total)}</strong></td></tr></tbody></table>
             <div className="tools" style={{ marginTop: 8 }}>
               <span className="muted" style={{ fontSize: 12.5 }}>Atualizado até {mesBR(res.ultimoMes)}.{res.faltam.length ? " Índices ainda não divulgados (contados como zero): " + res.faltam.slice(0, 4).join(", ") + "." : ""}</span>
-              {numeroBR(pi.total) !== res.tot.valor && <button className="reflink" onClick={() => set({ total: moeda(res.tot.valor) })}>Usar R$ {moeda(res.tot.valor)} como total descontado</button>}
               <label className="chk"><input type="checkbox" checked={calc.usarNaCausa} onChange={(e) => setCalc({ ...calc, usarNaCausa: e.target.checked })} /> Usar o valor atualizado no valor da causa</label>
             </div>
           </div>}
