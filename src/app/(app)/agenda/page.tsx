@@ -1,14 +1,17 @@
 "use client";
 // Agenda: tarefas (e correções), intimações do DJEN, audiências e coletas e avisos a clientes,
 // por mês, semana ou dia, com filtros por tipo, situação e responsável.
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useDados } from "@/lib/dados";
-import { bancoCurto, nomeBonito } from "@/lib/formato";
+import { bancoCurto, dataBR, nomeBonito, semAcento } from "@/lib/formato";
+import { soDigitos } from "@/lib/cnj";
 import { hojeBR, isoData, paraData, somaDias } from "@/lib/prazos";
-import { atoPub, ehAgenda, MODALIDADES } from "@/lib/regras";
+import { atoPub, ehAgenda, MODALIDADES, STATUS_NOME } from "@/lib/regras";
+import { TabelaTarefas, usePartes } from "@/components/tarefas";
 import type { Aviso, Publicacao, Tarefa } from "@/lib/tipos";
 import { useJanelas } from "@/components/janelas";
-import { Avatar } from "@/components/ui";
+import { Avatar, Ic, baixar } from "@/components/ui";
 
 type Tipo = "tarefa" | "correcao" | "intimacao" | "ato" | "aviso";
 type Sit = "pend" | "conc" | "atras";
@@ -24,19 +27,26 @@ const SITS: Record<Sit, { nome: string; cor: string }> = { pend: { nome: "Penden
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const SEM = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const diaLocal = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) : "");
-type Filtros = { modo: "mes" | "semana" | "dia"; resp: string; base: "compromisso" | "conclusao"; tipos: Tipo[]; sits: Sit[] };
+type Filtros = { modo: "mes" | "semana" | "dia" | "lista"; resp: string; base: "compromisso" | "conclusao"; tipos: Tipo[]; sits: Sit[] };
 const PADRAO: Filtros = { modo: "mes", resp: "", base: "compromisso", tipos: ["tarefa", "correcao", "intimacao", "ato", "aviso"], sits: ["pend", "atras"] };
 const ler = (): Filtros => { try { return { ...PADRAO, ...JSON.parse(localStorage.getItem("agenda.filtros") || "{}") }; } catch { return PADRAO; } };
 
-export default function Agenda() {
+export default function Pagina() { return <Suspense><Agenda /></Suspense>; }
+
+function Agenda() {
   const { tarefas, avisos, caixa, processos, casos, equipe, sb, nome, v } = useDados(); const j = useJanelas();
   const [f, setF] = useState<Filtros>(PADRAO); const [ref, setRef] = useState(hojeBR()); const [pubs, setPubs] = useState<Publicacao[]>([]);
-  useEffect(() => { setF(ler()); }, []);
+  const sp = useSearchParams();
+  useEffect(() => { const x = ler(); const m = sp.get("modo"); setF(m === "lista" || m === "mes" || m === "semana" || m === "dia" ? { ...x, modo: m } : x); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { pronto } = useDados();
+  const abriu = useRef(false);
+  useEffect(() => { const id = sp.get("tarefa"); if (id && pronto && !abriu.current) { abriu.current = true; j.abrirTarefa(id); } }, [pronto]); // eslint-disable-line react-hooks/exhaustive-deps
   const muda = (c: Partial<Filtros>) => setF((x) => { const n = { ...x, ...c }; try { localStorage.setItem("agenda.filtros", JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   const hoje = hojeBR();
   // período visível
   const { ini, fim, dias, rot } = useMemo(() => {
     const d = paraData(ref);
+    if (f.modo === "lista") { const h = paraData(hojeBR()); return { ini: isoData(somaDias(h, -30)), fim: isoData(somaDias(h, 120)), dias: [] as string[], rot: "Lista de tarefas" }; }
     if (f.modo === "dia") return { ini: ref, fim: ref, dias: [ref], rot: d.toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }) };
     if (f.modo === "semana") { const a = somaDias(d, -d.getUTCDay()); const ds = Array.from({ length: 7 }, (_, i) => isoData(somaDias(a, i))); const b = paraData(ds[6]);
       return { ini: ds[0], fim: ds[6], dias: ds, rot: `${a.getUTCDate()}${a.getUTCMonth() !== b.getUTCMonth() ? " de " + MESES[a.getUTCMonth()].toLowerCase() : ""} a ${b.getUTCDate()} de ${MESES[b.getUTCMonth()].toLowerCase()} ${b.getUTCFullYear()}` }; }
@@ -83,6 +93,30 @@ export default function Agenda() {
     return out.filter((i) => i.dia >= ini && i.dia <= fim && f.tipos.includes(i.tipo) && f.sits.includes(i.sit) && (!f.resp || (f.resp === "none" ? !i.resp : i.resp === f.resp)))
       .sort((a, b) => (a.hora || "99").localeCompare(b.hora || "99") || a.tipo.localeCompare(b.tipo));
   }, [tarefas, avisos, caixa, pubs, processos, casos, f, ini, fim, hoje, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  // visão Lista: todas as tarefas (inclusive sem prazo), com busca, ordem e exportação
+  const partesT = usePartes(); const [q, setQ] = useState(""); const [ord, setOrd] = useState<"prazo" | "cliente" | "recentes">("prazo"); const [soFlag, setSoFlag] = useState(false);
+  const lista = useMemo(() => {
+    if (f.modo !== "lista") return [] as Tarefa[];
+    const qq = semAcento(q.trim()), dg = soDigitos(q);
+    const l = ([...tarefas.values()] as Tarefa[]).filter((t) => {
+      const correcao = ["revisao", "ajustes", "aprovada"].includes(t.status); if (!f.tipos.includes(correcao ? "correcao" : "tarefa")) return false;
+      const sit: Sit = t.status === "feito" ? "conc" : t.vencimento && t.vencimento < hoje ? "atras" : "pend"; if (!f.sits.includes(sit)) return false;
+      const resp = correcao && t.status === "revisao" ? t.revisor : t.responsavel; if (f.resp && (f.resp === "none" ? !!resp : resp !== f.resp)) return false;
+      if (soFlag && !t.importante && !t.urgente) return false;
+      if (qq) { const p = partesT(t); if (!semAcento(t.descricao + " " + p.cli + " " + p.reus.join(" ")).includes(qq) && !(dg.length >= 4 && (t.processo_numero || "").includes(dg))) return false; }
+      return true;
+    });
+    const by = { prazo: (a: Tarefa, b: Tarefa) => (a.vencimento || "9").localeCompare(b.vencimento || "9"), cliente: (a: Tarefa, b: Tarefa) => partesT(a).cli.localeCompare(partesT(b).cli), recentes: (a: Tarefa, b: Tarefa) => b.criado_em.localeCompare(a.criado_em) };
+    return l.sort((a, b) => (+(b.urgente && b.importante) - +(a.urgente && a.importante)) || by[ord](a, b));
+  }, [f, q, ord, soFlag, tarefas, hoje, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const outrosLista = useMemo(() => f.modo !== "lista" ? [] : itens.filter((i) => i.tipo !== "tarefa" && i.tipo !== "correcao"), [itens, f.modo]);
+  const exportar = () => {
+    const esc = (s: unknown) => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+    const linhas = [["Tarefa", "Cliente", "Réus", "Processo", "Prazo fatal", "Responsável", "Situação", "Importante", "Urgente"].map(esc).join(";")];
+    for (const t of lista) { const p = t.processo_numero ? processos.get(t.processo_numero) : undefined; const pt = partesT(t);
+      linhas.push([t.descricao, pt.cli, (p?.reus || []).join(" / "), p?.mascara || "", dataBR(t.vencimento), nome(t.responsavel), STATUS_NOME[t.status], t.importante ? "sim" : "", t.urgente ? "sim" : ""].map(esc).join(";")); }
+    baixar("tarefas-" + hojeBR() + ".csv", "\ufeff" + linhas.join("\r\n"), "text/csv;charset=utf-8");
+  };
   const porDia = useMemo(() => { const m = new Map<string, Item[]>(); for (const i of itens) m.set(i.dia, [...(m.get(i.dia) || []), i]); return m; }, [itens]);
   const mover = (s: number) => { const d = paraData(ref); setRef(isoData(f.modo === "mes" ? new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + s, 1)) : somaDias(d, s * (f.modo === "semana" ? 7 : 1)))); };
   const mesRef = ref.slice(0, 7);
@@ -98,7 +132,7 @@ export default function Agenda() {
   return (
     <div className="ag">
       <aside className="ag-lado">
-        <div className="seg ag-modo" role="tablist">{([["mes", "Mês"], ["semana", "Semana"], ["dia", "Dia"]] as const).map(([k, t]) => <button key={k} role="tab" aria-selected={f.modo === k} className={f.modo === k ? "on" : ""} onClick={() => muda({ modo: k })}>{t}</button>)}</div>
+        <div className="seg ag-modo" role="tablist">{([["mes", "Mês"], ["semana", "Semana"], ["dia", "Dia"], ["lista", "Lista"]] as const).map(([k, t]) => <button key={k} role="tab" aria-selected={f.modo === k} className={f.modo === k ? "on" : ""} onClick={() => muda({ modo: k })}>{t}</button>)}</div>
         <div className="ag-bloco"><h4>Agenda</h4>
           <select value={f.resp} onChange={(e) => muda({ resp: e.target.value })} aria-label="Filtrar por colaborador"><option value="">Toda a equipe</option>{equipe.filter((p) => p.ativo).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}<option value="none">Sem responsável</option></select>
           <select value={f.base} onChange={(e) => muda({ base: e.target.value as Filtros["base"] })} aria-label="Data das tarefas"><option value="compromisso">Data do compromisso</option><option value="conclusao">Data de conclusão (concluídas)</option></select>
@@ -108,9 +142,23 @@ export default function Agenda() {
           <label key={k} className="ag-chk"><input type="checkbox" checked={f.tipos.includes(k)} onChange={() => muda({ tipos: alterna(f.tipos, k) })} /><span className="ag-dot" style={{ background: TIPOS[k].cor }} />{TIPOS[k].nome}</label>))}</div>
         <div className="ag-bloco"><h4>Situação</h4>{(Object.keys(SITS) as Sit[]).map((k) => (
           <label key={k} className="ag-chk"><input type="checkbox" checked={f.sits.includes(k)} onChange={() => muda({ sits: alterna(f.sits, k) })} /><span className="ag-dot" style={{ background: SITS[k].cor }} />{SITS[k].nome}</label>))}</div>
-        <div className="muted" style={{ fontSize: 12 }}>{itens.length} {itens.length === 1 ? "item" : "itens"} no período</div>
+        <div className="muted" style={{ fontSize: 12 }}>{f.modo === "lista" ? `${lista.length} ${lista.length === 1 ? "tarefa" : "tarefas"}` : `${itens.length} ${itens.length === 1 ? "item" : "itens"} no período`}</div>
       </aside>
       <section className="ag-main">
+        {f.modo === "lista" ? <>
+          <div className="ag-topo"><h2 style={{ marginLeft: 0 }}>Tarefas</h2><span className="muted">{lista.length}</span></div>
+          <div className="toolbar">
+            <button className="btn primary" onClick={() => j.novaTarefa()}>Nova tarefa</button>
+            <label className="tb">{Ic.busca}<input type="search" placeholder="Cliente, tarefa ou nº do processo" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+            <label className="tb">{Ic.ordem}<select value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}><option value="prazo">Ordenar: prazo fatal</option><option value="cliente">Ordenar: cliente</option><option value="recentes">Ordenar: mais recentes</option></select></label>
+            <label className="ag-chk"><input type="checkbox" checked={soFlag} onChange={(e) => setSoFlag(e.target.checked)} />Só importantes e urgentes</label>
+            <button className="btn ghost" onClick={exportar}>{Ic.exportar}Exportar</button>
+          </div>
+          <section className="panel">{pronto ? <TabelaTarefas lista={lista} /> : <div className="empty">Carregando…</div>}</section>
+          {outrosLista.length > 0 && <section className="panel"><div className="ph"><h3>Intimações, audiências, coletas e avisos</h3><span className="muted" style={{ fontSize: 12 }}>dos últimos 30 e dos próximos 120 dias</span></div>
+            <div className="rows">{outrosLista.map((i) => <div key={i.id} className="row click" onClick={i.abrir}><span className="pill" style={{ borderLeft: "3px solid " + TIPOS[i.tipo].cor }}>{dataBR(i.dia).slice(0, 5)}{i.hora ? " " + i.hora : ""}</span>
+              <div className="main"><div className="t">{i.titulo}</div><div className="s">{i.cli}{i.reu && i.reu !== "—" ? " · " + i.reu : ""}</div></div>{i.resp ? <Avatar id={i.resp} pequeno /> : <span />}</div>)}</div></section>}
+        </> : <>
         <div className="ag-topo"><button className="icb" aria-label="Anterior" onClick={() => mover(-1)}>‹</button><button className="icb" aria-label="Próximo" onClick={() => mover(1)}>›</button>
           <h2>{rot.charAt(0).toUpperCase() + rot.slice(1)}</h2><button className="btn ghost" onClick={() => setRef(hojeBR())}>Hoje</button></div>
         {f.modo === "dia" ? <div className="ag-diaLista">{(porDia.get(ref) || []).length ? (porDia.get(ref) || []).map((i) => <Cartao key={i.id} i={i} />) : <div className="empty">Nada neste dia com os filtros escolhidos.</div>}</div>
@@ -123,6 +171,7 @@ export default function Agenda() {
                 {l.length > max && <button className="reflink ag-mais" onClick={() => { setRef(d); muda({ modo: "dia" }); }}>+ {l.length - max} mais</button>}
               </div>; })}
           </div></div>}
+        </>}
       </section>
     </div>
   );

@@ -3,7 +3,7 @@
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { calcularVencimento, dataValida, hojeBR, situacaoPrazo } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
@@ -248,7 +248,7 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
 export function ListaEnxuta({ lista, limite = 8, abrirId }: { lista: Tarefa[]; limite?: number; abrirId?: string | null }) {
   const { nome } = useDados(); const partes = usePartes(); const j = useJanelas();
   const [todos, setTodos] = useState(false);
-  useEffect(() => { if (abrirId) j.abrirTarefa(abrirId); }, [abrirId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const abriu = useRef(""); useEffect(() => { if (abrirId && abriu.current !== abrirId) { abriu.current = abrirId; j.abrirTarefa(abrirId); } }, [abrirId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!lista.length) return <div className="empty">Nada aqui.</div>;
   const l = [...lista].sort(ordemPrazo); const vis = todos ? l : l.slice(0, limite);
   return (

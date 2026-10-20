@@ -40,8 +40,8 @@ function Menu() {
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const itens: [string, string, number?, boolean?][] = [
-    ["/", "Painel", c.meus, c.meusHot], ["/agenda", "Agenda"], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
-    ["/atividades", "Atividades", c.abertas, c.vencidas], ...(titular ? [["/gestao", "Gestão"] as [string, string]] : []),
+    ["/", "Painel", c.meus, c.meusHot], ["/agenda", "Agenda", c.abertas, c.vencidas], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
+    ...(titular ? [["/gestao", "Gestão"] as [string, string]] : []),
     ["/chat", "Chat", total, true], ["/crm", "CRM"], ["/processos", "Processos", processos.size], ["/clientes", "Clientes", clientes.size],
   ];
   const adm: [string, string][] = [["/equipe", "Equipe"], ...(titular ? [["/configuracoes", "Configurações"], ["/importar", "Importar dados"]] as [string, string][] : [])];
