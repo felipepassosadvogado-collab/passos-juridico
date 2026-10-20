@@ -14,7 +14,14 @@ export async function convidar(_: unknown, form: FormData) {
   try {
     const adm = await supabaseAdmin();
     const { data, error } = await adm.auth.admin.inviteUserByEmail(email, { data: { nome }, redirectTo: base + "/auth/confirmar" });
-    if (error) return { erro: error.message.includes("already") ? "Esse e-mail já tem acesso." : "Não foi possível enviar o convite." };
+    if (error && /already|registered|exists/i.test(error.message)) {
+      // já convidada antes: manda um link novo para criar a senha
+      const r = await adm.auth.resetPasswordForEmail(email, { redirectTo: base + "/auth/confirmar" });
+      if (r.error) return { erro: "Esse e-mail já está cadastrado e não consegui reenviar o link: " + r.error.message };
+      revalidatePath("/equipe");
+      return { ok: `Esse e-mail já estava cadastrado. Enviei um link novo para ${email} criar a senha.` };
+    }
+    if (error) return { erro: "Não foi possível enviar o convite: " + error.message };
     const funcao = String(form.get("funcao") || "").trim();
     if (data.user && funcao) await adm.from("profiles").update({ funcao }).eq("id", data.user.id);
   } catch { return { erro: "Falta configurar a chave SUPABASE_SERVICE_ROLE_KEY na Vercel." }; }

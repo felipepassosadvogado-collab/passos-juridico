@@ -1,7 +1,7 @@
 "use server";
 import { enderecoDoSite } from "@/lib/site";
 import { redirect } from "next/navigation";
-import { supabaseServidor } from "@/lib/supabase/server";
+import { supabaseServidor, supabaseAdmin } from "@/lib/supabase/server";
 
 export async function entrar(_: unknown, form: FormData) {
   const email = String(form.get("email") || "").trim();
@@ -15,10 +15,11 @@ export async function entrar(_: unknown, form: FormData) {
 }
 
 export async function esqueciSenha(_: unknown, form: FormData) {
-  const email = String(form.get("email") || "").trim();
+  const email = String(form.get("email") || "").trim().toLowerCase();
   if (!email) return { erro: "Informe o e-mail.", ok: "" };
-  const sb = await supabaseServidor();
-  const base = await enderecoDoSite();
-  await sb.auth.resetPasswordForEmail(email, { redirectTo: base ? base + "/auth/nova-senha" : undefined });
+  const redirectTo = (await enderecoDoSite()) + "/auth/confirmar";
+  // pelo cliente administrativo o link funciona em qualquer aparelho (não depende de cookie deste navegador)
+  try { await (await supabaseAdmin()).auth.resetPasswordForEmail(email, { redirectTo }); }
+  catch { await (await supabaseServidor()).auth.resetPasswordForEmail(email, { redirectTo }); }
   return { erro: "", ok: "Se o e-mail estiver cadastrado, enviamos um link para criar nova senha." };
 }
