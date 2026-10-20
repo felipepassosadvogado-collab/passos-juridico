@@ -43,7 +43,7 @@ export function FormAgendar({ numero, pub, av, onFim }: { numero: string; pub?: 
     if (error) { aviso(/modalidade|link|realizado/.test(error.message) ? "Falta instalar a etapa 6 (0005_agenda.sql) no Supabase." : msgErro(error)); return; }
     aplicar("avisos", data);
     registrar({ processo_numero: numero, publicacao_id: pub?.id ?? av?.publicacao_id ?? null, tipo: "ato_agendado", dados: { texto: resumoAto(data as Aviso) + (f.modalidade !== "jf_balcao" ? " em " + dataBR(f.data) : "") } });
-    aviso("Agendado. Aparece em Meus expedientes, em Audiências e coletas.");
+    aviso("Agendado. Aparece no Painel, em Audiências e coletas.");
     onFim(id);
   };
   const m = f.modalidade;

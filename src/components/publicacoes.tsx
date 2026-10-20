@@ -82,7 +82,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
         {linksEproc(pub.link, aviso)}
       </div>
       {agendar && <FormAgendar numero={pub.processo_numero} pub={pub} av={av} onFim={() => setAgendar(false)} />}
-      {av?.modalidade && !agendar && <div className="ato-ag"><span className="pill acc">📅 {resumoAto(av)}{av.modalidade !== "jf_balcao" && av.data_evento ? " · " + dataBR(av.data_evento) : ""}</span><span className="muted">em Meus expedientes › Audiências e coletas</span></div>}
+      {av?.modalidade && !agendar && <div className="ato-ag"><span className="pill acc">📅 {resumoAto(av)}{av.modalidade !== "jf_balcao" && av.data_evento ? " · " + dataBR(av.data_evento) : ""}</span><span className="muted">no Painel › Audiências e coletas</span></div>}
       {ts.length > 0 && <div className="tarefas-pub"><div className="lbl">Tarefas criadas a partir desta publicação</div>{ts.map((t) => <MiniTarefa key={t.id} t={t} />)}</div>}
       {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Cliente avisado" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
       {form && <FormTarefa numero={pub.processo_numero} pub={{ id: pub.id, data: pub.data, eproc: pub.eproc }} tipo={a?.tarefa} desc={descDaAnalise(a)} dias={a?.prazoDias}
@@ -105,7 +105,7 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
   const fase = fases[pub.id] ?? (faseCRM(p?.fase) || a?.fase || "");
   const concluir = async () => {
     const ts = [...tarefas.values()].filter((t) => t.publicacao_id === pub.id); const av = [...avisos.values()].find((x) => x.publicacao_id === pub.id);
-    if (av && av.status !== "avisado" && !confirmar("c" + pub.id, aviso, "O cliente ainda não foi avisado. O aviso continua pendente em Meus expedientes. Clique de novo para concluir.")) return;
+    if (av && av.status !== "avisado" && !confirmar("c" + pub.id, aviso, "O cliente ainda não foi avisado. O aviso continua pendente no Painel. Clique de novo para concluir.")) return;
     if (fases[pub.id] && p && fases[pub.id] !== (p.fase || "")) {
       const r = await sb.from("processos").update({ fase: fases[pub.id] }).eq("numero", p.numero).select().single();
       if (!r.error) { aplicar("processos", r.data); registrar({ processo_numero: p.numero, tipo: "fase", dados: { fase: fases[pub.id] } }); }

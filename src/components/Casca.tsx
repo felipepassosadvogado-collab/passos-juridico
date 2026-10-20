@@ -39,7 +39,7 @@ function Menu() {
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const itens: [string, string, number?, boolean?][] = [
-    ["/", "Painel"], ["/meus", "Meus expedientes", c.meus, c.meusHot], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
+    ["/", "Painel", c.meus, c.meusHot], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
     ["/atividades", "Atividades", c.abertas, c.vencidas], ...(titular ? [["/gestao", "Gestão"] as [string, string]] : []),
     ["/chat", "Chat", total, true], ["/crm", "CRM"], ["/processos", "Processos", processos.size], ["/clientes", "Clientes", clientes.size],
   ];
@@ -100,7 +100,7 @@ function Sino() {
         <div className="nh"><strong>Avisos</strong>{nl.length > 0 && <button className="reflink" onClick={() => lida(nl.map((n) => n.id))}>Marcar todos como lidos</button>}</div>
         {corrigir.length > 0 && <><div className="nsec">Petições para corrigir ({corrigir.length})</div>
           {corrigir.slice(0, 8).map((t) => { const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
-            return <button key={t.id} onClick={() => { setAberto(false); router.push("/meus?corrigir=" + t.id); }}><span className="nt"><span className="dot laranja" />{t.descricao}</span>
+            return <button key={t.id} onClick={() => { setAberto(false); router.push("/?corrigir=" + t.id); }}><span className="nt"><span className="dot laranja" />{t.descricao}</span>
               <span className="ns">{[nomeBonito(p?.cliente_nome || ""), "de " + nome(t.responsavel), t.enviado_em ? dataHoraBR(t.enviado_em) : ""].filter(Boolean).join(" · ")}</span></button>; })}</>}
         {caixa.size > 0 && <><div className="nsec">Publicações</div><button onClick={() => { setAberto(false); router.push("/publicacoes"); }}><span className="nt">{caixa.size} {caixa.size === 1 ? "publicação para ler" : "publicações para ler"}</span><span className="ns">Caixa de publicações do DJEN</span></button></>}
         {avs.length > 0 && <div className="nsec">Avisos</div>}
