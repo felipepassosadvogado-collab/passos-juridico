@@ -3,7 +3,7 @@
 -- avisos ao cliente, notificações, chat e linha do tempo (auditoria).
 -- Regras de negócio que precisam valer mesmo fora das telas ficam em triggers.
 
-create extension if not exists unaccent;
+create extension if not exists unaccent with schema public;
 
 -- busca sem acento (unaccent não é IMMUTABLE; este invólucro permite usá-lo em índices)
 create or replace function public.sem_acento(t text) returns text
