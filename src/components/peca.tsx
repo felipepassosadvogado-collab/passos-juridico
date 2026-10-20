@@ -12,10 +12,17 @@ import { Janela, baixar } from "./ui";
 export type CtxPeca = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo?: string | null; orientacoes?: string };
 
 export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => void }) {
-  const { processos, caixa, sb, eu, aviso } = useDados();
+  const { processos, caixa, tarefas, sb, eu, aviso } = useDados();
   const p = processos.get(ctx.numero); const pub = ctx.publicacaoId ? caixa.get(ctx.publicacaoId) : undefined;
+  const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
+  /** orientações já preenchidas com o que a tarefa diz (descrição, recado da correção e providência da análise) */
+  const sugestao = () => {
+    if (ctx.orientacoes?.trim()) return ctx.orientacoes;
+    const an = (pub?.analise || null) as { providencia?: string; resumo?: string } | null;
+    return [tarefa?.descricao, tarefa?.nota_correcao ? "Recado: " + tarefa.nota_correcao : "", an?.providencia && !/^Nenhuma/i.test(an.providencia) ? "Providência: " + an.providencia : ""].filter(Boolean).join("\n");
+  };
   const [tipo, setTipo] = useState(ctx.tipo && ctx.tipo !== "Outra" && ctx.tipo !== "Contato com o cliente" ? ctx.tipo : "");
-  const [outro, setOutro] = useState(""); const [orient, setOrient] = useState(ctx.orientacoes || "");
+  const [outro, setOutro] = useState(""); const [orient, setOrient] = useState(sugestao);
   const [files, setFiles] = useState<File[]>([]); const [gerando, setGerando] = useState(false); const [etapa, setEtapa] = useState("");
   const [res, setRes] = useState<{ nome: string; pendencias: string[]; titulo: string; aviso?: string } | null>(null); const [erroMsg, setErroMsg] = useState("");
   const pecas = TAREFAS.filter((t) => !["Contato com o cliente", "Audiência", "Outra"].includes(t));
@@ -59,7 +66,7 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
       <div className="form2">
         <label className="f">Peça<select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">— escolher —</option>{pecas.map((x) => <option key={x}>{x}</option>)}<option value="outra">Outra peça…</option></select></label>
         {tipo === "outra" && <label className="f">Qual peça<input value={outro} placeholder="Ex.: Petição de juntada de procuração" onChange={(e) => setOutro(e.target.value)} /></label>}
-        <label className="f full">Orientações para o Claude (opcional)<textarea rows={3} value={orient} placeholder="Ex.: concordar com o laudo e pedir tutela de urgência para suspender os descontos; o contrato é o nº 010016334309" onChange={(e) => setOrient(e.target.value)} /></label>
+        <label className="f full">Orientações para o Claude{orient && orient === sugestao() ? <span className="muted" style={{ fontWeight: 400 }}> · trazidas da tarefa; complete com a estratégia</span> : " (opcional)"}<textarea rows={3} value={orient} placeholder="Ex.: concordar com o laudo e pedir tutela de urgência para suspender os descontos; o contrato é o nº 010016334309" onChange={(e) => setOrient(e.target.value)} /></label>
       </div>
       <section className="novo-cli">
         <div className="av-top"><strong>Documentos do processo (opcional, mas faz muita diferença)</strong><span className="muted" style={{ fontSize: 12.5 }}>laudo, sentença, contestação, ou a cópia integral do eproc — em PDF ou foto</span></div>
