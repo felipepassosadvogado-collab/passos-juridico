@@ -42,14 +42,19 @@ export function Janela({ aberta = true, onFechar, largo, titulo, sub, acoes, chi
   );
 }
 
-export function Avatar({ id, nome, pequeno }: { id?: string | null; nome?: string; pequeno?: boolean }) {
-  const { nome: n } = useDados();
-  const t = nome ?? n(id);
-  return <span className={"avr" + (pequeno ? " sm" : "")} title={t}>{id || nome ? iniciais(t) : "?"}</span>;
+export function Avatar({ id, nome, pequeno, grande }: { id?: string | null; nome?: string; pequeno?: boolean; grande?: boolean }) {
+  const { nome: n, equipe } = useDados();
+  const t = nome ?? n(id); const foto = id ? equipe.find((p) => p.id === id)?.foto : null;
+  return <span className={"avr" + (pequeno ? " sm" : "") + (grande ? " lg" : "") + (foto ? " foto" : "")} title={t}>{foto ? <img src={foto} alt="" loading="lazy" /> : id || nome ? iniciais(t) : "?"}</span>;
+}
+/** só o conteúdo do círculo (foto ou iniciais), para círculos com estilo próprio */
+export function RostoOuIniciais({ id }: { id?: string | null }) {
+  const { nome, equipe } = useDados(); const foto = id ? equipe.find((p) => p.id === id)?.foto : null;
+  return foto ? <img className="rosto" src={foto} alt="" loading="lazy" /> : <>{id ? iniciais(nome(id)) : "?"}</>;
 }
 export function ChipResp({ id }: { id?: string | null }) {
   const { nome, eu } = useDados();
-  return <span className={"chip" + (id ? "" : " vazio")}><span className="av">{id ? iniciais(nome(id)) : "?"}</span>{id ? (id === eu.id ? "Você" : nome(id)) : "Sem responsável"}</span>;
+  return <span className={"chip" + (id ? "" : " vazio")}><span className="av"><RostoOuIniciais id={id} /></span>{id ? (id === eu.id ? "Você" : nome(id)) : "Sem responsável"}</span>;
 }
 
 export function SelResp({ valor, onChange, vazio = "Sem responsável", excluir, id }: { valor: string | null; onChange: (v: string | null) => void; vazio?: string | null; excluir?: string[]; id?: string }) {

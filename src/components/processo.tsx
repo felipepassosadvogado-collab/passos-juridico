@@ -13,7 +13,7 @@ import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CorpoPublicacao, useAnalisar } from "./publicacoes";
 import { useCriarAviso } from "./avisos";
 import { useJanelas } from "./janelas";
-import { Avatar, Ic, SelResp } from "./ui";
+import { Avatar, Ic, RostoOuIniciais, SelResp } from "./ui";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Aba = "tarefas" | "andamentos" | "intimacoes" | "dados";
@@ -180,7 +180,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           <div className="tlw" style={{ padding: 0 }}>{andamentos.length ? andamentos.map((e) => {
             const t = e.tarefa_id ? tarefas.get(e.tarefa_id) : undefined; const autor = e.por ? nome(e.por) : "Sistema"; const px = e.publicacao_id ? (pubs || []).find((y) => y.id === e.publicacao_id) : undefined;
             return <div key={e.id} className={"tl" + (e.por === eu.id ? " meu" : "") + (e.tipo === "comentario" ? " com" : "")}>
-              <div className={"av" + (e.por ? "" : " sys")}>{e.por ? iniciais(autor) : "DJ"}</div>
+              <div className={"av" + (e.por ? "" : " sys")}>{e.por ? <RostoOuIniciais id={e.por} /> : "DJ"}</div>
               <div className="bub"><div className="bh"><strong>{autor}</strong> · {dataHoraBR(e.em)}</div><CorpoEvento e={e} t={t} nome={nome} />
                 {px && e.tipo !== "analise_concluida" && <button className="reflink" onClick={() => irPub(px.id)}>↳ referente a: {atoPub(px)} de {dataBR(px.data)}</button>}
                 {t && e.tipo === "tarefa_criada" && <button className="reflink" onClick={() => j.abrirTarefa(t.id)}>↳ abrir a tarefa</button>}

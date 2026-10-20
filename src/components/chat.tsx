@@ -11,8 +11,10 @@ import { hojeBR } from "@/lib/prazos";
 import { mascaraCnj } from "@/lib/cnj";
 import type { Mensagem } from "@/lib/tipos";
 import { useJanelas } from "./janelas";
+import { Avatar } from "./ui";
 
 export type Conversa = { id: string; nome: string; sub: string };
+export const outroDaDm = (c: string, eu: string) => c.slice(3).split(":").find((x) => x !== eu) || null;
 export const idDm = (a: string, b: string) => "dm:" + [a, b].sort().join(":");
 
 export function useChat() {
@@ -89,7 +91,7 @@ export function Bolhas({ msgs }: { msgs: Mensagem[] }) {
     const d = new Date(m.em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); const out: React.ReactNode[] = [];
     if (d !== dia) { dia = d; out.push(<div key={"d" + m.id} className="chat-dia">{d === hoje ? "Hoje" : dataBR(d)}</div>); }
     const meu = m.de === eu.id;
-    out.push(<div key={m.id} className={"msg" + (meu ? " meu" : "")}>{!meu && <span className="avr sm">{iniciais(nome(m.de))}</span>}
+    out.push(<div key={m.id} className={"msg" + (meu ? " meu" : "")}>{!meu && <Avatar id={m.de} pequeno />}
       <div className="bolha">{!meu && <div className="mautor">{nome(m.de)}</div>}{m.anexo && <Anexo m={m} />}{m.texto && <div className="mtexto"><TextoComLinks t={m.texto} /></div>}<div className="mhora">{dataHoraBR(m.em).slice(11)}</div></div></div>);
     return out;
   })}</>;
@@ -197,7 +199,7 @@ export function ChatFlutuante() {
         </header>
         {c ? <><Fio conversa={c.id} vazio="Nenhuma mensagem ainda." /><Compositor conversa={c.id} placeholder="Mensagem…" /></> :
           <div className="cf-lista">{convs.map((x) => { const n = naoLidas(x.id); const ult = daConversa(x.id).slice(-1)[0];
-            return <button key={x.id} className="chat-conv" onClick={() => setConv(x.id)}><span className="avr">{x.id === "geral" ? "#" : iniciais(x.nome)}</span>
+            return <button key={x.id} className="chat-conv" onClick={() => setConv(x.id)}>{x.id === "geral" ? <span className="avr">#</span> : <Avatar id={outroDaDm(x.id, eu.id)} nome={x.nome} />}
               <span className="cc"><span className="cn">{x.nome}</span><span className="cs">{ult ? (ult.de === eu.id ? "Você: " : "") + resumo(ult).slice(0, 50) : x.sub}</span></span>{n ? <span className="count hot">{n}</span> : null}</button>; })}</div>}
       </div>}
       <button className="cf-botao" title={aberto ? "Fechar o chat" : "Abrir o chat"} aria-label="Chat" onClick={() => setAberto(!aberto)}>

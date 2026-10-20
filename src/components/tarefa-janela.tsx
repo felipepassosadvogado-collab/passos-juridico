@@ -11,7 +11,7 @@ import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
-import { Avatar, Ic, SelResp, useConfirmar } from "./ui";
+import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
 
 const diaSemana = (iso?: string | null) => (iso ? paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long" }).split("-")[0] + ", " + dataBR(iso) : "—");
 function haQuanto(iso: string) {
@@ -117,10 +117,10 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 <div className="tools"><button className="btn primary" onClick={comentar}>Comentar</button><span className="muted" style={{ fontSize: 12 }}>O comentário fica na tarefa e na linha do tempo do processo; o Claude também lê ao gerar a petição.</span></div>
               </div>
               <div className="tlw" style={{ padding: 0 }}>{comentarios.length ? comentarios.map((e) => (
-                <div key={e.id} className={"tl com" + (e.por === eu.id ? " meu" : "")}><div className="av">{iniciais(nome(e.por))}</div>
+                <div key={e.id} className={"tl com" + (e.por === eu.id ? " meu" : "")}><div className="av"><RostoOuIniciais id={e.por} /></div>
                   <div className="bub"><div className="bh"><strong>{nome(e.por)}</strong> · {dataHoraBR(e.em)}</div><CorpoEvento e={e} nome={nome} /></div></div>)) : <div className="muted" style={{ fontSize: 13 }}>Nenhum comentário ainda.</div>}</div>
             </> : <div className="tlw" style={{ padding: 0 }}>{historico.length ? historico.map((e) => (
-              <div key={e.id} className="tl"><div className={"av" + (e.por ? "" : " sys")}>{e.por ? iniciais(nome(e.por)) : "—"}</div>
+              <div key={e.id} className="tl"><div className={"av" + (e.por ? "" : " sys")}>{e.por ? <RostoOuIniciais id={e.por} /> : "—"}</div>
                 <div className="bub"><div className="bh"><strong>{e.por ? nome(e.por) : "Sistema"}</strong> · {dataHoraBR(e.em)}</div><CorpoEvento e={e} t={t} nome={nome} /></div></div>)) : <div className="muted" style={{ fontSize: 13 }}>Sem histórico.</div>}</div>}
           </div>
           <aside className="tj-dir">

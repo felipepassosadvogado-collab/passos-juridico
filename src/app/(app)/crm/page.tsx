@@ -8,7 +8,7 @@ import { DICAS_ETAPA, DICAS_FASE, ETAPAS, FASES, faseCRM, sugerirFase } from "@/
 import type { Tarefa } from "@/lib/tipos";
 import { Coluna, ProxTarefa, useArrasto } from "@/components/crm";
 import { useJanelas } from "@/components/janelas";
-import { Ic } from "@/components/ui";
+import { Avatar, Ic } from "@/components/ui";
 
 function CRM() {
   const d = useDados(); const { processos, casos, tarefas, sb, aplicar, registrar, aviso, titular, nome, v } = d;
@@ -46,7 +46,7 @@ function CRM() {
     try { for (const p of semFase) { const f = sugerirFase(p); const { data } = await sb.from("processos").update({ fase: f }).eq("numero", p.numero).select().single(); if (data) { aplicar("processos", data); registrar({ processo_numero: p.numero, tipo: "fase", dados: { fase: f + " (sugestão automática)" } }); k++; } } aviso(k + " processos classificados."); }
     finally { setOcupado(false); }
   };
-  const av = (id?: string | null) => id ? <span className="avr sm" title={nome(id)}>{iniciais(nome(id))}</span> : null;
+  const av = (id?: string | null) => id ? <Avatar id={id} pequeno /> : null;
   const mover = (atual: string, opcoes: [string, string][], onMover: (v: string) => void) =>
     <select className="kmove" aria-label="Mover para" value="" onClick={(e) => e.stopPropagation()} onChange={(e) => onMover(e.target.value)}><option value="">Mover para…</option>{opcoes.map(([k, t]) => <option key={k} value={k} disabled={k === atual}>{t}</option>)}</select>;
   let quadro;

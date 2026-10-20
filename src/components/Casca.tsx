@@ -8,6 +8,7 @@ import { bancoCurto, dataHoraBR, iniciais, nomeBonito, semAcento } from "@/lib/f
 import { hojeBR } from "@/lib/prazos";
 import { soDigitos } from "@/lib/cnj";
 import { useJanelas } from "./janelas";
+import { Avatar } from "./ui";
 import { useChat, ChatFlutuante } from "./chat";
 
 const I = (d: string) => <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
@@ -153,7 +154,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
             <button className="icb" title="Alternar tema claro e escuro" onClick={() => { const c = document.documentElement.classList.toggle("claro"); try { localStorage.setItem("tema", c ? "claro" : "escuro"); } catch { /* sem armazenamento */ } }}>{I('<path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/>')}</button>
             <Sino />
             <Adicionar />
-            <span className="ola"><span className="avr">{iniciais(eu.nome)}</span><span className="nome">Olá, <b>{eu.nome.split(/[\s.]/)[0]}</b></span></span>
+            <span className="ola"><Avatar id={eu.id} /><span className="nome">Olá, <b>{eu.nome.split(/[\s.]/)[0]}</b></span></span>
             <form action="/auth/sair" method="post"><button className="btn ghost" title="Sair do sistema">Sair</button></form>
           </div>
         </header>
