@@ -10,6 +10,7 @@ import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { TAREFAS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
 import { ChipResp, Avatar, Ic, SelResp, useConfirmar, tamanhoBR } from "./ui";
+import { useJanelas } from "./janelas";
 
 const EXT_OK = /\.(pdf|docx|xlsx)$/i;
 
@@ -105,7 +106,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
   tipo?: string | null; desc?: string; dias?: number | null; resp?: string | null; extra?: React.ReactNode;
   onCriada?: (t: Tarefa) => void; aoCriar?: () => Promise<void> | void; botoes?: React.ReactNode;
 }) {
-  const { sb, eu, aplicar, aviso, nome } = useDados();
+  const { sb, eu, aplicar, aviso, nome } = useDados(); const j = useJanelas();
   const [f, setF] = useState({ tipo: tipo && TAREFAS.includes(tipo) ? tipo : "", desc: desc || "", dias: dias ? String(dias) : "", venc: "", vencMan: false, resp: resp !== undefined ? resp : eu.id, imp: false, urg: false });
   const [ocupado, setOcupado] = useState(false);
   const auto = pub && +f.dias ? calcularVencimento(pub.data, +f.dias, pub.eproc) : "";
@@ -141,7 +142,9 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
           <label className="chk urg"><input type="checkbox" checked={f.urg} onChange={(e) => setF({ ...f, urg: e.target.checked })} />Urgente</label>
         </div>
       </div>
-      <div className="acts"><button className="btn primary" disabled={ocupado} onClick={criar}>{Ic.tarefa}{ocupado ? "Criando…" : "Criar tarefa"}</button>{botoes}</div>
+      <div className="acts"><button className="btn primary" disabled={ocupado} onClick={criar}>{Ic.tarefa}{ocupado ? "Criando…" : "Criar tarefa"}</button>
+        {numero && <button className="btn" title="O Claude redige a peça em Word, no papel timbrado do escritório" onClick={() => j.gerarPeca({ numero, publicacaoId: pub?.id ?? null, tipo: f.tipo || null, orientacoes: f.desc })}>{Ic.claude}Gerar petição</button>}
+        {botoes}</div>
     </div>
   );
 }

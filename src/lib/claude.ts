@@ -4,12 +4,14 @@ import { TAREFAS, TIPOS_EV } from "./regras";
 import type { Analise } from "./tipos";
 
 export const MODELO = "claude-sonnet-5-5";
+/** para redigir peças, o modelo mais capaz */
+export const MODELO_REDACAO = "claude-opus-5-5";
 type Bloco = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } } | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
 
 export class ErroClaude extends Error { constructor(msg: string, public status = 502) { super(msg); } }
 
 /** manda o pedido e devolve o JSON da resposta */
-export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000): Promise<T> {
+export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000, modelo = MODELO): Promise<T> {
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) throw new ErroClaude("Falta cadastrar a chave ANTHROPIC_API_KEY na Vercel para usar o Claude.", 503);
   let r: Response | null = null;
@@ -17,7 +19,7 @@ export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000
     r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }] }),
+      body: JSON.stringify({ model: modelo, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }] }),
     });
     if (r.status !== 429 && r.status !== 529 && r.status < 500) break;
     await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
