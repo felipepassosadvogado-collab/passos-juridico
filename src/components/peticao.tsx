@@ -16,14 +16,18 @@ const mesAtual = () => new Date().toLocaleDateString("en-CA", { timeZone: "Ameri
 export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: () => void }) {
   const { clientes, config, sb, eu, aviso } = useDados();
   const cli = ctx.clienteId ? clientes.get(ctx.clienteId) : undefined;
-  const banco = nomeBonito((ctx.banco || "").replace(/\s*(?:\be\b|;|,|\/)\s*(?:o\s+)?(?:INSS|Instituto Nacional do Seguro Social).*$/i, "").trim()); const k = chaveBanco(banco);
+  const banco = nomeBonito((ctx.banco || cli?.kit?.banco || "").replace(/\s*(?:\be\b|;|,|\/)\s*(?:o\s+)?(?:INSS|Instituto Nacional do Seguro Social).*$/i, "").trim()); const k = chaveBanco(banco);
   const fem = /a$/i.test((cli?.estado_civil || "").trim()) || /a$/i.test((cli?.profissao || "").trim());
   const [pi, setPi] = useState({
     genero: fem ? "F" : "M", especie: "", nb: cli?.nb || "", pagador: "", banco,
     bancoQualif: (config.geral?.bancosQualif || {})[k] || QUALIF_PADRAO[k] || ", pessoa jurídica de direito privado, inscrita no CNPJ sob o nº [CNPJ], com sede na [ENDEREÇO], na cidade de [CIDADE/UF], CEP [CEP]; e",
     total: "", moral: "10.000,00", cidadeJuizo: (ctx.cidade || cli?.cidade || "Joinville/SC").toUpperCase(),
   });
-  const [contratos, setContratos] = useState<Contrato[]>([{ numero: "", parcela: "", inclusao: "" }]);
+  // contratos preenchidos no kit procuração do cliente já vêm aqui
+  const [contratos, setContratos] = useState<Contrato[]>(() => {
+    const l = (cli?.kit?.contratos || []).filter((c) => c.numero.trim());
+    return l.length ? l.map((c) => ({ numero: c.numero, parcela: c.parcela, inclusao: /^\d\d\/\d\d\/\d{4}$/.test(c.averbacao) ? c.averbacao.split("/").reverse().join("-") : "" })) : [{ numero: "", parcela: "", inclusao: "" }];
+  });
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
   const [confirmQ, setConfirmQ] = useState(false); const [kitV, setKitV] = useState(0); const [totalManual, setTotalManual] = useState(false);
   const [calc, setCalc] = useState({ regime: "jf" as Regime, ate: mesAtual(), dobro: true, modulacao: false, usarNaCausa: true });

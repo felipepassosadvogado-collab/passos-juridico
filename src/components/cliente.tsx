@@ -5,7 +5,7 @@ import { useDados, msgErro } from "@/lib/dados";
 import { cpfValido, dataBR, mascaraCpf, nomeBonito, semAcento } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { TIPOS_DOC } from "@/lib/regras";
-import type { Cliente, Documento } from "@/lib/tipos";
+import type { Cliente, Documento, KitSalvo } from "@/lib/tipos";
 import { useVisor } from "./visor";
 import { useConfirmar } from "./ui";
 
@@ -26,6 +26,15 @@ export function useFichaCliente(c?: Cliente) {
   const [ed, setEd] = useState<Ed>(() => Object.fromEntries(CAMPOS.map(([k]) => [k, (c?.[k] as string) || ""])));
   const [files, setFiles] = useState<Arq[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [salvando, setSalvando] = useState(false);
   const [extra, setExtra] = useState<{ parteContraria?: string; contratos?: { numero: string; averbacao: string; parcela: string }[] }>({});
+  const [kit, setKit] = useState<KitSalvo | null>(c?.kit || null); const [kitNovo, setKitNovo] = useState(false);
+  /** guarda o que foi usado no kit procuração (já grava se o cliente existe; senão, vai junto no cadastro) */
+  const guardarKit = async (k: Omit<KitSalvo, "em">) => {
+    const v = { ...k, em: new Date().toISOString() }; setKit(v);
+    if (!c?.id) { setKitNovo(true); return; }
+    const { data, error } = await sb.from("clientes").update({ kit: v }).eq("id", c.id).select().single();
+    if (error) { if (/kit/.test(error.message)) aviso("Para guardar os contratos na ficha, falta instalar a etapa 11 (0010_kit_cliente.sql)."); return; }
+    aplicar("clientes", data);
+  };
   const ler = async () => {
     setLendo(true); setNota("");
     try {
@@ -68,7 +77,9 @@ export function useFichaCliente(c?: Cliente) {
       } else {
         const mesmoCpf = dados.cpf ? [...clientes.values()].find((x) => x.cpf && x.cpf.replace(/\D/g, "") === dados.cpf!.replace(/\D/g, "")) : undefined;
         if (mesmoCpf) { aviso("Já existe a ficha de " + nomeBonito(mesmoCpf.nome) + " com esse CPF."); return null; }
-        const { data, error } = await sb.from("clientes").insert(dados).select().single();
+        let r = await sb.from("clientes").insert(kitNovo && kit ? { ...dados, kit } : dados).select().single();
+        if (r.error && /kit/.test(r.error.message)) r = await sb.from("clientes").insert(dados).select().single();
+        const { data, error } = r;
         if (error) { aviso(msgErro(error)); return null; } aplicar("clientes", data); id = data.id as string;
       }
       let n = 0;
@@ -83,7 +94,7 @@ export function useFichaCliente(c?: Cliente) {
       return id!;
     } finally { setSalvando(false); }
   };
-  return { ed, setEd, files, setFiles, nota, lendo, salvando, ler, salvar, extra };
+  return { ed, setEd, files, setFiles, nota, lendo, salvando, ler, salvar, extra, kit, guardarKit };
 }
 
 export function CamposCliente({ f, so }: { f: ReturnType<typeof useFichaCliente>; so?: (keyof Cliente)[] }) {

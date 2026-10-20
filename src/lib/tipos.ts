@@ -1,10 +1,12 @@
 // Tipos das tabelas usadas nas telas (espelham supabase/migrations/0001_base.sql).
 export type Papel = "titular" | "advogado" | "colaborador";
 export type Perfil = { id: string; nome: string; funcao: string; papel: Papel; ativo: boolean; criado_em: string; foto?: string | null };
+export type KitSalvo = { banco: string; pct: number; contratos: { numero: string; averbacao: string; parcela: string }[]; em: string };
 export type Cliente = {
   id: string; nome: string; cpf: string | null; rg: string | null; nascimento: string | null; nacionalidade: string | null;
   estado_civil: string | null; profissao: string | null; nome_mae: string | null; telefone: string | null; email: string | null;
   endereco: string | null; cep: string | null; cidade: string | null; nb: string | null; obs: string | null; criado_em: string;
+  kit?: KitSalvo | null;
 };
 export type Processo = {
   numero: string; mascara: string; tribunal: string | null; orgao: string | null; cidade: string | null; classe: string | null;

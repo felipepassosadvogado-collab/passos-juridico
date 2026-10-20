@@ -18,8 +18,8 @@ export function KitProcuracao({ f, bancoSugerido = "" }: { f: ReturnType<typeof 
   const { config, sb, eu, aviso } = useDados();
   const [aberto, setAberto] = useState(false);
   const fem0 = /a$/i.test((f.ed.estado_civil || "").trim()) || /a$/i.test((f.ed.profissao || "").trim());
-  const [k, setK] = useState({ banco: nomeBonito(f.extra.parteContraria || bancoSugerido || ""), pct: String(pctPadrao(config)).replace(".", ","), feminino: fem0, email: "" });
-  const [cs, setCs] = useState<Contrato[]>([{ numero: "", averbacao: "", parcela: "" }]); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
+  const [k, setK] = useState({ banco: f.kit?.banco || nomeBonito(f.extra.parteContraria || bancoSugerido || ""), pct: String(f.kit?.pct ?? pctPadrao(config)).replace(".", ","), feminino: fem0, email: "" });
+  const [cs, setCs] = useState<Contrato[]>(f.kit?.contratos?.length ? f.kit.contratos : [{ numero: "", averbacao: "", parcela: "" }]); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
   const extratos = f.files.filter((x) => x.tipo === "extrato");
   // o que o Claude leu nos documentos entra sozinho (sem apagar o que já foi digitado)
   useEffect(() => {
@@ -49,6 +49,7 @@ export function KitProcuracao({ f, bancoSugerido = "" }: { f: ReturnType<typeof 
     try {
       const { MODELO_KIT_DOCX } = await import("@/modelos/modeloKit");
       const blob = await montarKit(MODELO_KIT_DOCX, d);
+      f.guardarKit({ banco: k.banco.trim(), pct, contratos: cs.filter((c) => c.numero.trim() || c.parcela.trim()) });
       baixar(`Kit_Procuracao_-_${nomeBonito(f.ed.nome || "cliente").replace(/\s+/g, "_")}.docx`, blob);
       const faltam = faltasKit(d);
       aviso(faltam.length ? "Kit emitido. Ficou entre [colchetes]: " + faltam.join(", ") + "." : "Kit procuração emitido. Imprima, colha as assinaturas e anexe na ficha.");

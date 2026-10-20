@@ -137,6 +137,13 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map((x) => x[0]).filter((o) => !/Presid|Contadoria|Coordenadoria|Vice/i.test(o));
   }, [info?.chave]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (c: Partial<typeof np>) => setNp((x) => ({ ...x, ...c }));
+  const kitCli = np.clienteId ? clientes.get(np.clienteId)?.kit : undefined;
+  const textoContratos = (k: NonNullable<typeof kitCli>) => k.contratos.map((c) => [c.numero, c.averbacao ? "averbado em " + c.averbacao : "", c.parcela ? "parcela R$ " + c.parcela : ""].filter(Boolean).join(", ")).join("; ");
+  // o que foi preenchido no kit procuração do cliente já vem no cadastro (sem apagar o que foi digitado)
+  useEffect(() => {
+    if (!kitCli) return;
+    setNp((x) => ({ ...x, reus: x.reus.length ? x.reus : [kitCli.banco ? nomeBonito(kitCli.banco) : "", INSS].filter(Boolean), contratos: x.contratos.trim() ? x.contratos : textoContratos(kitCli) }));
+  }, [np.clienteId, kitCli?.em]); // eslint-disable-line react-hooks/exhaustive-deps
   const buscar = async () => {
     setBusy(true); setNota("");
     try {
@@ -161,11 +168,16 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
     try {
       const reus = np.reus; const cli = np.clienteId ? clientes.get(np.clienteId) : undefined;
       const ult = [...pubs].sort((a, b) => b.data.localeCompare(a.data))[0];
-      const { data, error } = await sb.from("processos").insert({
+      const notas = [np.contratos.trim() ? "Contratos impugnados: " + np.contratos.trim() : "", np.notas.trim()].filter(Boolean).join("\n") || null;
+      const linha: Record<string, unknown> = {
         numero: dig, tribunal: np.tribunal.trim() || info?.tribunal || null, orgao: np.orgao.trim() || null, cidade: np.cidade.trim() || null, classe: np.classe.trim() || null,
-        cliente_id: np.clienteId || null, cliente_nome: cli?.nome || np.cliente || "", reus, banco: bancoDosReus(reus) || null, fase: np.fase || null, responsavel: np.resp || null, notas: np.notas.trim() || null,
+        cliente_id: np.clienteId || null, cliente_nome: cli?.nome || np.cliente || "", reus, banco: bancoDosReus(reus) || null, fase: np.fase || null, responsavel: np.resp || null, notas,
         ultima_data: ult?.data || null, ultimo_ato: ult ? (ult.tipo_doc && ult.tipo_doc !== "Outros" ? ult.tipo_doc : ult.tipo_com) : "Cadastro manual", cadastro_manual: true,
-      }).select().single();
+        ...(kitCli?.pct ? { honorarios_pct: kitCli.pct } : {}),
+      };
+      let r = await sb.from("processos").insert(linha).select().single();
+      if (r.error && /honorarios_pct/.test(r.error.message)) { delete linha.honorarios_pct; r = await sb.from("processos").insert(linha).select().single(); }
+      const { data, error } = r;
       if (error) { aviso(msgErro(error)); return; }
       aplicar("processos", data);
       if (pubs.length) { const r = await sb.from("publicacoes").upsert(pubs.map((x) => ({ ...x, processo_numero: dig, triagem: "concluida" })), { onConflict: "id", ignoreDuplicates: true }); if (r.error) aviso("O processo foi cadastrado, mas as publicações do DJEN não foram gravadas."); }
@@ -186,7 +198,10 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
     setBusy(true);
     try {
       const bancos = np.reus.filter((r) => !/INSS|Seguro Social/i.test(r));
-      const { data, error } = await sb.from("casos").insert({ cliente_id: np.clienteId || null, nome, banco: (bancos.length ? bancos : np.reus).join("; ") || null, contratos: np.contratos.trim() || null, etapa: np.etapa, responsavel: np.resp || null, obs: np.notas.trim() || null }).select().single();
+      const linha: Record<string, unknown> = { cliente_id: np.clienteId || null, nome, banco: (bancos.length ? bancos : np.reus).join("; ") || null, contratos: np.contratos.trim() || null, etapa: np.etapa, responsavel: np.resp || null, obs: np.notas.trim() || null, ...(kitCli?.pct ? { honorarios_pct: kitCli.pct } : {}) };
+      let r = await sb.from("casos").insert(linha).select().single();
+      if (r.error && /honorarios_pct/.test(r.error.message)) { delete linha.honorarios_pct; r = await sb.from("casos").insert(linha).select().single(); }
+      const { data, error } = r;
       if (error) { aviso(msgErro(error)); return; }
       aplicar("casos", data); registrar({ caso_id: data.id, tipo: "fase", dados: { fase: np.etapa } });
       aviso("Atendimento criado no CRM. Quando protocolar, use “Protocolado: cadastrar processo”."); onCaso(data.id);
@@ -217,7 +232,7 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
           {novoCli ? <NovoClienteEmbutido onCancelar={() => setNovoCli(false)} onUsar={(id, nome, reu) => { set({ clienteId: id, cliente: nome, ...(reu && !np.reus.length ? { reus: [nomeBonito(reu), INSS] } : {}) }); setNovoCli(false); aviso("Cliente cadastrado e selecionado."); }} />
             : <BuscaCliente valor={np.clienteId} nomeSemFicha={!np.clienteId ? np.cliente : ""} onEscolher={(id, nome) => set({ clienteId: id, cliente: nome || np.cliente })} onNovo={() => setNovoCli(true)} />}</div>
         <div className="f"><span>Réus</span><SelReus valor={np.reus} onChange={(l) => set({ reus: l })} /></div>
-        {pre && <label className="f">Contratos impugnados (opcional)<input value={np.contratos} placeholder="Ex.: 010016334309; 010017220011" onChange={(e) => set({ contratos: e.target.value })} /></label>}
+        {<label className="f">Contratos impugnados (opcional){kitCli?.contratos?.length ? <span className="muted" style={{ fontWeight: 400 }}> · do kit procuração</span> : null}<input value={np.contratos} placeholder="Ex.: 010016334309; 010017220011" onChange={(e) => set({ contratos: e.target.value })} /></label>}
         <label className="f">Responsável<SelResp valor={np.resp} onChange={(v) => set({ resp: v })} /></label>
         <label className="f">Anotações gerais<textarea rows={2} value={np.notas} placeholder="Anotações, fatos e fundamentos (o Claude lê ao redigir peças)" onChange={(e) => set({ notas: e.target.value })} /></label>
         {pre ? <label className="f">Etapa do atendimento *<select value={np.etapa} onChange={(e) => set({ etapa: e.target.value })}>{ETAPAS.filter((x) => x !== "Protocolado").map((f) => <option key={f}>{f}</option>)}</select></label>

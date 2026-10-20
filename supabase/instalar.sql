@@ -777,3 +777,9 @@ alter table public.processos drop constraint if exists processos_honorarios_pct_
 alter table public.processos add constraint processos_honorarios_pct_ok check (honorarios_pct is null or (honorarios_pct >= 0 and honorarios_pct <= 100));
 alter table public.casos drop constraint if exists casos_honorarios_pct_ok;
 alter table public.casos add constraint casos_honorarios_pct_ok check (honorarios_pct is null or (honorarios_pct >= 0 and honorarios_pct <= 100));
+-- Passos Juridico - dados do kit procuracao guardados no cliente
+-- Banco reu, percentual de honorarios e contratos impugnados preenchidos no kit,
+-- para ja virem prontos no cadastro do processo e na peticao inicial.
+-- Pode rodar mais de uma vez sem problema.
+
+alter table public.clientes add column if not exists kit jsonb;
