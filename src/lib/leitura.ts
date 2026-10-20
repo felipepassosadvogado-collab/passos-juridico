@@ -6,7 +6,7 @@ import type { supabaseNavegador } from "./supabase/client";
 
 type SB = ReturnType<typeof supabaseNavegador>;
 
-async function reduzir(f: File, lado = 1800): Promise<Blob> {
+export async function reduzir(f: File, lado = 1800): Promise<Blob> {
   if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type)) return f;
   try {
     const bmp = await createImageBitmap(f);

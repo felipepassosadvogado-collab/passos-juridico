@@ -42,7 +42,7 @@ export type Documento = {
   id: string; cliente_id: string | null; tarefa_id: string | null; tipo: string | null; etapa: string | null; nome: string;
   caminho: string; tamanho: number | null; mime: string | null; por: string | null; em: string;
 };
-export type Mensagem = { id: string; conversa: string; de: string; texto: string; em: string };
+export type Mensagem = { id: string; conversa: string; de: string; texto: string; em: string; anexo?: string | null; anexo_nome?: string | null; anexo_tipo?: string | null };
 export type Analise = {
   ato?: string; resumo?: string; providencia?: string; tarefa?: string | null; prazoDias?: number | null; fase?: string | null; obs?: string;
   intimarCliente?: boolean; evento?: { tipo?: string; data?: string | null; hora?: string | null; local?: string | null; orientacoes?: string; modalidade?: string | null } | null;
