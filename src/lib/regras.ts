@@ -1,5 +1,5 @@
 // Listas e regras do escritório usadas em várias telas (as mesmas do painel antigo).
-import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Processo } from "./tipos";
+import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Processo, type Modalidade } from "./tipos";
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
 import { paraData } from "./prazos";
 
@@ -21,6 +21,14 @@ export const DICAS_FASE: Record<string, string> = {
 export const BANCOS = ["Banco C6 Consignado S.A.", "Itaú Unibanco S.A.", "Banco Daycoval S.A.", "Banco BMG S.A.", "Banco Bradesco S.A.", "Banco Pan S.A.",
   "Banco Santander S.A.", "Banco Mercantil do Brasil S.A.", "Facta Financeira S.A.", "Crefisa S.A."];
 export const TIPOS_EV = ["Perícia", "Coleta de padrão grafotécnico", "Audiência", "Comparecimento", "Outro"];
+/** atos que entram na caixa "Audiências e coletas" de Meus expedientes */
+export const ATOS_AGENDA = ["Audiência", "Coleta de padrão grafotécnico"];
+export const MODALIDADES: Record<Modalidade, { nome: string; curto: string }> = {
+  video: { nome: "Por videoconferência", curto: "videoconferência" },
+  jf_agendado: { nome: "Na Justiça Federal, com dia e hora marcados", curto: "na JF · horário marcado" },
+  jf_balcao: { nome: "Na Justiça Federal, no horário de atendimento ao público", curto: "na JF · atendimento ao público" },
+};
+export const ehAgenda = (a: Pick<Aviso, "tipo_evento" | "modalidade">) => !!a.modalidade || ATOS_AGENDA.includes(a.tipo_evento || "");
 export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: "Comprovante de residência", procuracao: "Procuração", contrato: "Contrato de honorários", extrato: "Extrato do INSS", outro: "Outro" };
 
 const MAPA_FASE: Record<string, string> = { "Inicial / citação": "Protocolo / citação", "Contestação / réplica": "Réplica", "Perícia grafotécnica": "Perícia / instrução", "Manifestação ao laudo": "Perícia / instrução", "Audiência": "Perícia / instrução" };
@@ -63,6 +71,7 @@ export function avisoDaAnalise(an?: Analise | null): Partial<Aviso> {
     data_evento: /^\d{4}-\d\d-\d\d$/.test(ev.data || "") ? ev.data! : null,
     hora: /^\d\d:\d\d$/.test(ev.hora || "") ? ev.hora! : null,
     local: ev.local || null, orientacoes: ev.orientacoes || null,
+    modalidade: ev.modalidade && ev.modalidade in MODALIDADES ? ev.modalidade as Modalidade : null,
   };
 }
 
@@ -72,13 +81,22 @@ export function dataExtenso(iso?: string | null) {
   return paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 }
 /** mensagem padrão do WhatsApp para avisar o cliente */
-export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes">, nomeCliente: string, banco?: string | null) {
+export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes" | "modalidade" | "link">, nomeCliente: string, banco?: string | null) {
   const nome = primeiroNome(nomeCliente); const b = bancoCurto(banco || ""); const tipo = (av.tipo_evento || "um ato").toLowerCase();
-  const hora = (av.hora || "").slice(0, 5);
-  const quando = av.data_evento ? ` no dia ${dataBR(av.data_evento)} (${dataExtenso(av.data_evento)})${hora ? ", às " + hora : ""}` : "";
-  return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`,
-    `No seu processo${b && b !== "—" ? " contra o " + b : ""}, a Justiça marcou ${tipo}${quando}${av.local ? ", em " + av.local : ""}.`,
-    av.orientacoes || "",
+  const hora = (av.hora || "").slice(0, 5); const dia = av.data_evento ? `${dataBR(av.data_evento)} (${dataExtenso(av.data_evento)})` : "";
+  const quando = dia ? ` no dia ${dia}${hora ? ", às " + hora : ""}` : "";
+  const proc = `No seu processo${b && b !== "—" ? " contra o " + b : ""}`;
+  const coleta = /coleta/i.test(tipo) ? " É quando a Justiça colhe amostras da sua assinatura, à mão, para a perícia." : "";
+  let corpo: string[];
+  if (av.modalidade === "video") corpo = [`${proc}, a Justiça marcou ${tipo} por videoconferência${quando}.${coleta}`,
+    av.link ? `O link para entrar é:\n${av.link}` : "Vamos te enviar o link para entrar antes do horário.",
+    "Você vai precisar de celular ou computador com câmera e internet, e de um documento original com foto. Entre uns 10 minutos antes, num lugar calmo e silencioso."];
+  else if (av.modalidade === "jf_agendado") corpo = [`${proc}, a Justiça marcou ${tipo}${quando}, presencialmente na Justiça Federal${av.local ? " (" + av.local + ")" : ""}.${coleta}`,
+    "Leve um documento original com foto e chegue uns 15 minutos antes."];
+  else if (av.modalidade === "jf_balcao") corpo = [`${proc}, você precisa ir à Justiça Federal${av.local ? " (" + av.local + ")" : ""}, no horário de atendimento ao público${dia ? ", até o dia " + dia : ""}, para ${tipo}.${coleta}`,
+    "Não precisa marcar horário. Leve um documento original com foto."];
+  else corpo = [`${proc}, a Justiça marcou ${tipo}${quando}${av.local ? ", em " + av.local : ""}.`];
+  return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`, ...corpo, av.orientacoes || "",
     "Sua presença é importante. Por favor, responda esta mensagem confirmando que recebeu."].filter(Boolean).join("\n\n");
 }
 

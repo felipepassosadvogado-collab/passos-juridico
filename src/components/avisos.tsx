@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
-import { TIPOS_EV, mensagemPadrao } from "@/lib/regras";
+import { MODALIDADES, TIPOS_EV, mensagemPadrao } from "@/lib/regras";
+import type { Modalidade } from "@/lib/tipos";
 import type { Aviso } from "@/lib/tipos";
 
 /** cria (ou devolve o que já existe para a publicação) um aviso ao cliente */
@@ -14,6 +15,7 @@ export function useCriarAviso() {
     const { data, error } = await sb.from("avisos_cliente").insert({
       processo_numero: base.processo_numero, publicacao_id: base.publicacao_id ?? null, tipo_evento: base.tipo_evento || null, data_evento: base.data_evento || null,
       hora: base.hora || null, local: base.local || null, orientacoes: base.orientacoes || null,
+      ...(base.modalidade ? { modalidade: base.modalidade } : {}),
     }).select().single();
     if (error) {
       if (/duplicate/i.test(error.message) && base.publicacao_id) {
@@ -71,9 +73,11 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
       {topo}
       <div className="triage">
         <label className="f">O que foi marcado<select value={av.tipo_evento || ""} onChange={(e) => salvar({ tipo_evento: e.target.value || null })}><option value="">— escolher —</option>{TIPOS_EV.map((t) => <option key={t}>{t}</option>)}</select></label>
-        <label className="f">Data<input type="date" defaultValue={av.data_evento || ""} onBlur={(e) => e.target.value !== (av.data_evento || "") && salvar({ data_evento: e.target.value || null })} /></label>
+        <label className="f wide2">Como vai ser<select value={av.modalidade || ""} onChange={(e) => salvar({ modalidade: (e.target.value || null) as Modalidade | null })}><option value="">— não se aplica —</option>{(Object.keys(MODALIDADES) as Modalidade[]).map((k) => <option key={k} value={k}>{MODALIDADES[k].nome}</option>)}</select></label>
+        <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onBlur={(e) => e.target.value !== (av.data_evento || "") && salvar({ data_evento: e.target.value || null })} /></label>
         <label className="f">Hora<input type="time" defaultValue={(av.hora || "").slice(0, 5)} onBlur={(e) => e.target.value !== (av.hora || "").slice(0, 5) && salvar({ hora: e.target.value || null })} /></label>
-        <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>
+        {av.modalidade === "video" && <label className="f wide2">Link da sala virtual<input defaultValue={av.link || ""} placeholder="https://…" onBlur={(e) => e.target.value !== (av.link || "") && salvar({ link: e.target.value.trim() || null })} /></label>}
+        {av.modalidade !== "video" && <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>}
         <label className="f wide">Orientações ao cliente<input defaultValue={av.orientacoes || ""} placeholder="Ex.: levar documento com foto; a coleta leva cerca de 1 hora" onBlur={(e) => e.target.value !== (av.orientacoes || "") && salvar({ orientacoes: e.target.value || null })} /></label>
       </div>
       <label className="f">Mensagem<textarea rows={6} value={texto} onChange={(e) => { setTexto(e.target.value); setMexeu(true); }} /></label>

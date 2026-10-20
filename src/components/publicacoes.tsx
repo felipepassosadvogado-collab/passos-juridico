@@ -9,6 +9,7 @@ import type { Analise, Publicacao } from "@/lib/tipos";
 import { BlocoTexto, Ic, Janela, useConfirmar } from "./ui";
 import { FormTarefa, MiniTarefa } from "./tarefas";
 import { BlocoAviso, useCriarAviso } from "./avisos";
+import { FormAgendar, resumoAto } from "./agenda";
 import { useJanelas } from "./janelas";
 
 export function CaixaAnalise({ a }: { a: Analise }) {
@@ -59,7 +60,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
 }) {
   const d = useDados(); const { tarefas, avisos, processos, eu, aviso, sb, aplicar, registrar } = d;
   const criarAviso = useCriarAviso();
-  const [form, setForm] = useState(false);
+  const [form, setForm] = useState(false); const [agendar, setAgendar] = useState(false);
   const a = pub.analise as Analise | null; const p = processos.get(pub.processo_numero);
   const ts = [...tarefas.values()].filter((t) => t.publicacao_id === pub.id).sort((x, y) => (x.vencimento || "").localeCompare(y.vencimento || ""));
   const av = [...avisos.values()].find((x) => x.publicacao_id === pub.id);
@@ -75,10 +76,13 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
       {a ? <CaixaAnalise a={a} /> : analisando ? <div className="ai">O Claude está lendo a publicação…</div> : null}
       <div className="acts">
         <button className={form ? "btn ghost" : "btn primary"} onClick={() => setForm(!form)}>{form ? "Fechar" : <>{Ic.tarefa}Criar tarefa</>}</button>
+        <button className={!av?.modalidade && precisaAvisar(pub) ? "btn primary" : "btn"} onClick={() => setAgendar(!agendar)}>{agendar ? "Fechar agendamento" : av?.modalidade ? "Editar agendamento" : "📅 Agendar audiência / coleta"}</button>
         {!av && <button className={precisaAvisar(pub) ? "btn wa" : "btn ghost"} onClick={async () => { const id = await criarAviso({ processo_numero: pub.processo_numero, publicacao_id: pub.id, ...(a?.intimarCliente ? avisoDaAnalise(a) : {}) }); if (id && onAbrirAviso) onAbrirAviso(id); }}>Avisar o cliente</button>}
         {!a && <button className="btn" disabled={analisando} onClick={onAnalisar}>{Ic.claude}{analisando ? "Analisando…" : "Analisar com Claude"}</button>}
         {linksEproc(pub.link, aviso)}
       </div>
+      {agendar && <FormAgendar numero={pub.processo_numero} pub={pub} av={av} onFim={() => setAgendar(false)} />}
+      {av?.modalidade && !agendar && <div className="ato-ag"><span className="pill acc">📅 {resumoAto(av)}{av.modalidade !== "jf_balcao" && av.data_evento ? " · " + dataBR(av.data_evento) : ""}</span><span className="muted">em Meus expedientes › Audiências e coletas</span></div>}
       {ts.length > 0 && <div className="tarefas-pub"><div className="lbl">Tarefas criadas a partir desta publicação</div>{ts.map((t) => <MiniTarefa key={t.id} t={t} />)}</div>}
       {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Cliente avisado" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
       {form && <FormTarefa numero={pub.processo_numero} pub={{ id: pub.id, data: pub.data, eproc: pub.eproc }} tipo={a?.tarefa} desc={descDaAnalise(a)} dias={a?.prazoDias}

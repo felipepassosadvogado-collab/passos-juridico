@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDados } from "@/lib/dados";
 import { dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { diferencaDias, hojeBR } from "@/lib/prazos";
-import { atoPub } from "@/lib/regras";
+import { atoPub, ehAgenda } from "@/lib/regras";
+import { CaixaAgenda } from "@/components/agenda";
 import { ListaEnxuta } from "@/components/tarefas";
 import { useJanelas } from "@/components/janelas";
 
@@ -26,7 +27,7 @@ function Meus() {
       q: [["Importante e urgente", flag.filter((y) => y.importante && y.urgente), "Fazer primeiro"], ["Urgente", flag.filter((y) => y.urgente && !y.importante), "Resolver logo, pode delegar"], ["Importante", flag.filter((y) => y.importante && !y.urgente), "Planejar com calma"]] as [string, typeof abertas, string][],
       cx: [...caixa.values()].sort((a, b) => a.data.localeCompare(b.data)),
       nl: [...notificacoes.values()].filter((n) => !n.lida && !(n.tipo === "correcao" && n.tarefa_id && tarefas.get(n.tarefa_id)?.status === "revisao")).sort((a, b) => b.em.localeCompare(a.em)),
-      pend: [...avisos.values()].filter((a) => a.status !== "avisado").sort((a, b) => (a.data_evento || "9").localeCompare(b.data_evento || "9")),
+      pend: [...avisos.values()].filter((a) => a.status !== "avisado" && !ehAgenda(a)).sort((a, b) => (a.data_evento || "9").localeCompare(b.data_evento || "9")),
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const lida = async (id: string) => { const { data } = await sb.from("notificacoes").update({ lida: true }).eq("id", id).select().single(); if (data) aplicar("notificacoes", data); };
@@ -39,13 +40,14 @@ function Meus() {
         <button className="stat late" onClick={() => ir("sec-flag")}><span className="n">{x.q[0][1].length}</span><span className="l">importantes e urgentes</span></button>
         <button className="stat" onClick={() => ir("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
       </div>
+      <CaixaAgenda />
       {x.nl.length > 0 && <section className="panel"><div className="ph"><h3>Avisos novos</h3><span className="count hot">{x.nl.length}</span></div>
         <div className="rows">{x.nl.slice(0, 8).map((n) => (
           <div key={n.id} className="row click" onClick={() => { lida(n.id); if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); }}>
             <span className="pill ok">{n.tipo === "protocolo" ? "protocolo" : n.tipo === "tarefa" ? "tarefa" : "aviso"}</span>
             <div className="main"><div className="t">{n.texto}</div><div className="s">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), "de " + nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</div></div>
             <button className="btn ghost" onClick={(e) => { e.stopPropagation(); lida(n.id); }}>Lido</button></div>))}</div></section>}
-      <section className="panel"><div className="ph"><h3>Clientes para avisar</h3><span className="muted" style={{ fontSize: 12 }}>perícias, audiências e coletas marcadas</span></div>
+      <section className="panel"><div className="ph"><h3>Clientes para avisar</h3><span className="muted" style={{ fontSize: 12 }}>perícias e outros atos (audiências e coletas ficam na caixa acima)</span></div>
         {x.pend.length ? <div className="rows">{x.pend.map((a) => { const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null;
           return <div key={a.id} className="row click" onClick={() => j.abrirAviso(a.id)}>
             <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
