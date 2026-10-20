@@ -25,7 +25,7 @@ export function useFichaCliente(c?: Cliente) {
   const { sb, eu, aplicar, aviso, clientes } = useDados();
   const [ed, setEd] = useState<Ed>(() => Object.fromEntries(CAMPOS.map(([k]) => [k, (c?.[k] as string) || ""])));
   const [files, setFiles] = useState<Arq[]>([]); const [nota, setNota] = useState(""); const [lendo, setLendo] = useState(false); const [salvando, setSalvando] = useState(false);
-  const [extra, setExtra] = useState<{ parteContraria?: string }>({});
+  const [extra, setExtra] = useState<{ parteContraria?: string; contratos?: { numero: string; averbacao: string; parcela: string }[] }>({});
   const ler = async () => {
     setLendo(true); setNota("");
     try {
@@ -42,7 +42,10 @@ export function useFichaCliente(c?: Cliente) {
       }
       setEd(novo);
       const tipos: string[] = d.tipos || []; setFiles(files.map((f, i) => ({ ...f, tipo: f.tipo || (TIPOS_DOC[tipos[i]] ? tipos[i] : "") })));
-      if (d.parteContraria) setExtra({ parteContraria: String(d.parteContraria) });
+      const cts = (Array.isArray(d.contratos) ? d.contratos : []).filter((x: { numero?: unknown }) => x && x.numero).map((x: { numero: unknown; averbacao?: unknown; parcela?: unknown }) => ({
+        numero: String(x.numero).trim(), averbacao: String(x.averbacao || "").replace(/^(\d{4})-(\d\d)-(\d\d).*$/, "$3/$2/$1"),
+        parcela: x.parcela != null && x.parcela !== "" ? Number(x.parcela).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "" }));
+      if (d.parteContraria || cts.length) setExtra((e) => ({ ...e, ...(d.parteContraria ? { parteContraria: String(d.parteContraria).split(/\s*[(;]/)[0].trim() } : {}), ...(cts.length ? { contratos: cts } : {}) }));
       const partes = [preenchidos.length ? "Preenchido pelo Claude: " + preenchidos.join(", ") + ". Confira antes de salvar." : "Nenhum campo novo encontrado nos documentos."];
       if (conflitos.length) partes.push("Diferente do que já está na ficha (mantive o da ficha):\n• " + conflitos.join("\n• "));
       if (d.observacoes) partes.push(String(d.observacoes));

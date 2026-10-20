@@ -1,7 +1,7 @@
 "use client";
 // Botão "Emitir kit procuração": procuração, contrato de honorários (com o percentual), declaração de
 // hipossuficiência e declaração de residência, já com os dados da ficha (lidos pelo Claude ou digitados).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { moeda, nomeBonito } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
@@ -21,6 +21,11 @@ export function KitProcuracao({ f, bancoSugerido = "" }: { f: ReturnType<typeof 
   const [k, setK] = useState({ banco: nomeBonito(f.extra.parteContraria || bancoSugerido || ""), pct: String(pctPadrao(config)).replace(".", ","), feminino: fem0, email: "" });
   const [cs, setCs] = useState<Contrato[]>([{ numero: "", averbacao: "", parcela: "" }]); const [lendo, setLendo] = useState(false); const [gerando, setGerando] = useState(false);
   const extratos = f.files.filter((x) => x.tipo === "extrato");
+  // o que o Claude leu nos documentos entra sozinho (sem apagar o que já foi digitado)
+  useEffect(() => {
+    const l = f.extra.contratos; if (l?.length) setCs((atual) => (atual.some((c) => c.numero.trim() || c.parcela.trim()) ? atual : l));
+    if (f.extra.parteContraria) setK((x) => (x.banco ? x : { ...x, banco: nomeBonito(f.extra.parteContraria!) }));
+  }, [f.extra]);
   const abrir = () => { setK((x) => ({ ...x, banco: x.banco || nomeBonito(f.extra.parteContraria || bancoSugerido || ""), feminino: fem0 })); setAberto(!aberto); };
   const lerExtrato = async (files: File[]) => {
     if (!files.length) return; setLendo(true);
