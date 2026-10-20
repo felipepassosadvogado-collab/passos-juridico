@@ -14,6 +14,7 @@ import { useChat, ChatFlutuante } from "./chat";
 const I = (d: string) => <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 const ICONES: Record<string, string> = {
   "/": '<rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/>',
+  "/agenda": '<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2.5v3M13 2.5v3"/><path d="M6.5 11h2M11.5 11h2M6.5 14h2"/>',
   "/meus": '<circle cx="8" cy="7" r="3"/><path d="M2.5 16.5c.8-2.8 3-4.2 5.5-4.2 1.3 0 2.5.4 3.4 1.1"/><path d="M12.5 15l2 2 3.5-4"/>',
   "/publicacoes": '<path d="M3 11l2-6.5h10L17 11v4.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 11h4l1 2h4l1-2h4"/>',
   "/atividades": '<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M6.5 10l2.5 2.5 4.5-5"/>',
@@ -39,7 +40,7 @@ function Menu() {
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const itens: [string, string, number?, boolean?][] = [
-    ["/", "Painel", c.meus, c.meusHot], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
+    ["/", "Painel", c.meus, c.meusHot], ["/agenda", "Agenda"], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
     ["/atividades", "Atividades", c.abertas, c.vencidas], ...(titular ? [["/gestao", "Gestão"] as [string, string]] : []),
     ["/chat", "Chat", total, true], ["/crm", "CRM"], ["/processos", "Processos", processos.size], ["/clientes", "Clientes", clientes.size],
   ];
