@@ -8,6 +8,7 @@ import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR, nomeBonito } from "@/lib/formato";
 import type { Documento } from "@/lib/tipos";
 import { baixar, tamanhoBR } from "./ui";
+import { useVisor } from "./visor";
 
 export const ITENS_KIT: { n: string; nome: string; tipos: string[]; dica: string }[] = [
   { n: "01", nome: "Petição Inicial", tipos: ["inicial"], dica: "a gerada aqui; se revisar e assinar, anexe o PDF final" },
@@ -32,7 +33,7 @@ export async function guardarNaFicha(sb: any, clienteId: string, tipo: string, n
 }
 
 export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { clienteId: string; nomeCliente: string; banco: string; atualizar: number }) {
-  const { sb, aviso } = useDados();
+  const { sb, aviso } = useDados(); const visor = useVisor();
   const [docs, setDocs] = useState<Documento[]>([]); const [fora, setFora] = useState<Set<string>>(new Set()); const [ocupado, setOcupado] = useState(""); const alvo = useRef<{ tipo: string } | null>(null); const inp = useRef<HTMLInputElement>(null);
   const carregar = () => sb.from("documentos").select("*").eq("cliente_id", clienteId).order("em", { ascending: false }).then(({ data }: { data: unknown }) => setDocs((data as Documento[]) || []));
   useEffect(() => { carregar(); }, [clienteId, atualizar]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,7 +92,7 @@ export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { c
           <span className="kit-n">{i.n}</span>
           <div className="kit-main"><div className="kit-t">{i.nome} <span className="muted s">· {i.dica}</span></div>
             {l.length ? l.map((d) => <label key={d.id} className="kit-doc"><input type="checkbox" checked={!fora.has(d.id)} onChange={() => { const n = new Set(fora); if (n.has(d.id)) n.delete(d.id); else n.add(d.id); setFora(n); }} />
-              <span className="an">{d.nome}</span><span className="muted s">{dataHoraBR(d.em).slice(0, 10)}{d.tamanho ? " · " + tamanhoBR(d.tamanho) : ""}</span>
+              <button type="button" className="reflink an" title="Ver" onClick={(e) => { e.preventDefault(); visor.verGuardado(d.caminho, d.nome, d.mime); }}>{d.nome}</button><span className="muted s">{dataHoraBR(d.em).slice(0, 10)}{d.tamanho ? " · " + tamanhoBR(d.tamanho) : ""}</span>
               {(i.n === "01" || i.n === "07") && <button className="reflink" style={{ fontSize: 12 }} onClick={(e) => { e.preventDefault(); apagar(d); }}>tirar</button>}</label>)
               : <div className="muted s">{i.n === "01" ? "Gere a inicial acima (o Word fica guardado aqui)." : i.n === "07" ? "Gere o cálculo acima (o PDF fica guardado aqui)." : "Nada na ficha do cliente."}</div>}
           </div>

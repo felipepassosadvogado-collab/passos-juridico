@@ -11,6 +11,7 @@ import { TAREFAS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/re
 import type { Documento, Tarefa } from "@/lib/tipos";
 import { ChipResp, Avatar, Ic, SelResp, useConfirmar, tamanhoBR } from "./ui";
 import { useJanelas } from "./janelas";
+import { useVisor } from "./visor";
 
 const EXT_OK = /\.(pdf|docx|xlsx)$/i;
 
@@ -87,13 +88,13 @@ export async function abrirArquivo(sb: ReturnType<typeof useDados>["sb"], caminh
 }
 
 export function ListaAnexos({ t }: { t: Tarefa }) {
-  const { anexos, sb, aviso, nome } = useDados();
+  const { anexos, nome } = useDados(); const visor = useVisor();
   const lista = [...anexos.values()].filter((a) => a.tarefa_id === t.id).sort((a, b) => a.em.localeCompare(b.em));
   if (!lista.length) return null;
   return (
     <div className="anexos" onClick={(e) => e.stopPropagation()}>
       {lista.map((a) => (
-        <button key={a.id} className="anexo" title="Abrir" onClick={() => abrirArquivo(sb, a.caminho, aviso)}>
+        <button key={a.id} className="anexo" title="Ver o documento numa caixa ao lado" onClick={() => visor.verGuardado(a.caminho, a.nome, a.mime)}>
           <span className="ext">{(a.nome.split(".").pop() || "").toUpperCase()}</span><span className="an">{a.nome}</span>
           <span className="muted">{(a.etapa === "devolucao" ? "correção de " : "") + nome(a.por) + " · " + dataHoraBR(a.em) + " · " + tamanhoBR(a.tamanho || 0)}</span>
         </button>

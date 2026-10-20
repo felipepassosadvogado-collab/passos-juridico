@@ -6,7 +6,7 @@ import { cpfValido, dataBR, mascaraCpf, nomeBonito, semAcento } from "@/lib/form
 import { enviarParaLeitura } from "@/lib/leitura";
 import { TIPOS_DOC } from "@/lib/regras";
 import type { Cliente, Documento } from "@/lib/tipos";
-import { abrirArquivo } from "./tarefas";
+import { useVisor } from "./visor";
 import { useConfirmar } from "./ui";
 
 export const CAMPOS: [keyof Cliente, string, string][] = [
@@ -98,6 +98,7 @@ export function CamposCliente({ f, so }: { f: ReturnType<typeof useFichaCliente>
 }
 
 export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCliente>; texto: string }) {
+  const visor = useVisor();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <label className="f">{texto}<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { f.setFiles([...f.files, ...Array.from(e.target.files || []).map((file) => ({ file, tipo: "" }))]); e.target.value = ""; }} /></label>
@@ -105,6 +106,7 @@ export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCli
         <span key={i} className="anexo"><span className="ext">{x.file.type === "application/pdf" ? "PDF" : "IMG"}</span><span className="an">{x.file.name}</span>
           <select value={x.tipo} onChange={(e) => f.setFiles(f.files.map((y, j) => (j === i ? { ...y, tipo: e.target.value } : y)))} style={{ padding: "2px 4px", fontSize: 12 }}>
             <option value="">tipo…</option>{Object.entries(TIPOS_DOC).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+          <button type="button" className="btn ghost" title="Ver o documento numa caixa ao lado" onClick={() => visor.verArquivo(x.file)}>👁 Ver</button>
           <button className="btn ghost" onClick={() => f.setFiles(f.files.filter((_, j) => j !== i))}>Tirar</button></span>))}</div>}
       {f.files.length > 0 && <div><button className="btn primary" disabled={f.lendo} onClick={f.ler}>{f.lendo ? "Lendo os documentos…" : "Ler documentos com Claude"}</button> <span className="muted" style={{ fontSize: 12.5 }}>Os arquivos são guardados na ficha ao salvar.</span></div>}
       {f.nota && <div className="ai" style={{ whiteSpace: "pre-wrap" }}>{f.nota}</div>}
@@ -114,13 +116,13 @@ export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCli
 
 /** documentos já guardados na ficha */
 export function DocumentosSalvos({ clienteId, atualizar }: { clienteId: string; atualizar: number }) {
-  const { sb, aviso, titular } = useDados(); const [docs, setDocs] = useState<Documento[] | null>(null); const confirmar = useConfirmar();
+  const { sb, aviso, titular } = useDados(); const [docs, setDocs] = useState<Documento[] | null>(null); const confirmar = useConfirmar(); const visor = useVisor();
   useEffect(() => { sb.from("documentos").select("*").eq("cliente_id", clienteId).order("em").then(({ data }: { data: unknown }) => setDocs(((data as Documento[]) || []))); }, [clienteId, atualizar, sb]);
   if (!docs?.length) return null;
   return <div className="rows">{docs.map((d) => (
     <div key={d.id} className="row"><span className="pill">{TIPOS_DOC[d.tipo || ""] || "Documento"}</span>
       <div className="main"><div className="t">{d.nome}</div><div className="s mono">{dataBR(d.em.slice(0, 10))}</div></div>
-      <span className="tools"><button className="btn ghost" onClick={() => abrirArquivo(sb, d.caminho, aviso)}>Abrir</button>
+      <span className="tools"><button className="btn ghost" onClick={() => visor.verGuardado(d.caminho, d.nome, d.mime)}>👁 Ver</button>
         {titular && <button className="btn ghost" onClick={async () => { if (!confirmar(d.id, aviso, "Clique de novo em “Apagar” para confirmar.")) return;
           await sb.storage.from("documentos").remove([d.caminho]); const { error } = await sb.from("documentos").delete().eq("id", d.id); if (error) aviso(msgErro(error)); else setDocs(docs.filter((x) => x.id !== d.id)); }}>Apagar</button>}</span></div>))}</div>;
 }
