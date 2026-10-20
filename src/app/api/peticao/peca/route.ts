@@ -3,12 +3,13 @@ import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { pedirJson, blocoArquivo, ErroClaude, MODELO_REDACAO } from "@/lib/claude";
 import { INSTRUCOES_PECA, montarDocx, type Peca } from "@/lib/peca";
+import { encurtar } from "@/lib/encurtar";
 import { dataBR, idade, nomeBonito } from "@/lib/formato";
 import type { Cliente, Processo, Publicacao, Tarefa } from "@/lib/tipos";
 
 export const maxDuration = 300;
 
-type Pedido = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo: string; orientacoes?: string; arquivos?: { caminho: string; mime: string }[] };
+type Pedido = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo: string; orientacoes?: string; arquivos?: { caminho: string; mime: string }[]; textos?: { nome: string; paginas: number; semTexto: number[]; texto: string }[] };
 const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
 
 /** redige a peça com o Claude e devolve o Word no papel timbrado do escritório */
@@ -46,6 +47,13 @@ export async function POST(req: Request) {
   let orcamento = 45000; const historico: string[] = [];
   for (const x of lista) { if (x.id === alvo?.id) continue; const t = corte(x.texto, 3500); if (orcamento - t.length < 0) break; orcamento -= t.length; historico.push(`[${dataBR(x.data)} · ${x.tipo_doc || x.tipo_com || "Publicação"}] ${t}`); }
   historico.reverse();
+  // texto da cópia integral extraído no navegador (limite total para caber no Claude)
+  let resta = 450_000;
+  const textosPdf = (Array.isArray(pd.textos) ? pd.textos : []).slice(0, 4).map((x) => {
+    const t = encurtar(String(x.texto || ""), Math.max(0, resta)); resta -= t.length;
+    const sem = Array.isArray(x.semTexto) && x.semTexto.length ? ` Páginas só com imagem, não lidas: ${x.semTexto.slice(0, 40).join(", ")}${x.semTexto.length > 40 ? "…" : ""}.` : "";
+    return `=== ${String(x.nome || "processo.pdf").slice(0, 120)} (${Number(x.paginas) || "?"} páginas).${sem} ===\n${t}`;
+  }).filter((x) => x.length > 80);
   const contexto = [
     `PEÇA PEDIDA: ${pd.tipo}`,
     pd.orientacoes?.trim() ? `ORIENTAÇÕES DO ADVOGADO: ${pd.orientacoes.trim()}` : "",
@@ -61,6 +69,7 @@ export async function POST(req: Request) {
     an ? `ANÁLISE DO CLAUDE SOBRE A PUBLICAÇÃO: ${[an.ato, an.resumo, an.providencia, an.obs].filter(Boolean).join(" · ")}` : "",
     alvo ? `PUBLICAÇÃO QUE GEROU A PEÇA (${dataBR(alvo.data)} · ${alvo.tipo_doc || alvo.tipo_com || ""}):\n${corte(alvo.texto, 12000)}` : "",
     historico.length ? `OUTRAS PUBLICAÇÕES DO PROCESSO (da mais antiga para a mais recente):\n${historico.join("\n\n")}` : "",
+    textosPdf.length ? `CÓPIA DOS AUTOS (texto extraído de PDF; é a fonte principal dos fatos — localize nela o ato que a peça enfrenta, como laudo, sentença, contestação ou decisão, e cite número de evento e página quando aparecerem):\n\n${textosPdf.join("\n\n")}` : "",
     pd.arquivos?.length ? `DOCUMENTOS ENVIADOS PELO ADVOGADO: ${pd.arquivos.length} arquivo(s) anexados acima (ex.: laudo, sentença, contestação). Use-os como fonte principal dos fatos.` : "",
   ].filter(Boolean).join("\n\n");
 
