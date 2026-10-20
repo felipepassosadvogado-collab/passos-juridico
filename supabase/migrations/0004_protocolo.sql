@@ -1,5 +1,5 @@
--- Passos Jurídico — protocolo da petição informado na tarefa
--- Quem protocola informa o nº do protocolo/evento; data e hora são as do clique (relógio do servidor).
+-- Passos Juridico - protocolo da peticao informado na tarefa
+-- Quem protocola informa o no do protocolo/evento; data e hora sao as do clique (relogio do servidor).
 -- Aparece na tarefa, na linha do tempo do processo e no sino de quem corrigiu/criou.
 -- Pode rodar mais de uma vez sem problema.
 
@@ -21,7 +21,7 @@ drop trigger if exists tarefa_protocolo on public.tarefas;
 create trigger tarefa_protocolo before update on public.tarefas
   for each row execute function public.carimba_protocolo();
 
--- linha do tempo: o evento leva o nº do protocolo, a observação e o horário
+-- linha do tempo: o evento leva o no do protocolo, a observacao e o horario
 create or replace function public.registra_tarefa() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -68,7 +68,7 @@ begin
   return new;
 end $$;
 
--- sino: o aviso de protocolo já diz o número
+-- sino: o aviso de protocolo ja diz o numero
 create or replace function public.avisa_tarefa() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -80,18 +80,18 @@ begin
   if eu is null then return new; end if;
   if tg_op = 'INSERT' then
     if new.responsavel is not null and new.responsavel <> eu then
-      para_quem := new.responsavel; tipo_n := 'tarefa'; txt := 'Nova tarefa para você: ' || new.descricao;
+      para_quem := new.responsavel; tipo_n := 'tarefa'; txt := U&'Nova tarefa para voc\00EA: ' || new.descricao;
     end if;
   elsif new.status is distinct from old.status and new.status = 'revisao' then
-    para_quem := new.revisor; tipo_n := 'correcao'; txt := 'Peça para corrigir: ' || new.descricao;
+    para_quem := new.revisor; tipo_n := 'correcao'; txt := U&'Pe\00E7a para corrigir: ' || new.descricao;
   elsif new.status is distinct from old.status and new.status = 'ajustes' then
-    para_quem := new.responsavel; tipo_n := 'ajustes'; txt := 'Peça devolvida com ajustes: ' || new.descricao;
+    para_quem := new.responsavel; tipo_n := 'ajustes'; txt := U&'Pe\00E7a devolvida com ajustes: ' || new.descricao;
   elsif new.status is distinct from old.status and new.status = 'aprovada' then
-    para_quem := new.responsavel; tipo_n := 'aprovada'; txt := 'Peça aprovada, pode protocolar: ' || new.descricao;
+    para_quem := new.responsavel; tipo_n := 'aprovada'; txt := U&'Pe\00E7a aprovada, pode protocolar: ' || new.descricao;
   elsif new.protocolo_avisado_em is not null and old.protocolo_avisado_em is null then
     para_quem := coalesce(new.revisor, new.criado_por); tipo_n := 'protocolo';
-    txt := 'Protocolado' || coalesce(' (nº ' || new.protocolo_numero || ')', '') || ' em '
-           || to_char(new.protocolo_avisado_em at time zone 'America/Sao_Paulo', 'DD/MM/YYYY "às" HH24:MI') || ': ' || new.descricao;
+    txt := 'Protocolado' || coalesce(U&' (n\00BA ' || new.protocolo_numero || ')', '') || ' em '
+           || to_char(new.protocolo_avisado_em at time zone 'America/Sao_Paulo', U&'DD/MM/YYYY "\00E0s" HH24:MI') || ': ' || new.descricao;
   end if;
   if para_quem is not null and para_quem <> eu then
     insert into public.notificacoes (para, de, tipo, texto, processo_numero, caso_id, tarefa_id)
