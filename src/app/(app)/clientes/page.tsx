@@ -5,9 +5,10 @@ import { useMemo, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { nomeBonito, semAcento } from "@/lib/formato";
 import { soDigitos } from "@/lib/cnj";
+import { useJanelas } from "@/components/janelas";
 
 export default function Clientes() {
-  const { clientes, processos, tarefas, titular, sb, aplicar, aviso, v } = useDados(); const router = useRouter();
+  const { clientes, processos, tarefas, titular, sb, aplicar, aviso, v } = useDados(); const router = useRouter(); const j = useJanelas();
   const [q, setQ] = useState(""); const [ocupado, setOcupado] = useState(false);
   const { qtd, prz, semCli } = useMemo(() => {
     const qtd: Record<string, number> = {}, prz: Record<string, number> = {}; let semCli = 0;
@@ -37,7 +38,7 @@ export default function Clientes() {
     <>
       <div className="head"><div><h2>Clientes</h2><div className="sub">{l.length} de {clientes.size}</div></div>
         <div className="tools"><input type="search" placeholder="Nome, CPF, telefone ou NB" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar cliente" />
-          <Link className="btn primary" href="/clientes/novo">Novo cliente (com documentos)</Link>
+          <button className="btn primary" onClick={() => j.novoCliente()}>Novo cliente (com documentos)</button>
           {titular && semCli > 0 && <button className="btn" disabled={ocupado} onClick={vincular}>{ocupado ? "Ligando…" : `Ligar ${semCli} processos sem cliente`}</button>}</div></div>
       {!clientes.size ? <div className="panel"><div className="empty"><strong>Nenhum cliente cadastrado ainda.</strong>Importe os dados do painel antigo ou cadastre o primeiro cliente.</div></div> :
         <div className="panel tscroll"><table className="grid"><thead><tr><th>Cliente</th><th>CPF</th><th>Telefone</th><th>Processos</th><th>Prazos</th></tr></thead>

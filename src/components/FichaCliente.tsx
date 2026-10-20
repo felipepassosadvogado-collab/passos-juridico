@@ -19,7 +19,7 @@ export function FichaCliente({ c }: { c?: Cliente }) {
   return (
     <>
       <div className="head"><div><h2>{c ? nomeBonito(c.nome) : "Novo cliente"}</h2>{c && <div className="sub">{ps.length} {ps.length === 1 ? "processo" : "processos"}</div>}</div>
-        {c && <div className="tools"><Link className="btn" href={"/processos/novo?cliente=" + c.id}>Novo processo para este cliente</Link></div>}</div>
+        {c && <div className="tools"><button className="btn" onClick={() => j.novoProcesso({ clienteId: c.id })}>Novo processo para este cliente</button></div>}</div>
       <section className="panel"><div className="ph"><h3>Documentos</h3><span className="muted" style={{ fontSize: 12 }}>RG ou CNH, comprovante de residência, procuração</span></div>
         {c && <DocumentosSalvos clienteId={c.id} atualizar={n} />}
         <div className="pb"><EnvioDocumentos f={f} texto={c ? "Anexar mais documentos" : "Anexe os documentos e o Claude preenche a ficha"} /></div></section>

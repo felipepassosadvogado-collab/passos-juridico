@@ -24,7 +24,7 @@ export default function Processos() {
   return (
     <>
       <div className="head"><div><h2>Processos</h2><div className="sub">{l.length} de {processos.size}</div></div>
-        <div className="tools"><Link className="btn primary" href="/processos/novo">Novo processo</Link>
+        <div className="tools"><button className="btn primary" onClick={() => j.novoProcesso()}>Novo processo</button>
           <input type="search" placeholder="Cliente, banco ou nº" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar processo" />
           <select value={banco} onChange={(e) => setBanco(e.target.value)} aria-label="Réu"><option value="">Todos os réus</option>{bancos.map((b) => <option key={b}>{b}</option>)}</select>
           <select value={fase} onChange={(e) => setFase(e.target.value)} aria-label="Fase"><option value="">Todas as fases</option><option value="none">Sem fase definida</option>{FASES.map((f) => <option key={f}>{f}</option>)}</select></div></div>

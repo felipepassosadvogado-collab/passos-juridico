@@ -133,7 +133,7 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
       <div className="tools">
         <button className="btn primary" onClick={salvar}>{novo ? "Cadastrar atendimento" : "Salvar"}</button>
         {!novo && cli && <Link className="btn ghost" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente</Link>}
-        {!novo && !c.processo_numero && <button className="btn" onClick={() => { onFechar(); router.push("/processos/novo?caso=" + id); }}>Protocolado: cadastrar processo</button>}
+        {!novo && !c.processo_numero && <button className="btn" onClick={() => j.novoProcesso({ casoId: id })}>Protocolado: cadastrar processo</button>}
         {!novo && <button className="btn" onClick={() => j.abrirInicial({ clienteId: c.cliente_id || null, banco: c.banco || "", casoId: id })}>Criar petição inicial (Word)</button>}
         {!novo && c.processo_numero && processos.has(c.processo_numero) && <button className="btn" onClick={() => j.abrirProcesso(c.processo_numero!)}>Abrir processo {mascaraCnj(c.processo_numero)}</button>}
       </div>
