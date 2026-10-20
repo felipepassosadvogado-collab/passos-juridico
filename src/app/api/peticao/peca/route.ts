@@ -16,12 +16,19 @@ export async function POST(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const pd = await req.json().catch(() => null) as Pedido | null;
   if (!pd?.numero || !pd.tipo?.trim()) return erro("Escolha o tipo de peça.");
-  const { data: p } = await m.sb.from("processos").select("*").eq("numero", pd.numero).single<Processo>();
-  if (!p) return erro("Processo não encontrado.", 404);
+  // o acesso já foi conferido acima; a leitura usa o cliente do servidor para não depender de cache do navegador
+  const adm = await supabaseAdmin();
+  const numero = String(pd.numero).replace(/\D/g, "");
+  let { data: p, error: e1 } = await adm.from("processos").select("*").eq("numero", numero).maybeSingle<Processo>();
+  if (!p && pd.publicacaoId) {
+    const { data: pubAlvo } = await adm.from("publicacoes").select("processo_numero").eq("id", pd.publicacaoId).maybeSingle();
+    if (pubAlvo) ({ data: p, error: e1 } = await adm.from("processos").select("*").eq("numero", String(pubAlvo.processo_numero).trim()).maybeSingle<Processo>());
+  }
+  if (!p) { console.warn("peça: processo", numero, e1); return erro(`Processo ${numero} não encontrado${e1 ? " (" + e1.message + ")" : ""}.`, 404); }
   const [{ data: cli }, { data: pubs }, { data: ts }] = await Promise.all([
-    p.cliente_id ? m.sb.from("clientes").select("*").eq("id", p.cliente_id).single<Cliente>() : Promise.resolve({ data: null }),
-    m.sb.from("publicacoes").select("id,data,tipo_com,tipo_doc,orgao,texto").eq("processo_numero", p.numero).order("data", { ascending: false }).limit(25),
-    m.sb.from("tarefas").select("*").eq("processo_numero", p.numero),
+    p.cliente_id ? adm.from("clientes").select("*").eq("id", p.cliente_id).maybeSingle<Cliente>() : Promise.resolve({ data: null }),
+    adm.from("publicacoes").select("id,data,tipo_com,tipo_doc,orgao,texto").eq("processo_numero", p.numero).order("data", { ascending: false }).limit(25),
+    adm.from("tarefas").select("*").eq("processo_numero", p.numero),
   ]);
   const lista = (pubs || []) as Publicacao[];
   const alvo = pd.publicacaoId ? lista.find((x) => x.id === pd.publicacaoId) : undefined;
@@ -45,7 +52,6 @@ export async function POST(req: Request) {
     pd.arquivos?.length ? `DOCUMENTOS ENVIADOS PELO ADVOGADO: ${pd.arquivos.length} arquivo(s) anexados acima (ex.: laudo, sentença, contestação). Use-os como fonte principal dos fatos.` : "",
   ].filter(Boolean).join("\n\n");
 
-  const adm = await supabaseAdmin();
   const arquivos = (pd.arquivos || []).filter((a) => a.caminho?.startsWith(`leitura/${m.user.id}/`)).slice(0, 6);
   try {
     const blocos = [];
