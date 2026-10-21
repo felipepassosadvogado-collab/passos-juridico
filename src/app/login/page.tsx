@@ -13,6 +13,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         </div>
         <h1 style={{ fontSize: 28, textAlign: "center" }}>Entrar no sistema</h1>
         {sp.erro === "link" && <div className="banner erro">O link do e-mail já foi usado ou expirou. Use “Esqueci a senha” para receber outro.</div>}
+        {sp.erro === "inatividade" && <div className="banner">Você saiu automaticamente depois de 30 minutos sem uso. Entre de novo para continuar.</div>}
         {sp.erro === "inativo" && <div className="banner erro">Seu acesso está desativado. Fale com o titular do escritório.</div>}
         <FormLogin de={sp.de || "/"} />
       </div>

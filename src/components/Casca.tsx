@@ -1,5 +1,6 @@
 "use client";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
+import { Inatividade, limparUso } from "@/components/inatividade";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -157,7 +158,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
             <Sino />
             <Adicionar />
             <span className="ola"><Avatar id={eu.id} /><span className="nome">Olá, <b>{eu.nome.split(/[\s.]/)[0]}</b></span></span>
-            <form action="/auth/sair" method="post"><button className="btn ghost" title="Sair do sistema">Sair</button></form>
+            <form action="/auth/sair" method="post" onSubmit={limparUso}><button className="btn ghost" title="Sair do sistema">Sair</button></form>
           </div>
         </header>
         <main><div className={"wrap" + (cheio ? " cheio" : "")}>
@@ -166,6 +167,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
         </div></main>
       </div>
       <ChatFlutuante />
+      <Inatividade />
     </>
   );
 }
