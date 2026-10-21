@@ -3,13 +3,14 @@
 // Abre numa caixa a partir da lista de clientes e também como página (/clientes/[id]).
 import { mesmoCliente, useProtocoloDireto } from "./novos";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, iniciais, moeda, nomeBonito } from "@/lib/formato";
 import { mascaraCnj, soDigitos } from "@/lib/cnj";
-import { faseCRM } from "@/lib/regras";
+import { ETAPAS, faseCRM } from "@/lib/regras";
+import { situacaoPrazo } from "@/lib/prazos";
 import { honorarios, pctPadrao } from "@/lib/valores";
-import type { Cliente } from "@/lib/tipos";
+import type { Caso, Cliente } from "@/lib/tipos";
 import { CamposCliente, DocumentosSalvos, EnvioDocumentos, useFichaCliente } from "@/components/cliente";
 import { useConfirmar } from "@/components/ui";
 import { useJanelas } from "@/components/janelas";
@@ -80,24 +81,17 @@ export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?
         </div>}
 
         {aba === "processos" && c && <div className="fc-campos">
+          {ps.length > 0 && <div className="fc-sec"><strong>Processos judiciais</strong><span className="count">{ps.length}</span></div>}
           {ps.map((p) => (
             <div key={p.numero} className="fc-proc">
               <button className="fc-proc-tit" onClick={() => j.abrirProcesso(p.numero)}>
                 <span className="mono">{p.mascara}</span><span className="pill">{bancoCurto(p.banco)}</span></button>
+              {(p.reus || []).length > 0 && <div className="fc-partes">x {(p.reus || []).map((r) => nomeBonito(r)).join(" · ")}</div>}
               <div className="muted s">{(faseCRM(p.fase) || "Sem fase") + " · " + (p.orgao || "juízo não informado")}{p.ultima_data ? " · " + dataBR(p.ultima_data) : ""}</div>
               <CampoValores compacto valor={p.valor_causa} pct={p.honorarios_pct} onSalvar={(v) => salvarProc(p.numero, v)} />
             </div>))}
-          {cs.map((x) => (
-            <div key={x.id} className="fc-proc">
-              <button className="fc-proc-tit" onClick={() => j.abrirCaso(x.id)}><span>Atendimento pré-processual</span><span className="pill">{bancoCurto(x.banco)}</span></button>
-              <div className="muted s">Etapa: {x.etapa} · desde {dataBR(x.criado_em.slice(0, 10))}{x.contratos ? " · " + x.contratos : ""}</div>
-              <CampoValores compacto valor={x.valor_causa} pct={x.honorarios_pct} onSalvar={(v) => salvarCaso(x.id, v)} />
-              <ProtocolarCaso casoId={x.id} />
-              <div className="tools">
-                <button className="btn ghost" onClick={() => j.abrirCaso(x.id)}>Abrir atendimento</button>
-                {titular && <button className="btn ghost" onClick={() => excluirCaso(x.id)}>Excluir atendimento</button>}
-              </div>
-            </div>))}
+          {cs.length > 0 && <div className="fc-sec"><strong>Atendimentos pré-processuais</strong><span className="count">{cs.length}</span><span className="muted s">ainda sem processo judicial</span></div>}
+          {cs.map((x, i) => <CartaoAtendimento key={x.id} caso={x} ordem={cs.length > 1 ? i + 1 : 0} onSalvar={(v) => salvarCaso(x.id, v)} onExcluir={titular ? () => excluirCaso(x.id) : undefined} />)}
           {!ps.length && !cs.length && <div className="empty">Nenhum processo vinculado.</div>}
           <button className="btn" onClick={() => j.novoProcesso({ clienteId: c.id })}>Novo processo para este cliente</button>
           <div className="tools">
@@ -148,6 +142,45 @@ export function ProtocolarCaso({ casoId, voltar }: { casoId: string; voltar?: bo
           <button className="btn ghost" onClick={() => setPerg(false)}>{outro ? "Fechar" : "Cancelar"}</button>
         </div>
       </div>}
+    </div>
+  );
+}
+
+/** atendimento pré-processual na ficha do cliente: parte contrária, etapa, próxima tarefa e ações */
+function CartaoAtendimento({ caso: x, ordem, onSalvar, onExcluir }: { caso: Caso; ordem: number; onSalvar: (v: { valor_causa: number | null; honorarios_pct: number | null }) => void; onExcluir?: () => void }) {
+  const { tarefas, nome, v } = useDados(); const j = useJanelas(); const [prot, setProt] = useState(false);
+  const reus = [...(x.banco || "").split(/\s*;\s*/).map((b) => nomeBonito(b.trim())).filter(Boolean), "INSS"];
+  const semBanco = !(x.banco || "").trim();
+  const ix = Math.max(0, ETAPAS.indexOf(x.etapa));
+  const abertas = useMemo(() => [...tarefas.values()].filter((t) => t.caso_id === x.id && t.status !== "feito").sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9")), [tarefas, x.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const prox = abertas[0]; const sp = prox ? situacaoPrazo(prox.vencimento) : null;
+  return (
+    <div className="fc-at">
+      <div className="fc-at-top">
+        <span className="fc-at-n">{ordem ? "Atendimento " + ordem : "Atendimento"}</span>
+        <span className="pill acc">{x.etapa}</span>
+        <span className="muted s" style={{ marginLeft: "auto" }}>aberto em {dataBR(x.criado_em.slice(0, 10))}</span>
+      </div>
+      <button className="fc-at-tit" onClick={() => j.abrirCaso(x.id)} title="Abrir atendimento">
+        <span className="muted">x</span> {semBanco ? <span className="late-t">banco a definir</span> : reus.slice(0, -1).join(" · ")} <span className="muted">· INSS</span></button>
+      <div className="fc-etapas" aria-label={"Etapa " + (ix + 1) + " de " + ETAPAS.length + ": " + x.etapa}>
+        {ETAPAS.map((e, k) => <span key={e} className={k < ix ? "ok" : k === ix ? "on" : ""} title={e} />)}
+      </div>
+      <dl className="fc-at-kv">
+        <dt>Responsável</dt><dd>{x.responsavel ? nome(x.responsavel) : <span className="muted">sem responsável</span>}</dd>
+        {x.contratos && <><dt>Contratos</dt><dd>{x.contratos}</dd></>}
+        <dt>Próxima tarefa</dt><dd>{prox ? <button className="reflink" onClick={() => j.abrirTarefa(prox.id)}>{prox.descricao}</button> : <span className="muted">nenhuma tarefa aberta</span>}
+          {sp && <span className={"pill " + sp.cor} style={{ marginLeft: 6 }}>{sp.texto}</span>}{abertas.length > 1 && <span className="muted s"> · +{abertas.length - 1}</span>}</dd>
+        {x.obs && <><dt>Anotações</dt><dd className="fc-at-obs">{x.obs}</dd></>}
+      </dl>
+      <CampoValores compacto valor={x.valor_causa} pct={x.honorarios_pct} onSalvar={onSalvar} />
+      {prot && <ProtocolarCaso casoId={x.id} />}
+      <div className="tools">
+        <button className="btn" onClick={() => j.abrirCaso(x.id)}>Abrir atendimento</button>
+        <button className="btn ghost" onClick={() => j.abrirInicial({ clienteId: x.cliente_id, banco: x.banco || "", casoId: x.id })}>Petição inicial</button>
+        <button className="btn ghost" onClick={() => setProt(!prot)}>{prot ? "Fechar" : "⚖ Já protocolou?"}</button>
+        {onExcluir && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={onExcluir}>Excluir</button>}
+      </div>
     </div>
   );
 }

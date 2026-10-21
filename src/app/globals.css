@@ -740,3 +740,16 @@ html.rail-fechado .rail .count::after{content:attr(data-curto);font-size:9.5px;f
 .gac:hover{border-color:var(--accent);background:var(--surface)}.gac svg{width:17px;height:17px}
 @media (pointer:coarse){.gacoes{opacity:1}}
 .tj-corr.min{border-style:dashed;background:transparent}
+/* ficha do cliente: processos e atendimentos */
+.fc-sec{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:14px}.fc-sec .count{margin:0}
+.fc-partes{font-size:13px;color:var(--fg)}
+.fc-at{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:9px;background:var(--surface)}
+.fc-at-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fc-at-n{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.fc-at-tit{all:unset;cursor:pointer;font-weight:700;font-size:15.5px;line-height:1.3}.fc-at-tit:hover{color:var(--accent)}
+.late-t{color:var(--late)}
+.fc-etapas{display:flex;gap:4px}.fc-etapas span{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.fc-etapas span.ok{background:var(--accent);opacity:.55}.fc-etapas span.on{background:var(--accent)}
+.fc-at-kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:5px 10px;margin:0;font-size:13px}
+.fc-at-kv dt{color:var(--muted)}.fc-at-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.fc-at-obs{white-space:pre-wrap;max-height:4.5em;overflow:hidden}
