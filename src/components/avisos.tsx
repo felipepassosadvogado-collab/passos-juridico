@@ -40,8 +40,8 @@ export function urlAtende(modelo: string, d: { cpf?: string | null; nome?: strin
 export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boolean }) {
   const { sb, processos, clientes, config, aplicar, registrar, aviso, nome, eu } = useDados();
   const p = processos.get(av.processo_numero); const cli = p?.cliente_id ? clientes.get(p.cliente_id) : undefined;
-  const feito = av.status === "avisado";
-  const [min, setMin] = useState(inicioAberto ? false : feito);
+  const feito = av.status === "avisado"; const dispensado = av.status === "dispensado";
+  const [min, setMin] = useState(inicioAberto ? false : av.status !== "pendente");
   const padrao = mensagemPadrao(av, cli?.nome || p?.cliente_nome || "", p?.banco);
   const [texto, setTexto] = useState(av.mensagem || padrao); const [mexeu, setMexeu] = useState(!!av.mensagem);
   const [fone, setFone] = useState(cli?.telefone || "");
@@ -55,15 +55,22 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const wa = foneWhatsapp(fone);
   const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
   const marcar = async (sim: boolean) => {
-    await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null });
+    await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
     aviso(sim ? "Registrado: cliente avisado." : "Aviso voltou para pendente.");
     if (sim) setMin(true);
   };
+  const dispensar = async () => {
+    const { data, error } = await sb.from("avisos_cliente").update({ status: "dispensado" }).eq("id", av.id).select().single();
+    if (error) { aviso(/check/i.test(error.message) ? "Falta instalar a etapa 0012 (0012_aviso_dispensado.sql) no Supabase." : msgErro(error)); return; }
+    aplicar("avisos", data); registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "aviso_dispensado", dados: { texto: "Não precisa avisar o cliente" } });
+    aviso("Marcado: não precisa avisar o cliente."); setMin(true);
+  };
   const topo = (
     <div className="av-top">
-      <button className="av-tit" onClick={() => setMin(!min)} aria-expanded={!min}><span className="seta">{min ? "▸" : "▾"}</span><strong>{feito ? "Cliente avisado" : "Avisar o cliente"}</strong></button>
-      <span className="tools">{feito ? <span className="pill ok">{(av.canal || "WhatsApp") + " · " + nome(av.avisado_por) + " · " + dataHoraBR(av.avisado_em)}</span> : <span className="pill soon">pendente</span>}
+      <button className="av-tit" onClick={() => setMin(!min)} aria-expanded={!min}><span className="seta">{min ? "▸" : "▾"}</span><strong>{feito ? "Cliente avisado" : dispensado ? "Sem aviso ao cliente" : "Avisar o cliente"}</strong></button>
+      <span className="tools">{feito ? <span className="pill ok">{(av.canal || "WhatsApp") + " · " + nome(av.avisado_por) + " · " + dataHoraBR(av.avisado_em)}</span> : dispensado ? <span className="pill">não precisa avisar</span> : <span className="pill soon">pendente</span>}
+        {(feito || dispensado) && <button className="btn" onClick={() => marcar(false)} title="O aviso volta para pendente">↺ Voltar para não avisado</button>}
         <button className="btn ghost" onClick={() => setMin(!min)}>{min ? "Expandir" : "Minimizar"}</button></span>
     </div>
   );
@@ -94,7 +101,8 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
         {atende && <a className="btn" href={atende} target="_blank" rel="noopener noreferrer">Abrir no Atende Direito ↗</a>}
-        {feito ? <button className="btn ghost" onClick={() => marcar(false)}>Desfazer</button> : <button className="btn primary" onClick={() => marcar(true)}>Marcar como avisado</button>}
+        {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não avisado</button>
+          : <><button className="btn primary" onClick={() => marcar(true)}>Marcar como avisado</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>
       {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, marque como avisado.</div>}
     </div>

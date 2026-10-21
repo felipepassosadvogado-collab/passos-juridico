@@ -84,7 +84,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
       {agendar && <FormAgendar numero={pub.processo_numero} pub={pub} av={av} onFim={() => setAgendar(false)} />}
       {av?.modalidade && !agendar && <div className="ato-ag"><span className="pill acc">📅 {resumoAto(av)}{av.modalidade !== "jf_balcao" && av.data_evento ? " · " + dataBR(av.data_evento) : ""}</span><span className="muted">no Painel › Audiências e coletas</span></div>}
       {ts.length > 0 && <div className="tarefas-pub"><div className="lbl">Tarefas criadas a partir desta publicação</div>{ts.map((t) => <MiniTarefa key={t.id} t={t} />)}</div>}
-      {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Cliente avisado" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
+      {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Cliente avisado" : av.status === "dispensado" ? "Sem aviso ao cliente (não precisa)" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
       {form && <FormTarefa numero={pub.processo_numero} pub={{ id: pub.id, data: pub.data, eproc: pub.eproc }} tipo={a?.tarefa} desc={descDaAnalise(a)} dias={a?.prazoDias}
         resp={p?.responsavel || eu.id} aoCriar={mudarFase} onCriada={() => setForm(false)}
         extra={comFase && setFase ? <label className="f">Fase do processo<select value={faseEscolhida ?? ""} onChange={(e) => setFase(e.target.value)}><option value="">— manter —</option>{FASES.map((f) => <option key={f}>{f}</option>)}</select></label> : null} />}
@@ -103,25 +103,32 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
   if (!pub) return <Janela onFechar={onFechar} titulo="Publicação"><div className="empty"><strong>Publicação já analisada.</strong>Ela saiu da caixa.</div></Janela>;
   const a = pub.analise as Analise | null;
   const fase = fases[pub.id] ?? (faseCRM(p?.fase) || a?.fase || "");
-  const concluir = async () => {
-    const ts = [...tarefas.values()].filter((t) => t.publicacao_id === pub.id); const av = [...avisos.values()].find((x) => x.publicacao_id === pub.id);
-    if (av && av.status !== "avisado" && !confirmar("c" + pub.id, aviso, "O cliente ainda não foi avisado. O aviso continua pendente no Painel. Clique de novo para concluir.")) return;
+  const avPub = [...avisos.values()].find((x) => x.publicacao_id === pub.id);
+  const concluir = async (semAviso = false) => {
+    const ts = [...tarefas.values()].filter((t) => t.publicacao_id === pub.id); const av = avPub;
+    if (semAviso && av && av.status === "pendente") {
+      const r = await sb.from("avisos_cliente").update({ status: "dispensado" }).eq("id", av.id).select().single();
+      if (r.error) { aviso(/check/i.test(r.error.message) ? "Falta instalar a etapa 0012 (0012_aviso_dispensado.sql) no Supabase." : msgErro(r.error)); return; }
+      aplicar("avisos", r.data); registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "aviso_dispensado", dados: { texto: "Não precisa avisar o cliente" } });
+    }
+    if (av && av.status === "pendente" && !semAviso && !confirmar("c" + pub.id, aviso, "O cliente ainda não foi avisado. O aviso continua pendente no Painel. Clique de novo para concluir.")) return;
     if (fases[pub.id] && p && fases[pub.id] !== (p.fase || "")) {
       const r = await sb.from("processos").update({ fase: fases[pub.id] }).eq("numero", p.numero).select().single();
       if (!r.error) { aplicar("processos", r.data); registrar({ processo_numero: p.numero, tipo: "fase", dados: { fase: fases[pub.id] } }); }
     }
     const { error } = await sb.from("publicacoes").update({ triagem: "concluida", concluida_em: new Date().toISOString(), concluida_por: eu.id }).eq("id", pub.id);
     if (error) { aviso(msgErro(error)); return; }
-    const partes = [ts.length ? ts.length + (ts.length === 1 ? " tarefa criada" : " tarefas criadas") : "só ciência, sem tarefa", av ? (av.status === "avisado" ? "cliente avisado" : "aviso ao cliente pendente") : ""].filter(Boolean);
+    const partes = [ts.length ? ts.length + (ts.length === 1 ? " tarefa criada" : " tarefas criadas") : "só ciência, sem tarefa", av ? (av.status === "avisado" || semAviso ? (av.status === "avisado" ? "cliente avisado" : "sem aviso ao cliente") : av.status === "dispensado" ? "sem aviso ao cliente" : "aviso ao cliente pendente") : ""].filter(Boolean);
     registrar({ processo_numero: pub.processo_numero, publicacao_id: pub.id, tipo: "analise_concluida", dados: { origem: rotuloPub(pub), texto: partes.join(" · ") } });
     const prox = lista[i + 1] || lista[i - 1];
     remover("caixa", pub.id); onTrocar(prox ? prox.id : null);
-    aviso("Análise concluída" + (ts.length ? ". As tarefas seguem em Atividades." : "."));
+    aviso("Análise concluída" + (ts.length ? ". As tarefas seguem na Agenda." : "."));
   };
   return (
     <Janela largo onFechar={onFechar} titulo={p ? nomeBonito(p.cliente_nome || "—") : "Processo " + pub.processo_numero} sub={`${i + 1} de ${lista.length} na caixa`}
       acoes={<>
-        <button className="btn primary" title="A publicação sai da caixa; tarefas e avisos continuam" onClick={concluir}>✓ Concluir análise</button>
+        <button className="btn primary" title="A publicação sai da caixa; tarefas e avisos continuam" onClick={() => concluir()}>✓ Concluir análise</button>
+        {avPub?.status === "pendente" && <button className="btn" title="Conclui a análise e marca que este cliente não precisa ser avisado" onClick={() => concluir(true)}>Concluir sem avisar o cliente</button>}
         <button className="btn ghost" disabled={i <= 0} onClick={() => onTrocar(lista[i - 1].id)}>‹ Anterior</button>
         <button className="btn ghost" disabled={i >= lista.length - 1} onClick={() => onTrocar(lista[i + 1].id)}>Próxima ›</button>
       </>}>

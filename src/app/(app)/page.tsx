@@ -30,7 +30,7 @@ function Painel() {
       nl: [...notificacoes.values()].filter((n) => !n.lida && !(n.tipo === "correcao" && n.tarefa_id && tarefas.get(n.tarefa_id)?.status === "revisao")).sort((a, b) => b.em.localeCompare(a.em)),
       equipe: abertas.filter((y) => y.vencimento && diferencaDias(y.vencimento, t) <= 7).sort((a, b) => (a.vencimento || "").localeCompare(b.vencimento || "")),
       eqVenc: abertas.filter((y) => y.vencimento && y.vencimento <= t).length,
-      pend: [...avisos.values()].filter((a) => a.status !== "avisado" && !ehAgenda(a)).sort((a, b) => (a.data_evento || "9").localeCompare(b.data_evento || "9")),
+      pend: [...avisos.values()].filter((a) => a.status === "pendente" && !ehAgenda(a)).sort((a, b) => (a.data_evento || "9").localeCompare(b.data_evento || "9")),
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const dia = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "numeric", month: "long" });

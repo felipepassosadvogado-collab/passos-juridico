@@ -82,6 +82,7 @@ export function CorpoEvento({ e, t, nome }: { e: Evento; t?: Tarefa; nome: (id?:
     case "ciencia": return <div className="bt">{d.origem || "Publicação"}: só ciência, sem prazo.</div>;
     case "aviso_criado": return <div className="bt">Marcou para avisar o cliente: <strong>{d.texto}</strong></div>;
     case "cliente_avisado": return <div className="bt">Avisou o cliente pelo WhatsApp: <strong>{d.texto}</strong></div>;
+    case "aviso_dispensado": return <div className="bt">Marcou que não precisa avisar o cliente{d.texto && d.texto !== "Não precisa avisar o cliente" ? ": " + d.texto : ""}</div>;
     case "aviso_reaberto": return <div className="bt">Aviso ao cliente voltou para pendente: {d.texto}</div>;
     default: return <div className="bt" style={{ whiteSpace: "pre-wrap" }}>{d.texto || d.descricao || e.tipo}</div>;
   }
@@ -219,7 +220,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           <div className="tools"><button className="btn primary" onClick={() => salvar({ fase: ed.fase || null, notas: ed.notas || null })}>Salvar</button></div>
           <section className="panel"><div className="ph"><h3>Avisos ao cliente</h3><button className="btn ghost" onClick={async () => { const id = await criarAviso({ processo_numero: p.numero }); if (id) j.abrirAviso(id); }}>Novo aviso</button></div>
             {avs.length ? <div className="rows">{avs.map((a) => <div key={a.id} className="row click" onClick={() => j.abrirAviso(a.id)}>
-              <span className={"pill " + (a.status === "avisado" ? "ok" : "soon")}>{a.status === "avisado" ? "avisado" : "pendente"}</span>
+              <span className={"pill " + (a.status === "pendente" ? "soon" : "ok")}>{a.status === "avisado" ? "avisado" : a.status === "dispensado" ? "sem aviso" : "pendente"}</span>
               <div className="main"><div className="t">{(a.tipo_evento || "Ato") + (a.data_evento ? " · " + dataBR(a.data_evento) + (a.hora ? " " + a.hora.slice(0, 5) : "") : "")}</div><div className="s">{a.local || ""}</div></div><span /></div>)}</div>
               : <div className="empty">Nenhum aviso ao cliente neste processo.</div>}</section>
         </>}

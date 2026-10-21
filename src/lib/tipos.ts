@@ -34,7 +34,7 @@ export type Caso = {
 export type Modalidade = "video" | "jf_agendado" | "jf_balcao";
 export type Aviso = {
   id: string; processo_numero: string; publicacao_id: number | null; tipo_evento: string | null; data_evento: string | null; hora: string | null;
-  local: string | null; orientacoes: string | null; mensagem: string | null; status: "pendente" | "avisado"; canal: string | null;
+  local: string | null; orientacoes: string | null; mensagem: string | null; status: "pendente" | "avisado" | "dispensado"; canal: string | null;
   aberto_em: string | null; avisado_em: string | null; avisado_por: string | null; criado_por: string | null; criado_em: string;
   modalidade?: Modalidade | null; link?: string | null; realizado_em?: string | null; realizado_por?: string | null;
 };
