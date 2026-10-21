@@ -6,13 +6,13 @@ import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, foneWhatsapp, iniciais, nomeBonito } from "@/lib/formato";
 import { hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
-import { STATUS_NOME, atoPub, destinoProtocolo, faseCRM } from "@/lib/regras";
+import { PROTOCOLO_ACAO, STATUS_NOME, atoPub, destinoProtocolo, faseCRM } from "@/lib/regras";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
 import { ProtocolarCaso } from "./FichaCliente";
-import { ConfirmacaoCliente } from "./avisos";
+import { BlocoAviso, ConfirmacaoCliente, useCriarAviso } from "./avisos";
 import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
 
 const diaSemana = (iso?: string | null) => (iso ? paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long" }).split("-")[0] + ", " + dataBR(iso) : "—");
@@ -103,6 +103,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
               <ConfirmacaoCliente av={av} />
               <div><button className="reflink" onClick={() => j.abrirAviso(av.id)}>Abrir o aviso (mensagem e WhatsApp)</button></div>
             </div>; })()}
+            {t.tipo === "Protocolo da inicial" && <AvisoProtocolo numero={t.processo_numero || caso?.processo_numero || null} />}
             {t.tipo === "Protocolo da inicial" && caso && !caso.processo_numero && !done && <div className="tj-corr">
               <div className="tj-corr-h"><strong>Protocolo da inicial</strong><span className="muted s">a peça e a pasta estão nos anexos acima</span></div>
               <ol className="tj-passos"><li>Protocole no eproc com os arquivos da pasta.</li><li>Cole abaixo o nº do processo: o atendimento vira processo judicial e as publicações passam a ser acompanhadas.</li><li>Depois, “Protocolado” registra o protocolo e conclui esta tarefa.</li></ol>
@@ -183,4 +184,16 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
       </div>
     </div>
   );
+}
+
+/** depois do protocolo da inicial: avisar o cliente (número do processo, juízo), na caixa padrão de aviso */
+function AvisoProtocolo({ numero }: { numero: string | null }) {
+  const { avisos, processos } = useDados(); const criar = useCriarAviso(); const [criando, setCriando] = useState(false);
+  if (!numero || !processos.get(numero)) return <div className="tj-corr min"><div className="tj-corr-h"><strong>Avisar o cliente</strong><span className="muted s">depois de colar o nº do processo, a mensagem ao cliente aparece aqui</span></div></div>;
+  const av = [...avisos.values()].find((a) => a.processo_numero === numero && a.tipo_evento === PROTOCOLO_ACAO);
+  if (av) return <BlocoAviso av={av} inicioAberto={av.status !== "avisado" && av.status !== "dispensado"} />;
+  return <div className="tj-corr">
+    <div className="tj-corr-h"><strong>Avisar o cliente do protocolo</strong><span className="muted s">mensagem com o nº do processo e o juízo, pelo WhatsApp</span></div>
+    <div className="tools"><button className="btn primary" disabled={criando} onClick={async () => { setCriando(true); await criar({ processo_numero: numero, tipo_evento: PROTOCOLO_ACAO, data_evento: hojeBR() }); setCriando(false); }}>{criando ? "Abrindo…" : "Avisar o cliente"}</button></div>
+  </div>;
 }

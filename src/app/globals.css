@@ -739,3 +739,4 @@ html.rail-fechado .rail .count::after{content:attr(data-curto);font-size:9.5px;f
 .gac{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--accent);background:var(--accent-soft);border:1px solid transparent}
 .gac:hover{border-color:var(--accent);background:var(--surface)}.gac svg{width:17px;height:17px}
 @media (pointer:coarse){.gacoes{opacity:1}}
+.tj-corr.min{border-style:dashed;background:transparent}

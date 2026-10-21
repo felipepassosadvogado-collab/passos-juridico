@@ -31,7 +31,8 @@ export const DICAS_FASE: Record<string, string> = {
 };
 export const BANCOS = ["Banco C6 Consignado S.A.", "Itaú Unibanco S.A.", "Banco Daycoval S.A.", "Banco BMG S.A.", "Banco Bradesco S.A.", "Banco Pan S.A.",
   "Banco Santander S.A.", "Banco Mercantil do Brasil S.A.", "Facta Financeira S.A.", "Crefisa S.A."];
-export const TIPOS_EV = ["Perícia", "Coleta de padrão grafotécnico", "Audiência", "Comparecimento", "Outro"];
+export const PROTOCOLO_ACAO = "Protocolo da ação";
+export const TIPOS_EV = ["Perícia", "Coleta de padrão grafotécnico", "Audiência", "Comparecimento", PROTOCOLO_ACAO, "Outro"];
 /** atos que entram na caixa "Audiências e coletas" de Meus expedientes */
 export const ATOS_AGENDA = ["Audiência", "Coleta de padrão grafotécnico"];
 export const MODALIDADES: Record<Modalidade, { nome: string; curto: string }> = {
@@ -92,8 +93,17 @@ export function dataExtenso(iso?: string | null) {
   return paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 }
 /** mensagem padrão do WhatsApp para avisar o cliente */
-export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes" | "modalidade" | "link">, nomeCliente: string, banco?: string | null) {
-  const nome = primeiroNome(nomeCliente); const b = bancoCurto(banco || ""); const tipo = (av.tipo_evento || "um ato").toLowerCase();
+export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes" | "modalidade" | "link">, nomeCliente: string, banco?: string | null, dproc?: { mascara?: string | null; orgao?: string | null }) {
+  const nome = primeiroNome(nomeCliente); const b = bancoCurto(banco || "");
+  if (av.tipo_evento === PROTOCOLO_ACAO) {
+    const contra = b && b !== "—" ? ` contra o ${b} e o INSS` : "";
+    return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`,
+      `Boa notícia: a sua ação${contra} foi protocolada${av.data_evento ? " no dia " + dataBR(av.data_evento) : ""}${dproc?.orgao ? ", na " + dproc.orgao : " na Justiça"}.`,
+      dproc?.mascara ? `O número do seu processo é ${dproc.mascara}. Guarde este número.` : "",
+      "Agora o juiz vai analisar o pedido e os réus serão chamados para responder. Isso leva algum tempo, e não precisa fazer nada por enquanto. Vamos te avisar sempre que houver novidade.",
+      av.orientacoes || "",
+      "Qualquer dúvida, é só chamar aqui. Por favor, responda confirmando que recebeu esta mensagem."].filter(Boolean).join("\n\n");
+  } const tipo = (av.tipo_evento || "um ato").toLowerCase();
   const hora = (av.hora || "").slice(0, 5); const dia = av.data_evento ? `${dataBR(av.data_evento)} (${dataExtenso(av.data_evento)})` : "";
   const quando = dia ? ` no dia ${dia}${hora ? ", às " + hora : ""}` : "";
   const proc = `No seu processo${b && b !== "—" ? " contra o " + b : ""}`;

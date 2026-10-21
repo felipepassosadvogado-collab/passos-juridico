@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
-import { MODALIDADES, TIPOS_EV, ehAgenda, mensagemPadrao } from "@/lib/regras";
+import { MODALIDADES, PROTOCOLO_ACAO, TIPOS_EV, ehAgenda, mensagemPadrao } from "@/lib/regras";
 import { diferencaDias, hojeBR, isoData, paraData, proximoDiaUtil, somaDias } from "@/lib/prazos";
 import type { Modalidade } from "@/lib/tipos";
 import type { Aviso } from "@/lib/tipos";
@@ -43,7 +43,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const p = processos.get(av.processo_numero); const cli = p?.cliente_id ? clientes.get(p.cliente_id) : undefined;
   const feito = av.status === "avisado"; const dispensado = av.status === "dispensado";
   const [min, setMin] = useState(inicioAberto ? false : av.status !== "pendente");
-  const padrao = mensagemPadrao(av, cli?.nome || p?.cliente_nome || "", p?.banco);
+  const padrao = mensagemPadrao(av, cli?.nome || p?.cliente_nome || "", p?.banco, p);
   const [texto, setTexto] = useState(av.mensagem || padrao); const [mexeu, setMexeu] = useState(!!av.mensagem);
   const [fone, setFone] = useState(cli?.telefone || "");
   // o que está digitado nos campos (pode ainda não ter sido gravado) vai para o Claude
@@ -75,7 +75,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
     const n = sim ? await ac.criarTarefas({ ...av, status: "avisado" }) : 0;
-    aviso(sim ? "Registrado: mensagem enviada ao cliente. Falta a confirmação dele." + (n ? ` Criei ${n === 1 ? "a tarefa" : n + " tarefas"} de acompanhamento (confirmar amanhã${n > 1 ? " e lembrar 3 dias antes" : ""}).` : "") : "Aviso voltou para pendente.");
+    aviso(sim && av.tipo_evento === PROTOCOLO_ACAO ? "Registrado: cliente avisado do protocolo." : sim ? "Registrado: mensagem enviada ao cliente. Falta a confirmação dele." + (n ? ` Criei ${n === 1 ? "a tarefa" : n + " tarefas"} de acompanhamento (confirmar amanhã${n > 1 ? " e lembrar 3 dias antes" : ""}).` : "") : "Aviso voltou para pendente.");
     if (sim) setMin(true);
   };
   const dispensar = async () => {
@@ -144,6 +144,7 @@ export function useAcompanhamentoAviso() {
   /** ao marcar como avisado: amanhã (dia útil) conferir a confirmação; 3 dias antes do ato, lembrar o cliente */
   const criarTarefas = async (av: Aviso) => {
     const hoje = hojeBR(); const novas: Record<string, unknown>[] = [];
+    if (av.tipo_evento === PROTOCOLO_ACAO) return 0; // aviso de protocolo não pede confirmação de presença
     if (!tarefasDo(av).some((t) => t.tipo === "Verificar retorno do cliente"))
       novas.push({ processo_numero: av.processo_numero, aviso_id: av.id, tipo: "Verificar retorno do cliente", responsavel: eu.id,
         descricao: "Verificar retorno do cliente: confirmou o recebimento e a presença? (" + resumo(av) + ")", vencimento: isoData(proximoDiaUtil(paraData(hoje))) });
@@ -195,14 +196,14 @@ export function useAcompanhamentoAviso() {
 export function PillConfirmacao({ av }: { av: Aviso }) {
   if (av.dificuldade) return <span className="pill late" title={av.dificuldade}>⚠ dificuldade de contato</span>;
   if (av.confirmado_em) return <span className="pill ok">✓ cliente confirmou</span>;
-  if (av.status === "avisado") return <span className="pill soon">aguardando confirmação</span>;
+  if (av.status === "avisado" && av.tipo_evento !== PROTOCOLO_ACAO) return <span className="pill soon">aguardando confirmação</span>;
   return null;
 }
 
 /** botões de confirmação e dificuldade (no aviso e na tarefa automática) */
 export function ConfirmacaoCliente({ av }: { av: Aviso }) {
   const ac = useAcompanhamentoAviso(); const [nota, setNota] = useState<string | null>(null);
-  if (av.status !== "avisado") return null;
+  if (av.status !== "avisado" || av.tipo_evento === PROTOCOLO_ACAO) return null;
   return (
     <div className="conf-cli">
       <div className="conf-st">{av.confirmado_em ? <span className="pill ok">✓ cliente confirmou · {ac.nome(av.confirmado_por).split(" ")[0]} · {dataHoraBR(av.confirmado_em)}</span>

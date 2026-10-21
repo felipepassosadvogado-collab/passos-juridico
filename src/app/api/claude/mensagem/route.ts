@@ -34,7 +34,20 @@ export async function POST(req: Request) {
     pub ? `Publicação que originou o aviso (${pub.tipo_doc || "ato"} de ${dataBR(pub.data)}, ${pub.orgao || ""}):\n${corte(pub.texto, 6000)}` : "",
     b.mensagemAtual ? `Mensagem atual (rascunho, pode ser reescrita):\n${corte(b.mensagemAtual, 2000)}` : "",
   ].filter(Boolean).join("\n");
-  const prompt = `Você escreve, para o escritório Passos Advocacia (Joinville/SC), uma mensagem de WhatsApp para um cliente aposentado ou pensionista, avisando de um ato do processo dele.
+  const protocolo = tipo === "Protocolo da ação";
+  const prompt = protocolo ? `Você escreve, para o escritório Passos Advocacia (Joinville/SC), uma mensagem de WhatsApp para um cliente aposentado ou pensionista, contando que a ação dele foi PROTOCOLADA (distribuída) na Justiça.
+Regras:
+- Português simples, frases curtas, tom acolhedor, sem juridiquês.
+- Comece com "Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia."
+- Diga que a ação foi protocolada (data, se houver), contra quem, em qual juízo, e informe o número do processo para ele guardar.
+- Explique em 1 ou 2 frases o que acontece agora (o juiz analisa, os réus são chamados para responder, leva algum tempo) e que ele não precisa fazer nada por enquanto; o escritório avisa a cada novidade.
+- Inclua as Orientações da equipe, se houver. Não invente prazos, valores nem promessas de resultado.
+- No máximo uns 700 caracteres, 3 a 4 parágrafos curtos, no máximo 1 emoji, sem markdown.
+- Termine pedindo que responda confirmando que recebeu.
+Formato da resposta (texto puro): primeiro a mensagem; depois, se houver algo para conferir, uma linha só com ===CONFERIR=== e itens começando com "- ".
+
+Contexto:
+${ctx}` : `Você escreve, para o escritório Passos Advocacia (Joinville/SC), uma mensagem de WhatsApp para um cliente aposentado ou pensionista, avisando de um ato do processo dele.
 Regras:
 - Português simples, frases curtas, tom acolhedor e respeitoso, sem juridiquês (explique em palavras simples o que é a perícia, a coleta de assinaturas, a audiência etc.).
 - Comece com "Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia."
