@@ -24,7 +24,7 @@ export type Tarefa = {
   descricao: string; vencimento: string | null; dias: number | null; responsavel: string | null; revisor: string | null;
   status: StatusTarefa; importante: boolean; urgente: boolean; criado_por: string | null; criado_em: string; feito_em: string | null;
   feito_por: string | null; iniciado_em: string | null; enviado_em: string | null; devolvido_em: string | null; aprovado_em: string | null;
-  aprovado_por: string | null; protocolo_avisado_em: string | null; protocolo_numero?: string | null; protocolo_obs?: string | null; editado_em: string | null; nota_correcao: string | null; correcao_ate?: string | null; origem_id?: string | null;
+  aprovado_por: string | null; protocolo_avisado_em: string | null; protocolo_numero?: string | null; protocolo_obs?: string | null; editado_em: string | null; nota_correcao: string | null; correcao_ate?: string | null; origem_id?: string | null; aviso_id?: string | null;
 };
 export type Caso = {
   id: string; cliente_id: string | null; nome: string; banco: string | null; contratos: string | null; etapa: string;
@@ -37,6 +37,7 @@ export type Aviso = {
   local: string | null; orientacoes: string | null; mensagem: string | null; status: "pendente" | "avisado" | "dispensado"; canal: string | null;
   aberto_em: string | null; avisado_em: string | null; avisado_por: string | null; criado_por: string | null; criado_em: string;
   modalidade?: Modalidade | null; link?: string | null; realizado_em?: string | null; realizado_por?: string | null;
+  confirmado_em?: string | null; confirmado_por?: string | null; dificuldade?: string | null; dificuldade_em?: string | null;
 };
 export type Notificacao = {
   id: string; para: string; de: string | null; tipo: string; texto: string; processo_numero: string | null; caso_id: string | null;

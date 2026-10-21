@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
-import { MODALIDADES, TIPOS_EV, mensagemPadrao } from "@/lib/regras";
+import { MODALIDADES, TIPOS_EV, ehAgenda, mensagemPadrao } from "@/lib/regras";
+import { diferencaDias, hojeBR, isoData, paraData, proximoDiaUtil, somaDias } from "@/lib/prazos";
 import type { Modalidade } from "@/lib/tipos";
 import type { Aviso } from "@/lib/tipos";
 
@@ -69,10 +70,12 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const resumo = [av.tipo_evento || "Ato a definir", av.data_evento ? dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "", av.local].filter(Boolean).join(" · ");
   const wa = foneWhatsapp(fone);
   const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
+  const ac = useAcompanhamentoAviso();
   const marcar = async (sim: boolean) => {
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
-    aviso(sim ? "Registrado: cliente avisado." : "Aviso voltou para pendente.");
+    const n = sim ? await ac.criarTarefas({ ...av, status: "avisado" }) : 0;
+    aviso(sim ? "Registrado: cliente avisado." + (n ? ` Criei ${n === 1 ? "a tarefa" : n + " tarefas"} de acompanhamento (confirmar amanhã${n > 1 ? " e lembrar 3 dias antes" : ""}).` : "") : "Aviso voltou para pendente.");
     if (sim) setMin(true);
   };
   const dispensar = async () => {
@@ -85,18 +88,19 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
     <div className="av-top">
       <button className="av-tit" onClick={() => setMin(!min)} aria-expanded={!min}><span className="seta">{min ? "▸" : "▾"}</span><strong>{feito ? "Cliente avisado" : dispensado ? "Sem aviso ao cliente" : "Avisar o cliente"}</strong></button>
       <span className="tools">{feito ? <span className="pill ok">{(av.canal || "WhatsApp") + " · " + nome(av.avisado_por) + " · " + dataHoraBR(av.avisado_em)}</span> : dispensado ? <span className="pill">não precisa avisar</span> : <span className="pill soon">pendente</span>}
+        {feito && <PillConfirmacao av={av} />}
         {(feito || dispensado) && <button className="btn" onClick={() => marcar(false)} title="O aviso volta para pendente">↺ Voltar para não avisado</button>}
         <button className="btn ghost" onClick={() => setMin(!min)}>{min ? "Expandir" : "Minimizar"}</button></span>
     </div>
   );
-  if (min) return <div className={"aviso-cli min" + (feito ? " ok" : "")}>{topo}<div className="muted" style={{ fontSize: 12.5 }}>{resumo}</div></div>;
+  if (min) return <div className={"aviso-cli min" + (feito ? " ok" : "")}>{topo}<div className="muted" style={{ fontSize: 12.5 }}>{resumo}</div><ConfirmacaoCliente av={av} /></div>;
   return (
     <div className={"aviso-cli" + (feito ? " ok" : "")}>
       {topo}
       <div className="triage">
         <label className="f">O que foi marcado<select value={av.tipo_evento || ""} onChange={(e) => salvar({ tipo_evento: e.target.value || null })}><option value="">— escolher —</option>{TIPOS_EV.map((t) => <option key={t}>{t}</option>)}</select></label>
         <label className="f wide2">Como vai ser<select value={av.modalidade || ""} onChange={(e) => salvar({ modalidade: (e.target.value || null) as Modalidade | null })}><option value="">— não se aplica —</option>{(Object.keys(MODALIDADES) as Modalidade[]).map((k) => <option key={k} value={k}>{MODALIDADES[k].nome}</option>)}</select></label>
-        <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onChange={anota("data_evento")} onBlur={(e) => e.target.value !== (av.data_evento || "") && salvar({ data_evento: e.target.value || null })} /></label>
+        <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onChange={anota("data_evento")} onBlur={(e) => { if (e.target.value !== (av.data_evento || "")) { salvar({ data_evento: e.target.value || null }); ac.ajustarLembrete(av, e.target.value || null); } }} /></label>
         <label className="f">Hora<input type="time" defaultValue={(av.hora || "").slice(0, 5)} onChange={anota("hora")} onBlur={(e) => e.target.value !== (av.hora || "").slice(0, 5) && salvar({ hora: e.target.value || null })} /></label>
         {av.modalidade === "video" && <label className="f wide2">Link da sala virtual<input defaultValue={av.link || ""} placeholder="https://…" onChange={anota("link")} onBlur={(e) => e.target.value !== (av.link || "") && salvar({ link: e.target.value.trim() || null })} /></label>}
         {av.modalidade !== "video" && <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onChange={anota("local")} onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>}
@@ -123,9 +127,94 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não avisado</button>
           : <><button className="btn primary" onClick={() => marcar(true)}>Marcar como avisado</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>
+      <ConfirmacaoCliente av={av} />
       {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, marque como avisado.</div>}
     </div>
   );
 }
 
 export const nomeDoAviso = (av: Aviso, d: ReturnType<typeof useDados>) => nomeBonito(d.processos.get(av.processo_numero)?.cliente_nome || "—");
+
+/** acompanhamento depois do aviso: tarefas automáticas, confirmação do cliente e dificuldade de contato */
+export function useAcompanhamentoAviso() {
+  const { sb, eu, tarefas, aplicar, registrar, aviso, nome } = useDados();
+  const FALTA = "Falta instalar a etapa 0015 (0015_confirmacao_cliente.sql) no Supabase.";
+  const resumo = (av: Aviso) => [av.tipo_evento || "Ato", av.data_evento ? (av.modalidade === "jf_balcao" ? "até " : "") + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : ""].filter(Boolean).join(" ");
+  const tarefasDo = (av: Aviso) => [...tarefas.values()].filter((t) => t.aviso_id === av.id && t.status !== "feito");
+  /** ao marcar como avisado: amanhã (dia útil) conferir a confirmação; 3 dias antes do ato, lembrar o cliente */
+  const criarTarefas = async (av: Aviso) => {
+    const hoje = hojeBR(); const novas: Record<string, unknown>[] = [];
+    if (!tarefasDo(av).some((t) => t.tipo === "Verificar retorno do cliente"))
+      novas.push({ processo_numero: av.processo_numero, aviso_id: av.id, tipo: "Verificar retorno do cliente", responsavel: eu.id,
+        descricao: "Verificar retorno do cliente: confirmou o recebimento e a presença? (" + resumo(av) + ")", vencimento: isoData(proximoDiaUtil(paraData(hoje))) });
+    if (av.data_evento && ehAgenda(av) && diferencaDias(av.data_evento, hoje) > 3 && !tarefasDo(av).some((t) => t.tipo === "Contato com o cliente"))
+      novas.push({ processo_numero: av.processo_numero, aviso_id: av.id, tipo: "Contato com o cliente", responsavel: eu.id, importante: true,
+        descricao: "Contato com o cliente: lembrar do ato daqui a 3 dias (" + resumo(av) + ")", vencimento: isoData(somaDias(paraData(av.data_evento), -3)) });
+    if (!novas.length) return 0;
+    let r = await sb.from("tarefas").insert(novas).select();
+    if (r.error && /aviso_id/.test(r.error.message)) { aviso(FALTA + " As tarefas foram criadas sem ligação com o aviso."); r = await sb.from("tarefas").insert(novas.map(({ aviso_id: _x, ...o }) => o)).select(); }
+    if (r.error) { aviso(msgErro(r.error)); return 0; }
+    for (const t of r.data || []) aplicar("tarefas", t);
+    return (r.data || []).length;
+  };
+  /** se a data do ato mudar, o lembrete muda junto */
+  const ajustarLembrete = async (av: Aviso, novaData: string | null) => {
+    for (const t of tarefasDo(av).filter((x) => x.tipo === "Contato com o cliente" && /lembrar do ato/i.test(x.descricao))) {
+      if (!novaData) continue;
+      const { data } = await sb.from("tarefas").update({ vencimento: isoData(somaDias(paraData(novaData), -3)) }).eq("id", t.id).select().single();
+      if (data) aplicar("tarefas", data);
+    }
+  };
+  const concluirVerificacao = async (av: Aviso) => {
+    for (const t of tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && x.responsavel === eu.id)) {
+      const { data } = await sb.from("tarefas").update({ status: "feito" }).eq("id", t.id).select().single(); if (data) aplicar("tarefas", data);
+    }
+  };
+  const confirmou = async (av: Aviso, sim: boolean) => {
+    const { data, error } = await sb.from("avisos_cliente").update(sim ? { confirmado_em: new Date().toISOString(), confirmado_por: eu.id, dificuldade: null, dificuldade_em: null } : { confirmado_em: null, confirmado_por: null }).eq("id", av.id).select().single();
+    if (error) { aviso(/confirmado/.test(error.message) ? FALTA : msgErro(error)); return false; }
+    aplicar("avisos", data);
+    if (sim) { await concluirVerificacao(av); registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "comentario", dados: { texto: "Cliente confirmou o recebimento do aviso e a presença: " + resumo(av) + "." } }); }
+    aviso(sim ? "Registrado: o cliente confirmou." : "Confirmação desfeita."); return true;
+  };
+  const dificuldade = async (av: Aviso, texto: string | null) => {
+    const { data, error } = await sb.from("avisos_cliente").update(texto ? { dificuldade: texto, dificuldade_em: new Date().toISOString() } : { dificuldade: null, dificuldade_em: null }).eq("id", av.id).select().single();
+    if (error) { aviso(/dificuldade/.test(error.message) ? FALTA : msgErro(error)); return false; }
+    aplicar("avisos", data);
+    if (texto) {
+      registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "comentario", dados: { texto: "Dificuldade para encontrar o cliente (" + resumo(av) + "): " + texto } });
+      // a conferência da confirmação fica urgente
+      for (const t of tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && !x.urgente)) { const { data: d2 } = await sb.from("tarefas").update({ urgente: true }).eq("id", t.id).select().single(); if (d2) aplicar("tarefas", d2); }
+    }
+    aviso(texto ? "Marcado: dificuldade de contato com o cliente." : "Dificuldade de contato desmarcada."); return true;
+  };
+  return { criarTarefas, ajustarLembrete, confirmou, dificuldade, nome };
+}
+
+/** situação do cliente depois do aviso, para mostrar em listas */
+export function PillConfirmacao({ av }: { av: Aviso }) {
+  if (av.dificuldade) return <span className="pill late" title={av.dificuldade}>⚠ dificuldade de contato</span>;
+  if (av.confirmado_em) return <span className="pill ok">✓ cliente confirmou</span>;
+  if (av.status === "avisado") return <span className="pill soon">aguardando confirmação</span>;
+  return null;
+}
+
+/** botões de confirmação e dificuldade (no aviso e na tarefa automática) */
+export function ConfirmacaoCliente({ av }: { av: Aviso }) {
+  const ac = useAcompanhamentoAviso(); const [nota, setNota] = useState<string | null>(null);
+  if (av.status !== "avisado") return null;
+  return (
+    <div className="conf-cli">
+      <div className="conf-st">{av.confirmado_em ? <span className="pill ok">✓ cliente confirmou · {ac.nome(av.confirmado_por).split(" ")[0]} · {dataHoraBR(av.confirmado_em)}</span>
+        : <span className="pill soon">aguardando a confirmação do cliente</span>}
+        {av.dificuldade && <span className="pill late" title={av.dificuldade}>⚠ dificuldade de contato: {av.dificuldade}</span>}</div>
+      <div className="tools">
+        {!av.confirmado_em ? <button className="btn primary" onClick={() => ac.confirmou(av, true)}>✓ Cliente confirmou</button> : <button className="btn ghost" onClick={() => ac.confirmou(av, false)}>Desfazer confirmação</button>}
+        {!av.dificuldade ? <button className="btn" onClick={() => setNota(nota == null ? "" : null)}>⚠ Dificuldade de contato</button> : <button className="btn ghost" onClick={() => ac.dificuldade(av, null)}>Encontramos o cliente</button>}
+      </div>
+      {nota != null && !av.dificuldade && <div className="tools"><input style={{ flex: 1, minWidth: 220 }} autoFocus value={nota} placeholder="Ex.: não atende, WhatsApp sem resposta, número errado" onChange={(e) => setNota(e.target.value)}
+        onKeyDown={async (e) => { if (e.key === "Enter" && nota.trim() && await ac.dificuldade(av, nota.trim())) setNota(null); }} />
+        <button className="btn primary" disabled={!nota.trim()} onClick={async () => { if (await ac.dificuldade(av, nota.trim())) setNota(null); }}>Marcar</button></div>}
+    </div>
+  );
+}

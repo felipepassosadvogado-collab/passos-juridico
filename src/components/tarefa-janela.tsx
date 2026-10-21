@@ -12,6 +12,7 @@ import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas"
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
 import { ProtocolarCaso } from "./FichaCliente";
+import { ConfirmacaoCliente } from "./avisos";
 import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
 
 const diaSemana = (iso?: string | null) => (iso ? paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long" }).split("-")[0] + ", " + dataBR(iso) : "—");
@@ -23,7 +24,7 @@ function haQuanto(iso: string) {
 const S = (d: string) => <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 
 export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => void }) {
-  const { tarefas, processos, clientes, casos, anexos, sb, eu, titular, nome, aviso, registrar } = useDados(); const j = useJanelas();
+  const { tarefas, processos, clientes, casos, anexos, avisos, sb, eu, titular, nome, aviso, registrar } = useDados(); const j = useJanelas();
   const acoes = useAcoesTarefa(); const confirmar = useConfirmar();
   const t = tarefas.get(id);
   const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar" | "protocolo" | "aprovar">(""); const [prot, setProt] = useState({ numero: "", obs: "" }); const [salvando, setSalvando] = useState(false);
@@ -96,6 +97,12 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 {t.protocolo_numero && <span>nº <strong className="mono">{t.protocolo_numero}</strong> <button className="icb-q mini" title="Copiar o nº do protocolo" onClick={async () => { try { await navigator.clipboard.writeText(t.protocolo_numero!); aviso("Nº do protocolo copiado."); } catch { aviso(t.protocolo_numero!); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button></span>}
                 {t.protocolo_obs && <span className="muted" style={{ flexBasis: "100%" }}>“{t.protocolo_obs}”</span>}</dd></>}
             </dl>
+            {t.aviso_id && avisos.get(t.aviso_id) && (() => { const av = avisos.get(t.aviso_id!)!; return <div className="tj-corr">
+              <div className="tj-corr-h"><strong>Aviso ao cliente</strong><span className="muted s">{av.tipo_evento || "Ato"}{av.data_evento ? " · " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : ""}{av.local ? " · " + av.local : ""}</span></div>
+              <div className="muted s">Registre aqui o retorno do cliente; ao confirmar, esta conferência é concluída sozinha.</div>
+              <ConfirmacaoCliente av={av} />
+              <div><button className="reflink" onClick={() => j.abrirAviso(av.id)}>Abrir o aviso (mensagem e WhatsApp)</button></div>
+            </div>; })()}
             {t.tipo === "Protocolo da inicial" && caso && !caso.processo_numero && !done && <div className="tj-corr">
               <div className="tj-corr-h"><strong>Protocolo da inicial</strong><span className="muted s">a peça e a pasta estão nos anexos acima</span></div>
               <ol className="tj-passos"><li>Protocole no eproc com os arquivos da pasta.</li><li>Cole abaixo o nº do processo: o atendimento vira processo judicial e as publicações passam a ser acompanhadas.</li><li>Depois, “Protocolado” registra o protocolo e conclui esta tarefa.</li></ol>

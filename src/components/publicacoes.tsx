@@ -69,7 +69,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
   // agendamento que o Claude encontrou na intimação (audiência ou coleta com data): salva com um clique
   const ev = a?.evento; const [salvandoAg, setSalvandoAg] = useState(false);
   const texto = pub.texto || "";
-  const tipoAg = ev?.tipo && ATOS_AGENDA.includes(ev.tipo) ? ev.tipo : /coleta|padr[aã]o\s+(de\s+)?assinatura|grafot|colhido material/i.test(texto) && ev?.data ? ATOS_AGENDA[1] : /audi[eê]ncia/i.test(ev?.tipo || "") ? ATOS_AGENDA[0] : null;
+  const tipoAg = ev?.tipo && ATOS_AGENDA.includes(ev.tipo) ? ev.tipo : /coleta|padr[aã]o\s+(de\s+)?assinatura|colhid[oa]s?\s+(o\s+)?(material|assinatura|padr)|material de prova/i.test(texto) && ev?.data ? ATOS_AGENDA[1] : /audi[eê]ncia/i.test(ev?.tipo || "") ? ATOS_AGENDA[0] : null;
   const modAg: Modalidade | null = ev?.modalidade && ev.modalidade in MODALIDADES ? ev.modalidade as Modalidade
     : /videoconfer|sala virtual|zoom|teams|link de acesso/i.test(texto) ? "video" : ev?.hora ? "jf_agendado" : ev?.data ? "jf_balcao" : null;
   const dataAg = /^\d{4}-\d\d-\d\d$/.test(ev?.data || "") ? ev!.data! : null;
