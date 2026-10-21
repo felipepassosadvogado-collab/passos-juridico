@@ -1,6 +1,6 @@
 "use client";
 // Avisar o cliente de perícia, audiência ou coleta de assinatura, pelo WhatsApp.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
 import { MODALIDADES, TIPOS_EV, mensagemPadrao } from "@/lib/regras";
@@ -45,6 +45,21 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const padrao = mensagemPadrao(av, cli?.nome || p?.cliente_nome || "", p?.banco);
   const [texto, setTexto] = useState(av.mensagem || padrao); const [mexeu, setMexeu] = useState(!!av.mensagem);
   const [fone, setFone] = useState(cli?.telefone || "");
+  // o que está digitado nos campos (pode ainda não ter sido gravado) vai para o Claude
+  const tela = useRef<Record<string, string>>({}); const anota = (k: string) => (e: { target: { value: string } }) => { tela.current[k] = e.target.value; };
+  const [escrevendo, setEscrevendo] = useState(false); const [alertas, setAlertas] = useState<string[]>([]);
+  const escreverClaude = async () => {
+    setEscrevendo(true); setAlertas([]);
+    try {
+      const r = await fetch("/api/claude/mensagem", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ avisoId: av.id, ...tela.current, mensagemAtual: texto }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { aviso(j.erro || "Não consegui escrever a mensagem agora."); return; }
+      setTexto(j.mensagem); setMexeu(true); setAlertas(j.alertas || []);
+      salvar({ mensagem: j.mensagem });
+      aviso("Mensagem escrita pelo Claude. Confira antes de enviar.");
+    } finally { setEscrevendo(false); }
+  };
   useEffect(() => { if (!mexeu) setTexto(padrao); }, [padrao, mexeu]);
   useEffect(() => { if (!fone && cli?.telefone) setFone(cli.telefone); }, [cli?.telefone]); // eslint-disable-line react-hooks/exhaustive-deps
   const salvar = async (campos: Partial<Aviso>) => {
@@ -81,14 +96,18 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
       <div className="triage">
         <label className="f">O que foi marcado<select value={av.tipo_evento || ""} onChange={(e) => salvar({ tipo_evento: e.target.value || null })}><option value="">— escolher —</option>{TIPOS_EV.map((t) => <option key={t}>{t}</option>)}</select></label>
         <label className="f wide2">Como vai ser<select value={av.modalidade || ""} onChange={(e) => salvar({ modalidade: (e.target.value || null) as Modalidade | null })}><option value="">— não se aplica —</option>{(Object.keys(MODALIDADES) as Modalidade[]).map((k) => <option key={k} value={k}>{MODALIDADES[k].nome}</option>)}</select></label>
-        <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onBlur={(e) => e.target.value !== (av.data_evento || "") && salvar({ data_evento: e.target.value || null })} /></label>
-        <label className="f">Hora<input type="time" defaultValue={(av.hora || "").slice(0, 5)} onBlur={(e) => e.target.value !== (av.hora || "").slice(0, 5) && salvar({ hora: e.target.value || null })} /></label>
-        {av.modalidade === "video" && <label className="f wide2">Link da sala virtual<input defaultValue={av.link || ""} placeholder="https://…" onBlur={(e) => e.target.value !== (av.link || "") && salvar({ link: e.target.value.trim() || null })} /></label>}
-        {av.modalidade !== "video" && <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>}
-        <label className="f wide">Orientações ao cliente<input defaultValue={av.orientacoes || ""} placeholder="Ex.: levar documento com foto; a coleta leva cerca de 1 hora" onBlur={(e) => e.target.value !== (av.orientacoes || "") && salvar({ orientacoes: e.target.value || null })} /></label>
+        <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onChange={anota("data_evento")} onBlur={(e) => e.target.value !== (av.data_evento || "") && salvar({ data_evento: e.target.value || null })} /></label>
+        <label className="f">Hora<input type="time" defaultValue={(av.hora || "").slice(0, 5)} onChange={anota("hora")} onBlur={(e) => e.target.value !== (av.hora || "").slice(0, 5) && salvar({ hora: e.target.value || null })} /></label>
+        {av.modalidade === "video" && <label className="f wide2">Link da sala virtual<input defaultValue={av.link || ""} placeholder="https://…" onChange={anota("link")} onBlur={(e) => e.target.value !== (av.link || "") && salvar({ link: e.target.value.trim() || null })} /></label>}
+        {av.modalidade !== "video" && <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onChange={anota("local")} onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>}
+        <label className="f wide">Orientações ao cliente<input defaultValue={av.orientacoes || ""} placeholder="Ex.: levar documento com foto; a coleta leva cerca de 1 hora" onChange={anota("orientacoes")} onBlur={(e) => e.target.value !== (av.orientacoes || "") && salvar({ orientacoes: e.target.value || null })} /></label>
       </div>
       <label className="f">Mensagem<textarea rows={6} value={texto} onChange={(e) => { setTexto(e.target.value); setMexeu(true); }} /></label>
-      {mexeu && <div><button className="reflink" onClick={() => { setMexeu(false); setTexto(padrao); }}>Voltar à mensagem padrão</button></div>}
+      <div className="tools">
+        <button className="btn" disabled={escrevendo} onClick={escreverClaude} title="O Claude confere o local, as orientações e a publicação e escreve a mensagem">{escrevendo ? "O Claude está escrevendo…" : "✨ Escrever mensagem com o Claude"}</button>
+        {mexeu && <button className="reflink" onClick={() => { setMexeu(false); setTexto(padrao); setAlertas([]); }}>Voltar à mensagem padrão</button>}
+      </div>
+      {alertas.length > 0 && <div className="banner"><strong>O Claude pede para conferir:</strong><ul style={{ margin: "4px 0 0 18px", padding: 0 }}>{alertas.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
       <div className="tools">
         <label className="f" style={{ flex: 1, minWidth: 180 }}>WhatsApp do cliente{cli ? "" : " (processo sem ficha de cliente)"}<input type="tel" value={fone} placeholder="(47) 9 9999-9999" onChange={(e) => setFone(e.target.value)} /></label>
         {cli && fone && fone !== (cli.telefone || "") && <button className="btn ghost" style={{ alignSelf: "flex-end" }} onClick={async () => {
