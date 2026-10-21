@@ -1,7 +1,7 @@
 // Listas e regras do escritório usadas em várias telas (as mesmas do painel antigo).
 import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Processo, type Modalidade } from "./tipos";
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
-import { paraData } from "./prazos";
+import { calcularVencimento, paraData } from "./prazos";
 
 export const TAREFAS = ["Elaboração de inicial", "Protocolo da inicial", "Protocolo da peça", "Petição simples", "Petição de juntada", "Alegações finais", "Réplica com pedido de perícia",
   "Manifestação ao laudo pericial", "Recurso inominado", "Contrarrazões ao recurso inominado", "Embargos de declaração",
@@ -108,3 +108,12 @@ export const chaveBanco = (b: string) => semAcento(bancoCurto(b || "")).replace(
 /** qualificação do C6 já conhecida pelo modelo */
 export const QUALIF_PADRAO: Record<string, string> = { c6: ", pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 61.348.538/0001-86, com sede na Avenida Nove de Julho, nº 3.148, Bairro Jardim Paulista, na cidade de São Paulo/SP, CEP 01406-000; e" };
 export const ESPECIES = ["aposentadoria por idade", "aposentadoria por tempo de contribuição", "aposentadoria por invalidez", "aposentadoria especial", "pensão por morte", "benefício assistencial ao idoso (LOAS)", "benefício assistencial à pessoa com deficiência (LOAS)", "auxílio-doença"];
+
+/** prazo de uma publicação: o da tarefa criada a partir dela; senão o calculado pela análise do Claude (dias úteis a partir da disponibilização) */
+export function prazoDaPublicacao(pub: Publicacao, tarefasDela: Pick<Tarefa, "vencimento" | "status">[]): { venc: string | null; origem: "tarefa" | "analise" | null } {
+  const v = tarefasDela.filter((t) => t.vencimento && t.status !== "feito").map((t) => t.vencimento!).sort()[0];
+  if (v) return { venc: v, origem: "tarefa" };
+  const dias = Number((pub.analise as Analise | null)?.prazoDias);
+  if (dias > 0) return { venc: calcularVencimento(pub.data, dias, pub.eproc), origem: "analise" };
+  return { venc: null, origem: null };
+}

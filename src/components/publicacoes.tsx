@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, nomeBonito } from "@/lib/formato";
-import { FASES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, precisaAvisar, rotuloPub } from "@/lib/regras";
+import { FASES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, prazoDaPublicacao, precisaAvisar, rotuloPub } from "@/lib/regras";
+import { situacaoPrazo } from "@/lib/prazos";
 import type { Analise, Publicacao } from "@/lib/tipos";
 import { BlocoTexto, Ic, Janela, useConfirmar } from "./ui";
 import { FormTarefa, MiniTarefa } from "./tarefas";
@@ -134,8 +135,9 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
       </>}>
       <div className="pub">
         <div className="top"><div><span className="who">{nomeBonito(p?.cliente_nome || "—")}</span> <span className="muted">x {bancoCurto(p?.banco)}</span></div>
-          <div className="tools"><span className="pill">{atoPub(pub)}</span><span className="mono muted">{dataBR(pub.data)}</span></div></div>
-        <div className="s"><span className="mono">{p?.mascara || pub.processo_numero}</span> · {pub.orgao || ""}{pub.eproc ? " · intimação pelo eproc" : ""}
+          <div className="tools">{(() => { const pr = prazoDaPublicacao(pub, [...tarefas.values()].filter((t) => t.publicacao_id === pub.id)); if (!pr.venc) return null; const sp = situacaoPrazo(pr.venc);
+            return <span className={"pill " + sp.cor} title={pr.origem === "analise" ? "Prazo estimado pela análise do Claude" : "Prazo da tarefa"}>prazo {dataBR(pr.venc)} · {sp.texto}</span>; })()}<span className="pill">{atoPub(pub)}</span><span className="mono muted">{dataBR(pub.data)}</span></div></div>
+        <div className="s"><span className="num-copia"><span className="mono">{p?.mascara || pub.processo_numero}</span><button title="Copiar o número do processo" aria-label="Copiar o número do processo" onClick={async (e) => { e.stopPropagation(); const n = p?.mascara || pub.processo_numero; try { await navigator.clipboard.writeText(n); aviso("Número copiado: " + n); } catch { aviso(n); } }}><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/></svg></button></span> · {pub.orgao || ""}{pub.eproc ? " · intimação pelo eproc" : ""}
           {p && <> · <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "intimacoes", alvo: "pub-" + pub.id })}>Ver processo</button></>}</div>
         <div className="txt">{pub.texto || "(sem texto)"}</div>
       </div>

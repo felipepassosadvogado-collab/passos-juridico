@@ -14,7 +14,7 @@ export default function Raiz({ children }: { children: React.ReactNode }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" />
         <script dangerouslySetInnerHTML={{ __html: `try{var d=document.documentElement;if(localStorage.getItem("tema")==="claro")d.classList.add("claro");if(localStorage.getItem("menu")==="recolhido")d.classList.add("rail-fechado")}catch(e){}` }} />
       </head>
       <body>{children}</body>
