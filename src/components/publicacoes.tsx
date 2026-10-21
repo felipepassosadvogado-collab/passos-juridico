@@ -117,7 +117,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
       {agendar && <FormAgendar numero={pub.processo_numero} pub={pub} av={av} onFim={() => setAgendar(false)} />}
       {av?.modalidade && !agendar && <div className="ato-ag"><span className="pill acc">📅 {resumoAto(av)}{av.modalidade !== "jf_balcao" && av.data_evento ? " · " + dataBR(av.data_evento) : ""}</span><span className="muted">no Painel › Audiências e coletas</span></div>}
       {ts.length > 0 && <div className="tarefas-pub"><div className="lbl">Tarefas criadas a partir desta publicação</div>{ts.map((t) => <MiniTarefa key={t.id} t={t} />)}</div>}
-      {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Cliente avisado" : av.status === "dispensado" ? "Sem aviso ao cliente (não precisa)" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
+      {av && (onAbrirAviso ? <button className="reflink" onClick={() => onAbrirAviso(av.id)}>{av.status === "avisado" ? "✓ Mensagem enviada ao cliente" : av.status === "dispensado" ? "Sem aviso ao cliente (não precisa)" : "⚠ Cliente ainda não avisado: abrir aviso"}</button> : <BlocoAviso key={av.id} av={av} />)}
       {form && <FormTarefa numero={pub.processo_numero} pub={{ id: pub.id, data: pub.data, eproc: pub.eproc }} tipo={a?.tarefa} desc={descDaAnalise(a)} dias={a?.prazoDias}
         resp={p?.responsavel || eu.id} aoCriar={mudarFase} onCriada={() => setForm(false)}
         extra={comFase && setFase ? <label className="f">Fase do processo<select value={faseEscolhida ?? ""} onChange={(e) => setFase(e.target.value)}><option value="">— manter —</option>{FASES.map((f) => <option key={f}>{f}</option>)}</select></label> : null} />}
@@ -151,7 +151,7 @@ export function JanelaPublicacao({ id, onFechar, onTrocar }: { id: number; onFec
     }
     const { error } = await sb.from("publicacoes").update({ triagem: "concluida", concluida_em: new Date().toISOString(), concluida_por: eu.id }).eq("id", pub.id);
     if (error) { aviso(msgErro(error)); return; }
-    const partes = [ts.length ? ts.length + (ts.length === 1 ? " tarefa criada" : " tarefas criadas") : "só ciência, sem tarefa", av ? (av.status === "avisado" || semAviso ? (av.status === "avisado" ? "cliente avisado" : "sem aviso ao cliente") : av.status === "dispensado" ? "sem aviso ao cliente" : "aviso ao cliente pendente") : ""].filter(Boolean);
+    const partes = [ts.length ? ts.length + (ts.length === 1 ? " tarefa criada" : " tarefas criadas") : "só ciência, sem tarefa", av ? (av.status === "avisado" || semAviso ? (av.status === "avisado" ? "mensagem enviada" : "sem aviso ao cliente") : av.status === "dispensado" ? "sem aviso ao cliente" : "aviso ao cliente pendente") : ""].filter(Boolean);
     registrar({ processo_numero: pub.processo_numero, publicacao_id: pub.id, tipo: "analise_concluida", dados: { origem: rotuloPub(pub), texto: partes.join(" · ") } });
     const prox = lista[i + 1] || lista[i - 1];
     remover("caixa", pub.id); onTrocar(prox ? prox.id : null);

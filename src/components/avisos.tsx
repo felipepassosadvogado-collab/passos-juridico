@@ -75,7 +75,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
     const n = sim ? await ac.criarTarefas({ ...av, status: "avisado" }) : 0;
-    aviso(sim ? "Registrado: cliente avisado." + (n ? ` Criei ${n === 1 ? "a tarefa" : n + " tarefas"} de acompanhamento (confirmar amanhã${n > 1 ? " e lembrar 3 dias antes" : ""}).` : "") : "Aviso voltou para pendente.");
+    aviso(sim ? "Registrado: mensagem enviada ao cliente. Falta a confirmação dele." + (n ? ` Criei ${n === 1 ? "a tarefa" : n + " tarefas"} de acompanhamento (confirmar amanhã${n > 1 ? " e lembrar 3 dias antes" : ""}).` : "") : "Aviso voltou para pendente.");
     if (sim) setMin(true);
   };
   const dispensar = async () => {
@@ -86,10 +86,10 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   };
   const topo = (
     <div className="av-top">
-      <button className="av-tit" onClick={() => setMin(!min)} aria-expanded={!min}><span className="seta">{min ? "▸" : "▾"}</span><strong>{feito ? "Cliente avisado" : dispensado ? "Sem aviso ao cliente" : "Avisar o cliente"}</strong></button>
+      <button className="av-tit" onClick={() => setMin(!min)} aria-expanded={!min}><span className="seta">{min ? "▸" : "▾"}</span><strong>{feito ? "Mensagem enviada ao cliente" : dispensado ? "Sem aviso ao cliente" : "Avisar o cliente"}</strong></button>
       <span className="tools">{feito ? <span className="pill ok">{(av.canal || "WhatsApp") + " · " + nome(av.avisado_por) + " · " + dataHoraBR(av.avisado_em)}</span> : dispensado ? <span className="pill">não precisa avisar</span> : <span className="pill soon">pendente</span>}
         {feito && <PillConfirmacao av={av} />}
-        {(feito || dispensado) && <button className="btn" onClick={() => marcar(false)} title="O aviso volta para pendente">↺ Voltar para não avisado</button>}
+        {(feito || dispensado) && <button className="btn" onClick={() => marcar(false)} title="O aviso volta para pendente">↺ Voltar para não enviada</button>}
         <button className="btn ghost" onClick={() => setMin(!min)}>{min ? "Expandir" : "Minimizar"}</button></span>
     </div>
   );
@@ -124,11 +124,11 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
         {atende && <a className="btn" href={atende} target="_blank" rel="noopener noreferrer">Abrir no Atende Direito ↗</a>}
-        {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não avisado</button>
-          : <><button className="btn primary" onClick={() => marcar(true)}>Marcar como avisado</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
+        {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não enviada</button>
+          : <><button className="btn primary" onClick={() => marcar(true)}>✓ Mensagem enviada</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>
       <ConfirmacaoCliente av={av} />
-      {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, marque como avisado.</div>}
+      {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, clique em “Mensagem enviada”.</div>}
     </div>
   );
 }

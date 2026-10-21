@@ -87,7 +87,7 @@ function Agenda() {
       if (!a.data_evento) continue; const ag = ehAgenda(a); const pt = partes(a.processo_numero);
       const feito = ag ? !!a.realizado_em : a.status !== "pendente";
       out.push({ id: "a" + a.id, tipo: ag ? "ato" : "aviso", sit: feito ? "conc" : a.data_evento < hoje ? "atras" : "pend", dia: a.data_evento, hora: a.modalidade === "jf_balcao" ? "até" : (a.hora || "").slice(0, 5) || undefined,
-        titulo: ag ? `${a.tipo_evento || "Ato"}${a.modalidade ? " · " + MODALIDADES[a.modalidade].curto : ""}${a.status === "avisado" ? " · cliente avisado" : a.status === "dispensado" ? "" : " · avisar cliente"}` : `Avisar cliente: ${a.tipo_evento || "ato"}${a.status === "avisado" ? " (avisado)" : ""}`,
+        titulo: ag ? `${a.tipo_evento || "Ato"}${a.modalidade ? " · " + MODALIDADES[a.modalidade].curto : ""}${a.status === "avisado" ? " · mensagem enviada" : a.status === "dispensado" ? "" : " · avisar cliente"}` : `Avisar cliente: ${a.tipo_evento || "ato"}${a.status === "avisado" ? " (avisado)" : ""}`,
         cli: pt.cli, reu: pt.reu, resp: pt.resp, abrir: () => j.abrirAviso(a.id) });
     }
     return out.filter((i) => i.dia >= ini && i.dia <= fim && f.tipos.includes(i.tipo) && f.sits.includes(i.sit) && (!f.resp || (f.resp === "none" ? !i.resp : i.resp === f.resp)))

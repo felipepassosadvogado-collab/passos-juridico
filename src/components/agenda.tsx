@@ -96,7 +96,7 @@ export function CaixaAgenda({ onAbrir }: { onAbrir?: () => void } = {}) {
             <div className="s">{resumoAto(a)}{a.modalidade === "video" && (a.link ? <> · <a href={a.link} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
             <div className="ag-tags">{a.realizado_em ? <span className="pill ok">realizado · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
               : <span className={"pill " + (dias != null && dias < 0 ? "late" : dias != null && dias <= 3 ? "late" : dias != null && dias <= 7 ? "soon" : "acc")}>{rel}</span>}
-              {avisado ? <span className="pill ok">✓ cliente avisado · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">cliente não avisado</span>}
+              {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}
               {avisado && <PillConfirmacao av={a} />}</div></div>
           <div className="ag-acts">
             <button className={a.status !== "pendente" ? "btn ghost" : "btn wa"} onClick={() => j.abrirAviso(a.id)}>{a.status !== "pendente" ? "Ver aviso" : "Avisar o cliente"}</button>

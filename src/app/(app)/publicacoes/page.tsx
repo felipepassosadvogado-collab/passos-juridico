@@ -57,7 +57,7 @@ function Caixa() {
                 <td><div>{atoPub(c)}</div>{a && <div className="s ai-1">Claude: {[a.tarefa || a.ato, a.prazoDias ? a.prazoDias + " dias úteis" : ""].filter(Boolean).join(" · ")}</div>}</td>
                 <td><div className="s">{c.orgao || ""}</div><div className="s mono">{p?.mascara || c.processo_numero}</div></td>
                 <td className="tags">{nt > 0 && <span className="pill acc">{nt} {nt === 1 ? "tarefa" : "tarefas"}</span>}
-                  {av ? <span className={"pill " + (av.status === "pendente" ? "soon" : "ok")}>{av.status === "avisado" ? "cliente avisado" : av.status === "dispensado" ? "sem aviso" : "avisar cliente"}</span> : precisaAvisar(c) ? <span className="pill soon">avisar cliente?</span> : null}
+                  {av ? <span className={"pill " + (av.status === "pendente" ? "soon" : "ok")}>{av.status === "avisado" ? "mensagem enviada" : av.status === "dispensado" ? "sem aviso" : "avisar cliente"}</span> : precisaAvisar(c) ? <span className="pill soon">avisar cliente?</span> : null}
                   {c.eproc && <span className="pill">eproc</span>}{ocupado.has(c.id) && <span className="pill acc">analisando</span>}</td>
               </tr>];
           })}</tbody></table></div>}
