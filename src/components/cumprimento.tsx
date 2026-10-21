@@ -67,8 +67,8 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
       const arquivos = inteiros.length ? await enviarParaLeitura(sb, eu.id, inteiros) : [];
       setEtapa("O Claude está lendo o processo e o título executivo (1 a 3 minutos)…");
       const r = await fetch("/api/peticao/cumprimento/ler", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ numero: ctx.numero, arquivos, textos, orientacoes: orient }) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setErroMsg(j.erro || "Não consegui ler o processo agora."); return; }
+      const j = await r.json().catch(() => ({ erro: "A resposta chegou incompleta. Tente de novo." }));
+      if (!r.ok || j.erro) { setErroMsg(j.erro || "Não consegui ler o processo agora."); return; }
       const d = (j.dados || {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       const h = d.honorarios || {}; const mo = d.moral; const co = d.compensacao;
       setLido((x) => ({ ...x, enderecamento: d.enderecamento || x.enderecamento, jef: d.jef ?? x.jef, executado: d.executado || x.executado, inss: ["subsidiaria", "solidaria", "nenhuma"].includes(d.inss) ? d.inss : x.inss,
@@ -85,7 +85,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
         hMinDesde: mesOk(h.minimoDesde), hValor: n2(h.valor) ? moeda(n2(h.valor)) : "", hValorDesde: mesOk(h.valorDesde) }));
       setRes(null); setDocx(null); setPdf(null);
       aviso("Título executivo lido pelo Claude. Confira os dados antes de calcular.");
-    } catch (e) { setErroMsg((e as Error).message || "A leitura falhou."); }
+    } catch (e) { setErroMsg(/load failed|failed to fetch|network/i.test((e as Error).message) ? "A conexão caiu durante a leitura. Confira a internet e tente de novo." : (e as Error).message || "A leitura falhou."); }
     finally { setLendo(false); setEtapa(""); }
   };
 

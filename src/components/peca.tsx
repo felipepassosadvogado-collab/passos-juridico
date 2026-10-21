@@ -63,8 +63,8 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       setEtapa("O Claude está lendo e redigindo (1 a 3 minutos)…");
       const r = await fetch("/api/peticao/peca", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ numero: ctx.numero, publicacaoId: ctx.publicacaoId || null, tarefaId: ctx.tarefaId || null, tipo: t, orientacoes: orient, arquivos, textos }) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setErroMsg(j.erro || "Não consegui gerar a peça agora."); return; }
+      const j = await r.json().catch(() => ({ erro: "A resposta chegou incompleta. Tente de novo." }));
+      if (!r.ok || j.erro) { setErroMsg(j.erro || "Não consegui gerar a peça agora."); return; }
       const bin = atob(j.base64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       const blob = new Blob([u], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
       baixar(j.nome, blob);
@@ -72,7 +72,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       if (tarefa) { setEtapa("Anexando a minuta na tarefa…"); doc = (await acoes.anexar(tarefa, [arq]))?.[0] || null; }
       const anexada = !!doc; setMinuta({ arq, doc, editada: false });
       setRes({ nome: j.nome, pendencias: j.pendencias || [], titulo: j.titulo, aviso: textos.filter((x) => x.semTexto.length).map((x) => `Em ${x.nome}, ${x.semTexto.length} de ${x.paginas} páginas eram só imagem e não foram lidas.`).join(" ") || undefined, anexada }); setEnviada(false); aviso(anexada ? "Minuta baixada e anexada na tarefa." : "Minuta pronta e baixada. Revise no Word antes de protocolar.");
-    } catch (e) { setErroMsg((e as Error).message || "Não consegui gerar a peça agora."); }
+    } catch (e) { setErroMsg(/load failed|failed to fetch|network/i.test((e as Error).message) ? "A conexão caiu enquanto o Claude trabalhava. Confira a internet e tente de novo." : (e as Error).message || "Não consegui gerar a peça agora."); }
     finally { setGerando(false); setEtapa(""); }
   };
   return (

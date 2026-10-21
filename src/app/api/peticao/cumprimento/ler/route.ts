@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { membroDaRota, erro } from "@/lib/rota";
+import { membroDaRota, erro, respostaLonga } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { pedirJson, blocoArquivo, ErroClaude, MODELO_REDACAO } from "@/lib/claude";
 import { encurtar } from "@/lib/encurtar";
@@ -71,15 +70,17 @@ export async function POST(req: Request) {
     arquivos.length ? `DOCUMENTOS ANEXADOS ACIMA: ${arquivos.length} arquivo(s).` : "",
     hist.length ? `PUBLICAÇÕES DO DJEN (complementares):\n${hist.join("\n\n")}` : "",
   ].filter(Boolean).join("\n\n");
-  try {
-    const blocos = [];
-    for (const a of arquivos) { const { data } = await adm.storage.from("documentos").download(a.caminho); if (data) blocos.push(blocoArquivo(a.mime, Buffer.from(await data.arrayBuffer()).toString("base64"))); }
-    const dados = await pedirJson<Record<string, unknown>>([...blocos, { type: "text", text: INSTRUCOES + "\n\n" + contexto }], 12000, MODELO_REDACAO);
-    return NextResponse.json({ dados });
-  } catch (e) {
-    if (e instanceof ErroClaude) return erro(e.message, e.status);
-    console.warn("cumprimento ler", e); return erro("Não consegui ler o processo agora. Tente de novo.", 500);
-  } finally {
-    if (arquivos.length) await adm.storage.from("documentos").remove(arquivos.map((a) => a.caminho)).catch(() => {});
-  }
+  return respostaLonga(async () => {
+    try {
+      const blocos = [];
+      for (const a of arquivos) { const { data } = await adm.storage.from("documentos").download(a.caminho); if (data) blocos.push(blocoArquivo(a.mime, Buffer.from(await data.arrayBuffer()).toString("base64"))); }
+      const dados = await pedirJson<Record<string, unknown>>([...blocos, { type: "text", text: INSTRUCOES + "\n\n" + contexto }], 12000, MODELO_REDACAO);
+      return { corpo: { dados } };
+    } catch (e) {
+      if (e instanceof ErroClaude) return { corpo: { erro: e.message } };
+      console.warn("cumprimento ler", e); return { corpo: { erro: "Não consegui ler o processo agora. Tente de novo." } };
+    } finally {
+      if (arquivos.length) await adm.storage.from("documentos").remove(arquivos.map((a) => a.caminho)).catch(() => {});
+    }
+  });
 }
