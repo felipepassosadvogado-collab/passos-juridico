@@ -143,11 +143,13 @@ export function Casca({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Menu />
-      <div className="col">
-        <header className="topbar">
+      <div className="railtop">
           <button className="icb railtoggle" title="Recolher ou mostrar o menu" onClick={() => { const f = document.documentElement.classList.toggle("rail-fechado"); try { localStorage.setItem("menu", f ? "recolhido" : "aberto"); } catch { /* sem armazenamento */ } }}>
             {I('<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/>')}</button>
-          <Link href="/" className="logo"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS ADVOCACIA</span><span className="t2">ADVOGADO</span></span></Link>
+          <Link href="/" className="logo"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS</span><span className="t2">ADVOCACIA</span></span></Link>
+      </div>
+      <div className="col">
+        <header className="topbar">
           <Busca />
           <div className="tright">
             <InfoDjen />
