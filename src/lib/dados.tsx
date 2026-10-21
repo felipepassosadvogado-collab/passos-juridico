@@ -125,7 +125,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
     });
     const canal = sb.channel("presenca-escritorio", { config: { presence: { key: eu.id } } });
     const atualizar = () => { const st = canal.presenceState(); setOnline(new Set(Object.keys(st))); };
-    const visto = () => { sb.from("profiles").update({ visto_em: new Date().toISOString() }).eq("id", eu.id).then(() => {}, () => {}); };
+    const visto = () => { sb.from("profiles").update({ visto_em: new Date().toISOString() }).eq("id", eu.id).then(() => {}, () => {}); sb.rpc("registrar_acesso").then(() => {}, () => {}); };
     let ligado = false;
     const sincronizar = async () => {
       if (!ligado) return;

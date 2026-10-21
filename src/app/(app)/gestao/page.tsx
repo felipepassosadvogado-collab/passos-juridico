@@ -60,8 +60,11 @@ function Grafico({ ts, ini, fim, modo }: { ts: Tarefa[]; ini: string; fim: strin
   );
 }
 
-type Visao = "prod" | "atraso" | "pend" | "atrasadas";
-const VISOES: Record<Visao, string> = { prod: "Produtividade (concluídas)", atraso: "Concluídas em atraso", pend: "Pendentes no prazo", atrasadas: "Atrasadas (não cumpridas)" };
+type Visao = "prod" | "atraso" | "pend" | "atrasadas" | "acessos";
+type Acesso = { usuario: string; dia: string; primeiro: string; ultimo: string; segundos: number };
+const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+const tempo = (s: number) => { const m = Math.round(s / 60); return m < 1 ? "menos de 1 min" : m < 60 ? m + " min" : Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0"); };
+const VISOES: Record<Visao, string> = { prod: "Produtividade (concluídas)", atraso: "Concluídas em atraso", pend: "Pendentes no prazo", atrasadas: "Atrasadas (não cumpridas)", acessos: "Acessos ao sistema (entrada e saída)" };
 const PRESETS: [string, () => [string, string]][] = [
   ["Hoje", () => [hojeBR(), hojeBR()]],
   ["Esta semana", () => { const d = paraData(hojeBR()); const w = (d.getUTCDay() + 6) % 7; return [isoData(somaDias(d, -w)), isoData(somaDias(d, 6 - w))]; }],
@@ -101,11 +104,25 @@ function Rosca({ fatias, centro, sub }: { fatias: { v: number; cor: string; nome
 }
 
 export default function Gestao() {
-  const { tarefas, equipe, titular, nome, processos, v } = useDados(); const partes = usePartes(); const j = useJanelas();
+  const { tarefas, equipe, titular, nome, processos, v, sb, online } = useDados(); const partes = usePartes(); const j = useJanelas();
   const [per, setPer] = useState<[string, string]>(PRESETS[2][1]()); const [rascunho, setRascunho] = useState<[string, string]>(per);
   const [pessoa, setPessoa] = useState(""); const [visao, setVisao] = useState<Visao>("prod"); const [q, setQ] = useState("");
   const [ord, setOrd] = useState<"conclusao" | "prazo" | "cliente">("conclusao"); const [filtro, setFiltro] = useState(false); const [busca, setBusca] = useState(false);
   const t0 = hojeBR();
+  const [acessos, setAcessos] = useState<Acesso[] | null>(null);
+  useEffect(() => {
+    if (visao !== "acessos") return; let vivo = true; setAcessos(null);
+    let qy = sb.from("acessos").select("*").gte("dia", per[0]).lte("dia", per[1]).order("dia", { ascending: false }).limit(5000);
+    if (pessoa) qy = qy.eq("usuario", pessoa);
+    qy.then(({ data }: { data: Acesso[] | null }) => { if (vivo) setAcessos(data || []); }, () => vivo && setAcessos([]));
+    return () => { vivo = false; };
+  }, [visao, per, pessoa, sb]);
+  const listaAc = useMemo(() => {
+    const qq = semAcento(q.trim()); let l = acessos || [];
+    if (qq) l = l.filter((a) => semAcento(nome(a.usuario)).includes(qq));
+    return [...l].sort(ord === "cliente" ? (a, b) => nome(a.usuario).localeCompare(nome(b.usuario)) || b.dia.localeCompare(a.dia) : ord === "prazo" ? (a, b) => a.primeiro.localeCompare(b.primeiro) : (a, b) => b.dia.localeCompare(a.dia) || a.primeiro.slice(11).localeCompare(b.primeiro.slice(11)));
+  }, [acessos, q, ord]); // eslint-disable-line react-hooks/exhaustive-deps
+  const agoraNoSistema = (a: Acesso) => a.dia === t0 && online.has(a.usuario);
   const todas = useMemo(() => [...tarefas.values()], [tarefas, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const ts = pessoa ? todas.filter((t) => t.responsavel === pessoa) : todas;
   const G = grupos(ts, per[0], per[1], t0);
@@ -113,7 +130,7 @@ export default function Gestao() {
     .filter((x) => x.n).sort((a, b) => b.n - a.n), [equipe, todas, t0]);
   const mediaCumpr = G.conc.length ? G.conc.reduce((s, t) => s + (new Date(t.feito_em!).getTime() - new Date(t.criado_em).getTime()), 0) / G.conc.length : NaN;
   const mediaAtraso = G.emAtraso.length ? G.emAtraso.reduce((s, t) => s + (new Date(t.feito_em!).getTime() - new Date(t.vencimento + "T23:59:59-03:00").getTime()), 0) / G.emAtraso.length : NaN;
-  const base = { prod: G.conc, atraso: G.emAtraso, pend: G.pend, atrasadas: G.atrasadas }[visao];
+  const base = { prod: G.conc, atraso: G.emAtraso, pend: G.pend, atrasadas: G.atrasadas }[visao as Exclude<Visao, "acessos">] ?? [];
   const lista = useMemo(() => {
     const qq = semAcento(q.trim()); let l = base;
     if (qq) l = l.filter((t) => { const pt = partes(t); return semAcento(t.descricao + " " + pt.cli + " " + pt.reus.join(" ")).includes(qq) || (t.processo_numero || "").includes(qq.replace(/\D/g, "") || "#"); });
@@ -124,6 +141,11 @@ export default function Gestao() {
   const linhas = equipe.map((p) => ({ p, n: grupos(todas.filter((t) => t.responsavel === p.id), per[0], per[1], t0) })).filter(({ n }) => n.conc.length || n.pend.length || n.atrasadas.length);
   const exportar = () => {
     const esc = (s: unknown) => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+    if (visao === "acessos") {
+      const out = [["Colaborador", "Dia", "Primeiro acesso", "Último uso (provável saída)", "Tempo ativo no sistema"].map(esc).join(";")];
+      for (const a of listaAc) out.push([nome(a.usuario), dataBR(a.dia), hora(a.primeiro), agoraNoSistema(a) ? "no sistema agora" : hora(a.ultimo), tempo(a.segundos)].map(esc).join(";"));
+      baixar(`acessos-${per[0]}-a-${per[1]}.csv`, "\ufeff" + out.join("\r\n"), "text/csv;charset=utf-8"); return;
+    }
     const out = [["Responsável", "Cliente", "Réus", "Processo", "Tarefa", "Prazo", "Conclusão", "Situação"].map(esc).join(";")];
     for (const t of lista) { const pt = partes(t); const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
       out.push([nome(t.responsavel), pt.cli, pt.reus.join(" / "), p?.mascara || "", t.descricao, dataBR(t.vencimento), t.feito_em ? dataHoraBR(t.feito_em) : "", situacao(t).txt].map(esc).join(";")); }
@@ -164,7 +186,7 @@ export default function Gestao() {
       <div className="gs-bar">
         <label className="gs-sel"><select value={visao} onChange={(e) => setVisao(e.target.value as Visao)}>{(Object.keys(VISOES) as Visao[]).map((k) => <option key={k} value={k}>{VISOES[k]}</option>)}</select></label>
         <label className="gs-sel"><select value={pessoa} onChange={(e) => setPessoa(e.target.value)}><option value="">Toda a equipe</option>{equipe.map((p) => <option key={p.id} value={p.id}>{p.nome.toUpperCase()}</option>)}</select></label>
-        {busca || q ? <input className="gs-busca" autoFocus value={q} placeholder="Cliente, tarefa ou nº do processo" onChange={(e) => setQ(e.target.value)} onBlur={() => !q && setBusca(false)} />
+        {busca || q ? <input className="gs-busca" autoFocus value={q} placeholder={visao === "acessos" ? "Nome do colaborador" : "Cliente, tarefa ou nº do processo"} onChange={(e) => setQ(e.target.value)} onBlur={() => !q && setBusca(false)} />
           : <button className="gs-b" onClick={() => setBusca(true)}>{Ic.busca} Buscar</button>}
         <div className="gs-pop-w">
           <button className={"gs-b" + (filtro ? " on" : "")} onClick={() => { setRascunho(per); setFiltro(!filtro); }}>{Ic.filtro} Filtrar <span className="muted">· {rotPer}</span></button>
@@ -177,10 +199,21 @@ export default function Gestao() {
               <button className="btn primary" onClick={() => { if (dataValida(rascunho[0]) && dataValida(rascunho[1]) && rascunho[0] <= rascunho[1]) { setPer(rascunho); setFiltro(false); } }}>Aplicar filtros</button></div>
           </div>}
         </div>
-        <label className="gs-b gs-ord">Ordenar<select value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}><option value="conclusao">{visao === "pend" || visao === "atrasadas" ? "por prazo" : "por conclusão"}</option><option value="prazo">por prazo</option><option value="cliente">por cliente</option></select></label>
+        <label className="gs-b gs-ord">Ordenar<select value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}>{visao === "acessos" ? <><option value="conclusao">por dia</option><option value="prazo">por horário de entrada</option><option value="cliente">por colaborador</option></>
+          : <><option value="conclusao">{visao === "pend" || visao === "atrasadas" ? "por prazo" : "por conclusão"}</option><option value="prazo">por prazo</option><option value="cliente">por cliente</option></>}</select></label>
         <button className="gs-b" onClick={exportar}>{Ic.exportar} Exportar</button>
       </div>
-      <section className="panel tscroll">
+      {visao === "acessos" ? <section className="panel tscroll">
+        {acessos == null ? <div className="empty">Carregando acessos…</div> : listaAc.length ? <table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Colaborador</th><th>Dia</th><th>Primeiro acesso</th><th>Último uso <span className="muted">(provável saída)</span></th><th>Tempo ativo</th></tr></thead>
+          <tbody>{listaAc.map((a) => <tr key={a.usuario + a.dia}>
+            <td><Avatar id={a.usuario} /></td><td className="gs-cli">{nome(a.usuario)}</td>
+            <td className="mono">{dataBR(a.dia)} <span className="muted s">{paraData(a.dia).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "short" })}</span></td>
+            <td className="mono">{hora(a.primeiro)}</td>
+            <td className="mono">{agoraNoSistema(a) ? <span className="pill ok">no sistema agora</span> : hora(a.ultimo)}</td>
+            <td className="mono">{tempo(a.segundos)}</td></tr>)}</tbody></table>
+          : <div className="empty">Nenhum acesso registrado em {rotPer}. O registro começou a valer a partir da atualização de 21/10/2026.</div>}
+        <div className="muted s" style={{ padding: "8px 14px 12px" }}>O sistema anota o horário enquanto a aba está aberta e na frente; o “último uso” é o último minuto em que a pessoa estava com o sistema aberto. O tempo ativo soma só os minutos com a aba visível.</div>
+      </section> : <section className="panel tscroll">
         {lista.length ? <table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Cliente</th><th>Tarefa</th><th>Situação</th><th>Data compromisso</th><th>Conclusão</th></tr></thead>
           <tbody>{lista.slice(0, 500).map((t) => { const pt = partes(t); const s = situacao(t); return (
             <tr key={t.id} className="click" tabIndex={0} onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
@@ -193,7 +226,7 @@ export default function Gestao() {
             </tr>); })}</tbody></table>
           : <div className="empty">Nenhuma tarefa {VISOES[visao].toLowerCase()} em {rotPer}.</div>}
         {lista.length > 500 && <div className="muted" style={{ padding: 12 }}>Mostrando 500 de {lista.length}. Use o filtro ou exporte.</div>}
-      </section>
+      </section>}
       {per[0] !== per[1] && diferencaDias(per[1], per[0]) <= 400 && <Grafico ts={ts} ini={per[0]} fim={per[1]} modo={diferencaDias(per[1], per[0]) <= 62 ? "mes" : "ano"} />}
     </>
   );
