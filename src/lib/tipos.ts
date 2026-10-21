@@ -1,6 +1,6 @@
 // Tipos das tabelas usadas nas telas (espelham supabase/migrations/0001_base.sql).
 export type Papel = "titular" | "advogado" | "colaborador";
-export type Perfil = { id: string; nome: string; funcao: string; papel: Papel; ativo: boolean; criado_em: string; foto?: string | null };
+export type Perfil = { id: string; nome: string; funcao: string; papel: Papel; ativo: boolean; criado_em: string; foto?: string | null; visto_em?: string | null };
 export type KitSalvo = { banco: string; pct: number; contratos: { numero: string; averbacao: string; parcela: string }[]; em: string };
 export type Cliente = {
   id: string; nome: string; cpf: string | null; rg: string | null; nascimento: string | null; nacionalidade: string | null;

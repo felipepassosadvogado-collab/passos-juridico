@@ -35,6 +35,8 @@ type Ctx = Mapas & {
   registrar: (ev: { processo_numero?: string | null; caso_id?: string | null; tarefa_id?: string | null; publicacao_id?: number | null; tipo: string; dados?: Linha }) => Promise<any>;
   recarregar: () => Promise<void>;
   marcarLidaLocal: (conversa: string, ate: string) => void;
+  /** quem está com o sistema aberto agora (aba visível) e até onde cada pessoa leu cada conversa */
+  online: Set<string>; lidasOutros: Record<string, Record<string, string>>;
 };
 const C = createContext<Ctx | null>(null);
 export function useDados() { const c = useContext(C); if (!c) throw new Error("useDados fora do provedor"); return c; }
@@ -72,6 +74,8 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
   const [equipe, setEquipe] = useState<Perfil[]>(equipeInicial);
   const [config, setConfig] = useState<Record<string, any>>({});
   const [lidas, setLidas] = useState<Record<string, string>>({});
+  const [lidasOutros, setLidasOutros] = useState<Record<string, Record<string, string>>>({});
+  const [online, setOnline] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ t: string; k: number } | null>(null);
   const ultimaCarga = useRef(0);
   const tique = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +118,26 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
     }
   }, [sb, eu.id]);
 
+  // presença: quem está com o sistema aberto (aba visível); o "visto por último" fica gravado no perfil
+  useEffect(() => {
+    sb.from("mensagens_lidas").select("*").neq("usuario", eu.id).then(({ data }: { data: { usuario: string; conversa: string; ate: string }[] | null }) => {
+      const o: Record<string, Record<string, string>> = {}; for (const r of data || []) (o[r.conversa] ||= {})[r.usuario] = r.ate; setLidasOutros(o);
+    });
+    const canal = sb.channel("presenca-escritorio", { config: { presence: { key: eu.id } } });
+    const atualizar = () => { const st = canal.presenceState(); setOnline(new Set(Object.keys(st))); };
+    const visto = () => { sb.from("profiles").update({ visto_em: new Date().toISOString() }).eq("id", eu.id).then(() => {}, () => {}); };
+    let ligado = false;
+    const sincronizar = async () => {
+      if (!ligado) return;
+      if (document.visibilityState === "visible") { await canal.track({ em: new Date().toISOString() }); visto(); } else await canal.untrack();
+    };
+    canal.on("presence", { event: "sync" }, atualizar).on("presence", { event: "join" }, atualizar).on("presence", { event: "leave" }, atualizar)
+      .subscribe((st: string) => { if (st === "SUBSCRIBED") { ligado = true; sincronizar(); } });
+    document.addEventListener("visibilitychange", sincronizar);
+    const t = setInterval(() => { if (document.visibilityState === "visible") visto(); }, 60000);
+    return () => { document.removeEventListener("visibilitychange", sincronizar); clearInterval(t); sb.removeChannel(canal); };
+  }, [sb, eu.id]);
+
   useEffect(() => {
     carregar();
     const canal = sb.channel("dados-escritorio");
@@ -122,7 +146,12 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
         const alvo = TABELA[t]; const novo = p.new as Linha, velho = p.old as Linha;
         if (alvo === "equipe") { setEquipe((l) => p.eventType === "DELETE" ? l.filter((x) => x.id !== velho.id) : [...l.filter((x) => x.id !== novo.id), novo as Perfil].sort((a, b) => a.nome.localeCompare(b.nome))); return; }
         if (alvo === "config") { if (p.eventType !== "DELETE") setConfig((c) => ({ ...c, [novo.chave]: novo.valor })); return; }
-        if (alvo === "lidas") { if (p.eventType !== "DELETE" && novo.usuario === eu.id) setLidas((c) => ({ ...c, [novo.conversa]: novo.ate })); return; }
+        if (alvo === "lidas") {
+          if (p.eventType === "DELETE") return;
+          if (novo.usuario === eu.id) setLidas((c) => ({ ...c, [novo.conversa]: novo.ate }));
+          else setLidasOutros((c) => ({ ...c, [novo.conversa]: { ...(c[novo.conversa] || {}), [novo.usuario]: novo.ate } }));
+          return;
+        }
         if (alvo === "notificacoes" && p.eventType !== "DELETE" && novo.para !== eu.id) return;
         if (alvo === "anexos" && p.eventType !== "DELETE" && !novo.tarefa_id) return;
         if (p.eventType === "DELETE") { const k = velho[CHAVE[alvo as keyof Mapas]]; if (k != null) remover(alvo as keyof Mapas, String(k).match(/^\d+$/) && alvo === "caixa" ? +k : k); return; }
@@ -179,7 +208,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
 
   const valor: Ctx = {
     ...m.current, v, pronto, erroCarga, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, remover, registrar, recarregar: carregar,
-    marcarLidaLocal: (c, ate) => setLidas((x) => ({ ...x, [c]: ate })),
+    marcarLidaLocal: (c, ate) => setLidas((x) => ({ ...x, [c]: ate })), online, lidasOutros,
   };
   return (
     <C.Provider value={valor}>

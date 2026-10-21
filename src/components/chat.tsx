@@ -1,5 +1,5 @@
 "use client";
-// Chat da equipe: conversa geral e conversas diretas, com a janelinha flutuante em todas as telas.
+// Chat da equipe: conversas diretas, com a janelinha flutuante em todas as telas.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -19,7 +19,8 @@ export const idDm = (a: string, b: string) => "dm:" + [a, b].sort().join(":");
 
 export function useChat() {
   const d = useDados(); const { mensagens, lidas, eu, equipe, sb, aviso, aplicar, marcarLidaLocal, v } = d;
-  const convs = useMemo<Conversa[]>(() => [{ id: "geral", nome: "Equipe", sub: "Todos do escritório" },
+  // só as conversas diretas (a conversa "Equipe" saiu da tela; as mensagens antigas dela continuam guardadas)
+  const convs = useMemo<Conversa[]>(() => [
     ...equipe.filter((p) => p.id !== eu.id && p.ativo).map((p) => ({ id: idDm(eu.id, p.id), nome: p.nome, sub: p.funcao || "Conversa direta" }))], [equipe, eu.id]);
   const todas = useMemo(() => [...mensagens.values()].sort((a, b) => a.em.localeCompare(b.em)), [mensagens, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const daConversa = (c: string) => todas.filter((m) => m.conversa === c);
@@ -85,14 +86,33 @@ function Anexo({ m }: { m: Mensagem }) {
   return <a className="m-arq" href={u || "#"} target="_blank" rel="noopener noreferrer"><span className="ext">{(m.anexo_nome?.split(".").pop() || "").toUpperCase()}</span>{m.anexo_nome || "arquivo"}</a>;
 }
 
+/** sinais da mensagem enviada: ✓ a pessoa está fora do sistema · ✓✓ ela está (ou esteve) no sistema depois da mensagem · ✓✓ azul: ela leu */
+export function useSinal() {
+  const { online, lidasOutros, equipe } = useDados();
+  return (m: Mensagem, outro: string | null) => {
+    if (!outro) return null;
+    if ((lidasOutros[m.conversa]?.[outro] || "") >= m.em) return { s: "✓✓", c: "lida", t: "Lida" };
+    const p = equipe.find((x) => x.id === outro);
+    if (online.has(outro) || (p?.visto_em || "") >= m.em) return { s: "✓✓", c: "entregue", t: "Entregue: a pessoa está no sistema" };
+    return { s: "✓", c: "", t: "Enviada: a pessoa está fora do sistema agora" };
+  };
+}
+/** "online agora" ou "visto por último" de quem está do outro lado da conversa */
+export function Presenca({ id }: { id: string | null }) {
+  const { online, equipe } = useDados(); if (!id) return null;
+  if (online.has(id)) return <span className="pres on">● no sistema agora</span>;
+  const v = equipe.find((x) => x.id === id)?.visto_em;
+  return <span className="pres">{v ? "visto por último " + dataHoraBR(v).replace(" ", " às ") : "fora do sistema"}</span>;
+}
+
 export function Bolhas({ msgs }: { msgs: Mensagem[] }) {
-  const { eu, nome } = useDados(); let dia = ""; const hoje = hojeBR();
+  const { eu, nome } = useDados(); let dia = ""; const hoje = hojeBR(); const sinal = useSinal();
   return <>{msgs.flatMap((m) => {
     const d = new Date(m.em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); const out: React.ReactNode[] = [];
     if (d !== dia) { dia = d; out.push(<div key={"d" + m.id} className="chat-dia">{d === hoje ? "Hoje" : dataBR(d)}</div>); }
     const meu = m.de === eu.id;
     out.push(<div key={m.id} className={"msg" + (meu ? " meu" : "")}>{!meu && <Avatar id={m.de} pequeno />}
-      <div className="bolha">{!meu && <div className="mautor">{nome(m.de)}</div>}{m.anexo && <Anexo m={m} />}{m.texto && <div className="mtexto"><TextoComLinks t={m.texto} /></div>}<div className="mhora">{dataHoraBR(m.em).slice(11)}</div></div></div>);
+      <div className="bolha">{!meu && <div className="mautor">{nome(m.de)}</div>}{m.anexo && <Anexo m={m} />}{m.texto && <div className="mtexto"><TextoComLinks t={m.texto} /></div>}<div className="mhora">{dataHoraBR(m.em).slice(11)}{meu && (() => { const x = sinal(m, m.conversa.startsWith("dm:") ? outroDaDm(m.conversa, eu.id) : null); return x ? <span className={"msinal " + x.c} title={x.t}>{x.s}</span> : null; })()}</div></div></div>);
     return out;
   })}</>;
 }
@@ -192,14 +212,14 @@ export function ChatFlutuante() {
       {aberto && <div className="cf-janela" role="dialog" aria-label="Chat">
         <header className="cf-topo">
           {c && <button className="icb" title="Voltar às conversas" onClick={() => setConv(null)}>‹</button>}
-          <strong>{c ? c.nome : "Conversas"}</strong>
+          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}><strong>{c ? c.nome : "Conversas"}</strong>{c && <Presenca id={outroDaDm(c.id, eu.id)} />}</span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
             <Link className="icb" title="Abrir o chat em tela cheia" href={"/chat" + (c ? "?c=" + encodeURIComponent(c.id) : "")} onClick={() => setAberto(false)}>⤢</Link>
             <button className="icb" title="Minimizar" onClick={() => setAberto(false)}>–</button></span>
         </header>
         {c ? <><Fio conversa={c.id} vazio="Nenhuma mensagem ainda." /><Compositor conversa={c.id} placeholder="Mensagem…" /></> :
           <div className="cf-lista">{convs.map((x) => { const n = naoLidas(x.id); const ult = daConversa(x.id).slice(-1)[0];
-            return <button key={x.id} className="chat-conv" onClick={() => setConv(x.id)}>{x.id === "geral" ? <span className="avr">#</span> : <Avatar id={outroDaDm(x.id, eu.id)} nome={x.nome} />}
+            return <button key={x.id} className="chat-conv" onClick={() => setConv(x.id)}><span className="av-pres"><Avatar id={outroDaDm(x.id, eu.id)} nome={x.nome} /><PontoOnline id={outroDaDm(x.id, eu.id)} /></span>
               <span className="cc"><span className="cn">{x.nome}</span><span className="cs">{ult ? (ult.de === eu.id ? "Você: " : "") + resumo(ult).slice(0, 50) : x.sub}</span></span>{n ? <span className="count hot">{n}</span> : null}</button>; })}</div>}
       </div>}
       <button className="cf-botao" title={aberto ? "Fechar o chat" : "Abrir o chat"} aria-label="Chat" onClick={() => setAberto(!aberto)}>
@@ -208,4 +228,8 @@ export function ChatFlutuante() {
       </button>
     </div>
   );
+}
+
+function PontoOnline({ id }: { id: string | null }) {
+  const { online } = useDados(); return id && online.has(id) ? <span className="ponto-on" title="No sistema agora" /> : null;
 }
