@@ -69,7 +69,7 @@ function Agenda() {
       const c = casoId ? casos.get(casoId) : undefined; return { cli: nomeBonito(c?.nome || "—"), reu: c?.banco ? bancoCurto(c.banco) + " · pré-processual" : "pré-processual", resp: c?.responsavel || null };
     };
     for (const t of tarefas.values() as Iterable<Tarefa>) {
-      const feito = t.status === "feito"; const dia = f.base === "conclusao" ? (feito ? diaLocal(t.feito_em) : t.vencimento) : (t.status === "revisao" && t.correcao_ate) || t.vencimento; if (!dia) continue;
+      const feito = t.status === "feito"; const dia = f.base === "conclusao" ? (feito ? diaLocal(t.feito_em) : t.vencimento) : ((t.status === "revisao" || t.status === "ajustes") && t.correcao_ate) || t.vencimento; if (!dia) continue;
       const correcao = ["revisao", "ajustes", "aprovada"].includes(t.status);
       const pt = partes(t.processo_numero, t.caso_id);
       out.push({ id: "t" + t.id, tipo: correcao ? "correcao" : "tarefa", sit: feito ? "conc" : t.vencimento && t.vencimento < hoje ? "atras" : "pend", dia,

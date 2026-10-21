@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, foneWhatsapp, iniciais, nomeBonito } from "@/lib/formato";
-import { paraData, situacaoPrazo } from "@/lib/prazos";
+import { hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { STATUS_NOME, atoPub, destinoProtocolo, faseCRM } from "@/lib/regras";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
@@ -23,11 +23,12 @@ function haQuanto(iso: string) {
 const S = (d: string) => <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 
 export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => void }) {
-  const { tarefas, processos, clientes, casos, sb, eu, titular, nome, aviso, registrar } = useDados(); const j = useJanelas();
+  const { tarefas, processos, clientes, casos, anexos, sb, eu, titular, nome, aviso, registrar } = useDados(); const j = useJanelas();
   const acoes = useAcoesTarefa(); const confirmar = useConfirmar();
   const t = tarefas.get(id);
-  const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar" | "protocolo">(""); const [prot, setProt] = useState({ numero: "", obs: "" }); const [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar" | "protocolo" | "aprovar">(""); const [prot, setProt] = useState({ numero: "", obs: "" }); const [salvando, setSalvando] = useState(false);
   const [aba, setAba] = useState<"atividade" | "historico">("atividade");
+  const [protAte, setProtAte] = useState(() => isoData(proximoDiaUtil(paraData(hojeBR()))));
   const [evs, setEvs] = useState<Evento[]>([]); const [pub, setPub] = useState<Publicacao | null>(null); const [txt, setTxt] = useState("");
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onFechar(); };
@@ -46,7 +47,8 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   const done = t.status === "feito"; const souResp = t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
   const dest = destinoProtocolo(t, eu.id); const podeEditar = titular || t.criado_por === eu.id; const s = situacaoPrazo(t.vencimento);
   const alterna = (x: typeof form) => setForm(form === x ? "" : x);
-  const aprovar = async () => { setSalvando(true); try { await acoes.aprovar(t); } finally { setSalvando(false); } };
+  const aprovar = async () => { setSalvando(true); try { if (await acoes.aprovar(t, protAte)) setForm(""); } finally { setSalvando(false); } };
+  const ehProtocolo = t.tipo === "Protocolo da inicial" || t.tipo === "Protocolo da peça";
   const podeProtocolar = souResp && !t.protocolo_avisado_em && !["revisao", "ajustes"].includes(t.status);
   const registrarProtocolo = async () => {
     if (!prot.numero.trim() && !confirmar("p" + t.id, aviso, "Sem o nº do protocolo? Clique de novo em “Registrar” para salvar assim mesmo.")) return;
@@ -70,7 +72,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
           {souResp && t.status !== "revisao" && <button className={done ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "↺ Reabrir" : "✓ Concluir"}</button>}
           {souResp && t.status === "aberto" && <button className="btn" onClick={() => acoes.status(t, "andamento")}>Iniciar</button>}
           {souResp && !done && t.status !== "revisao" && <button className="btn" onClick={() => alterna("enviar")}>{form === "enviar" ? "Cancelar envio" : "Enviar p/ correção"}</button>}
-          {souRev && <button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "Aprovar"}</button>}
+          {souRev && <button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "Aprovar"}</button>}
           {souRev && <button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button>}
           {podeProtocolar && <button className={t.status === "aprovada" ? "btn primary" : "btn"} onClick={() => alterna("protocolo")}>{form === "protocolo" ? "Cancelar protocolo" : <>{S('<path d="M4 10.5l4 4 8-9"/>')}Protocolado</>}</button>}
           {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" onClick={() => j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}Gerar petição</button>}
@@ -85,7 +87,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             <dl className="tj-kv">
               <dt>Responsável</dt><dd><span className="chip"><Avatar id={t.responsavel} pequeno />{t.responsavel ? nome(t.responsavel) : "Sem responsável"}</span>
                 {!t.responsavel && titular && !done && <SelResp valor={null} vazio="— atribuir a —" onChange={(v) => v && acoes.atribuir(t, v)} />}</dd>
-              {t.revisor && <><dt>Corrige</dt><dd><span className="chip"><Avatar id={t.revisor} pequeno />{nome(t.revisor)}</span>{t.status === "revisao" && t.correcao_ate && <span className={"pill " + situacaoPrazo(t.correcao_ate).cor} style={{ marginLeft: 8 }}>corrigir até {dataBR(t.correcao_ate)}</span>}</dd></>}
+              {t.revisor && <><dt>Corrige</dt><dd><span className="chip"><Avatar id={t.revisor} pequeno />{nome(t.revisor)}</span>{(t.status === "revisao" || t.status === "ajustes") && t.correcao_ate && <span className={"pill " + situacaoPrazo(t.correcao_ate).cor} style={{ marginLeft: 8 }}>{t.status === "revisao" ? "corrigir" : "ajustar"} até {dataBR(t.correcao_ate)}</span>}</dd></>}
               <dt>Situação</dt><dd>{situacao}</dd>
               <dt>Prazo fatal</dt><dd>{S('<rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/>')} {diaSemana(t.vencimento)}{t.dias ? <span className="muted"> · {t.dias} dias úteis</span> : null}</dd>
               <dt>Anexos</dt><dd><ListaAnexos t={t} />{!t.id || <span className="muted s">{""}</span>}</dd>
@@ -104,15 +106,21 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
               <ol className="tj-passos">
                 <li>Abra os anexos, na linha “Anexos” acima: clique para ver ao lado; o Word você baixa e corrige.</li>
                 <li>Confira a documentação{t.nota_correcao && /[✓✗]/.test(t.nota_correcao) ? " pela lista do recado" : ""}{(cli || caso) ? <> ou abra a <button className="reflink" onClick={() => j.abrirInicial({ clienteId: cli?.id || null, banco: p?.banco || caso?.banco || "", numero: t.processo_numero, casoId: t.caso_id })}>pasta para protocolo</button></> : null}.</li>
-                <li><b>Aprovar</b> {t.tipo === "Elaboração de inicial" && !t.processo_numero ? "cria a tarefa “Protocolo da inicial” para " : "libera o protocolo para "}{nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
+                <li><b>Aprovar</b> {t.tipo === "Elaboração de inicial" && !t.processo_numero ? "cria a tarefa “Protocolo da inicial” para " : "cria a tarefa de protocolo (com a data que você escolher) para "}{nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
               </ol>
-              <div className="tools"><button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
+              <div className="tools"><button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
             {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
             {!souResp && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</div>}
             {form === "enviar" && <FormRevisao t={t} modo="enviar" onFim={() => setForm("")} />}
             {form === "devolver" && <FormRevisao t={t} modo="devolver" onFim={() => setForm("")} />}
+            {form === "aprovar" && <div className="triage edit-t">
+              <div className="wide" style={{ fontWeight: 600 }}>Aprovar {ehProtocolo ? "" : "e criar a tarefa de protocolo"}</div>
+              {!ehProtocolo && <label className="f">Protocolar até<input type="date" value={protAte} min={hojeBR()} onChange={(e) => setProtAte(e.target.value)} /></label>}
+              <div className="muted wide" style={{ fontSize: 12.5 }}>{ehProtocolo ? "" : `Cria a tarefa “${t.tipo === "Elaboração de inicial" && !t.processo_numero ? "Protocolo da inicial" : "Protocolar"}” para ${nome(t.responsavel).split(" ")[0]}, com a peça ${[...anexos.values()].some((a) => a.tarefa_id === t.id && a.etapa === "devolucao") ? "corrigida" : "enviada"} anexada, vencendo no dia escolhido.`}{t.vencimento ? ` Prazo fatal da peça: ${dataBR(t.vencimento)}.` : ""}{t.vencimento && protAte > t.vencimento ? " Atenção: a data escolhida passa do prazo fatal." : ""}</div>
+              <div className="wide tools"><button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "✓ Confirmar aprovação"}</button></div>
+            </div>}
             {form === "editar" && <FormEdicao t={t} onFim={() => setForm("")} />}
             {form === "protocolo" && <div className="triage edit-t">
               <div className="wide" style={{ fontWeight: 600 }}>Informar o protocolo{dest ? " a " + nome(dest) : ""}</div>

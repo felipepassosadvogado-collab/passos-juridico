@@ -34,33 +34,37 @@ export function CirculoStatus({ t }: { t: Tarefa }) {
 
 /** ações das tarefas, todas gravando no banco e atualizando a tela na hora */
 export function useAcoesTarefa() {
-  const { sb, eu, aplicar, remover, aviso, nome, tarefas, anexos } = useDados();
-  /** inicial aprovada: cria a tarefa de protocolo para quem fez a inicial, com a peça e a pasta anexadas */
-  const criarProtocolo = async (t: Tarefa) => {
-    if (t.tipo !== "Elaboração de inicial" || t.processo_numero || !t.responsavel) return "";
-    if ([...tarefas.values()].some((x) => x.caso_id === t.caso_id && x.tipo === "Protocolo da inicial" && x.status !== "feito")) return "";
-    const hoje = paraData(hojeBR()); const venc = isoData(proximoDiaUtil(hoje));
-    const { data: n, error } = await sb.from("tarefas").insert({ caso_id: t.caso_id, processo_numero: null, tipo: "Protocolo da inicial",
-      descricao: "Protocolo da inicial: protocolar no eproc e cadastrar o nº do processo", vencimento: venc, responsavel: t.responsavel, importante: true }).select().single();
-    if (error || !n) return " Não consegui criar a tarefa de protocolo: " + msgErro(error);
+  const { sb, eu, aplicar, remover, aviso, nome, tarefas, anexos } = useDados(); const protAte = useRef<string | undefined>(undefined);
+  /** peça aprovada: cria a tarefa de protocolo para quem fez a peça, com a versão final anexada e o vencimento escolhido na aprovação */
+  const criarProtocolo = async (t: Tarefa, ate?: string) => {
+    if (!t.responsavel || t.tipo === "Protocolo da inicial" || t.tipo === "Protocolo da peça") return "";
+    const inicial = t.tipo === "Elaboração de inicial" && !t.processo_numero; const tipo = inicial ? "Protocolo da inicial" : "Protocolo da peça";
+    if ([...tarefas.values()].some((x) => x.status !== "feito" && (x.origem_id === t.id || (inicial && x.caso_id === t.caso_id && x.tipo === tipo)))) return "";
+    const venc = ate || isoData(proximoDiaUtil(paraData(hojeBR())));
+    const base = { caso_id: t.processo_numero ? null : t.caso_id, processo_numero: t.processo_numero, publicacao_id: t.publicacao_id, tipo, vencimento: venc, responsavel: t.responsavel, importante: true, urgente: t.urgente,
+      descricao: inicial ? "Protocolo da inicial: protocolar no eproc e cadastrar o nº do processo" : "Protocolar: " + t.descricao.replace(/^Protocolar:\s*/, "") };
+    let r = await sb.from("tarefas").insert({ ...base, origem_id: t.id }).select().single();
+    if (r.error && /origem_id/.test(r.error.message)) r = await sb.from("tarefas").insert(base).select().single();
+    const n = r.data as Tarefa | null;
+    if (r.error || !n) return " Não consegui criar a tarefa de protocolo: " + msgErro(r.error);
     aplicar("tarefas", n);
-    // a versão corrigida (se houver) vem antes; senão, o que foi enviado para correção
+    // vai a versão corrigida (se houver); senão, o que foi enviado para correção (e a pasta .zip da inicial)
     let copiados = 0; const docs = [...anexos.values()].filter((a) => a.tarefa_id === t.id); const dev = docs.filter((a) => a.etapa === "devolucao");
     for (const a of (dev.length ? [...dev, ...docs.filter((x) => x.etapa !== "devolucao" && /\.zip$/i.test(x.nome))] : docs)) {
       const caminho = `tarefas/${n.id}/${Date.now().toString(36)}-${a.caminho.split("/").pop()}`;
       const cp = await sb.storage.from("documentos").copy(a.caminho, caminho); if (cp.error) continue;
-      const r = await sb.from("documentos").insert({ tarefa_id: n.id, etapa: "envio", nome: a.nome, caminho, tamanho: a.tamanho, mime: a.mime }).select().single();
-      if (r.data) { aplicar("anexos", r.data); copiados++; }
+      const rd = await sb.from("documentos").insert({ tarefa_id: n.id, etapa: "envio", nome: a.nome, caminho, tamanho: a.tamanho, mime: a.mime }).select().single();
+      if (rd.data) { aplicar("anexos", rd.data); copiados++; }
     }
-    if (eu.id === t.responsavel) { const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", t.id).select().single(); if (r.data) aplicar("tarefas", r.data); }
-    return ` Criei a tarefa “Protocolo da inicial” para ${nome(t.responsavel).split(" ")[0]}${copiados ? ", com a peça e a pasta anexadas" : " (os arquivos continuam nesta tarefa)"}.`;
+    if (eu.id === t.responsavel) { const rf = await sb.from("tarefas").update({ status: "feito" }).eq("id", t.id).select().single(); if (rf.data) aplicar("tarefas", rf.data); }
+    return ` Criei a tarefa “${tipo}” para ${nome(t.responsavel).split(" ")[0]}, vencendo em ${dataBR(venc)}${copiados ? ", com a peça anexada" : " (os arquivos continuam nesta tarefa)"}.`;
   };
-  /** protocolo da inicial concluído: a tarefa da inicial (aprovada) também é concluída */
+  /** protocolo concluído: a peça aprovada que o originou também é concluída */
   const fecharInicial = async (t: Tarefa) => {
-    if (t.tipo !== "Protocolo da inicial" || !t.caso_id) return;
-    for (const x of [...tarefas.values()]) if (x.caso_id === t.caso_id && x.tipo === "Elaboração de inicial" && x.status === "aprovada" && x.responsavel === eu.id) {
-      const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", x.id).select().single(); if (r.data) aplicar("tarefas", r.data);
-    }
+    if (t.tipo !== "Protocolo da inicial" && t.tipo !== "Protocolo da peça") return;
+    const alvos = [...tarefas.values()].filter((x) => x.status === "aprovada" && x.responsavel === eu.id &&
+      (t.origem_id ? x.id === t.origem_id : t.tipo === "Protocolo da inicial" && !!t.caso_id && x.caso_id === t.caso_id && x.tipo === "Elaboração de inicial"));
+    for (const x of alvos) { const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", x.id).select().single(); if (r.data) aplicar("tarefas", r.data); }
   };
   const gravar = async (t: Tarefa, campos: Partial<Tarefa>, ok?: string) => {
     let r: { data: unknown; error: unknown };
@@ -72,7 +76,7 @@ export function useAcoesTarefa() {
     if (error) { aviso(msgErro(error)); return false; }
     aplicar("tarefas", data as Tarefa);
     if (campos.status === "feito") fecharInicial(t);
-    if (campos.status === "aprovada") { const extra = await criarProtocolo(t); if (ok) aviso(ok + extra); return true; }
+    if (campos.status === "aprovada") { const extra = await criarProtocolo(t, protAte.current); protAte.current = undefined; if (ok) aviso(ok + extra); return true; }
     if (ok) aviso(ok); return true;
   };
   const subir = async (t: Tarefa, files: File[], etapa: "envio" | "devolucao") => {
@@ -92,7 +96,8 @@ export function useAcoesTarefa() {
     atribuir: (t: Tarefa, resp: string) => gravar(t, { responsavel: resp }, "Tarefa atribuída a " + nome(resp) + "."),
     flag: (t: Tarefa, campo: "importante" | "urgente") => gravar(t, { [campo]: !t[campo] }),
     editar: (t: Tarefa, campos: Partial<Tarefa>) => gravar(t, campos, "Tarefa atualizada."),
-    aprovar: (t: Tarefa) => gravar(t, { status: "aprovada" }, "Aprovada. " + nome(t.responsavel) + " pode protocolar e concluir."),
+    /** aprova; "ate" é o vencimento da tarefa de protocolo que nasce da aprovação */
+    aprovar: (t: Tarefa, ate?: string) => { protAte.current = ate; return gravar(t, { status: "aprovada" }, "Aprovada."); },
     /** registra o protocolo (nº e observação); data e hora são carimbadas pelo servidor no clique */
     protocolo: (t: Tarefa, concluir: boolean, numero = "", obs = "") => {
       const dest = destinoProtocolo(t, eu.id);
@@ -121,9 +126,16 @@ export function useAcoesTarefa() {
       }
       return gravar(t, campos, msg);
     },
-    devolver: async (t: Tarefa, files: File[], nota: string) => {
+    devolver: async (t: Tarefa, files: File[], nota: string, ate?: string) => {
       try { await subir(t, files, "devolucao"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; }
-      return gravar(t, { status: "ajustes", nota_correcao: nota || null }, "Devolvido para " + nome(t.responsavel) + " com os ajustes.");
+      const campos: Partial<Tarefa> = { status: "ajustes", nota_correcao: nota || null };
+      const msg = "Devolvido para " + nome(t.responsavel) + " com os ajustes" + (ate ? ", para ajustar até " + dataBR(ate) : "") + ".";
+      if (ate) {
+        const r = await sb.from("tarefas").update({ ...campos, correcao_ate: ate }).eq("id", t.id).select().single();
+        if (!r.error) { aplicar("tarefas", r.data); aviso(msg); return true; }
+        if (!/correcao_ate/.test(r.error.message)) { aviso(msgErro(r.error)); return false; }
+      }
+      return gravar(t, campos, msg);
     },
     excluir: async (t: Tarefa) => {
       const { error } = await sb.from("tarefas").delete().eq("id", t.id);
@@ -218,7 +230,7 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
     if (modo === "enviar" && !rev) { aviso("Escolha quem vai corrigir. Convide a pessoa em Equipe, se faltar."); return; }
     if (modo === "devolver" && !nota.trim() && !files.length) { aviso("Escreva o que precisa ajustar ou anexe a versão corrigida."); return; }
     setOcupado(true);
-    const ok = modo === "enviar" ? await acoes.enviar(t, files, nota.trim(), rev, ate) : await acoes.devolver(t, files, nota.trim());
+    const ok = modo === "enviar" ? await acoes.enviar(t, files, nota.trim(), rev, ate) : await acoes.devolver(t, files, nota.trim(), ate);
     setOcupado(false); if (ok) onFim();
   };
   return (
@@ -234,7 +246,7 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
           <button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
       <label className="f wide">{modo === "enviar" ? "Recado para quem vai corrigir" : "O que precisa ser ajustado"}<textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></label>
       {modo === "enviar" && <label className="f">Enviar para<select value={rev} onChange={(e) => setRev(e.target.value)}>{ops.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === eu.id ? " (você)" : ""}</option>)}</select></label>}
-      {modo === "enviar" && <label className="f">Corrigir até<input type="date" value={ate} min={hojeBR()} onChange={(e) => setAte(e.target.value)} /></label>}
+      <label className="f">{modo === "enviar" ? "Corrigir até" : "Ajustar até"}<input type="date" value={ate} min={hojeBR()} onChange={(e) => setAte(e.target.value)} /></label>
       <div className="tools"><button className="btn primary" disabled={ocupado} onClick={ir}>{ocupado ? "Enviando…" : modo === "enviar" ? "Enviar para correção" : "Devolver com ajustes"}</button></div>
     </div>
   );
