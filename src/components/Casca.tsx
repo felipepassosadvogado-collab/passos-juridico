@@ -54,20 +54,65 @@ function Menu() {
   return <nav className="rail" aria-label="Seções">{itens.map(item)}<div className="sep" />{adm.map(item)}</nav>;
 }
 
+type Achado = { chave: string; tipo: "cliente" | "processo"; id: string; t: string; s: string[] };
+const ICB = {
+  pessoa: '<circle cx="10" cy="7" r="3.2"/><path d="M3.8 17c.8-3.2 3.3-5 6.2-5s5.4 1.8 6.2 5"/>',
+  pasta: '<path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.6 2h6.8a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/>',
+  novoProc: '<path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.6 2h6.8a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M10 9v5M7.5 11.5h5"/>',
+  inicial: '<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>',
+  claude: '<path d="M10 2.5l1.7 5 5.3.1-4.2 3.2 1.5 5.1L10 12.9l-4.3 3 1.5-5.1L3 7.6l5.3-.1z"/>',
+  tarefa: '<rect x="3.5" y="3.5" width="13" height="13" rx="2.5"/><path d="M7 10l2.2 2.2L13.5 8"/>',
+};
+/** destaca no texto o trecho pesquisado (sem ligar para acento e maiúsculas) */
+function Marca({ txt, q }: { txt: string; q: string }) {
+  if (q.length < 2) return <>{txt}</>;
+  const i = semAcento(txt).indexOf(q); if (i < 0) return <>{txt}</>;
+  return <>{txt.slice(0, i)}<mark className="gmark">{txt.slice(i, i + q.length)}</mark>{txt.slice(i + q.length)}</>;
+}
+
 function Busca() {
   const { clientes, processos } = useDados(); const router = useRouter(); const j = useJanelas();
-  const [q, setQ] = useState(""); const [aberta, setAberta] = useState(false); const [sel, setSel] = useState(0); const ref = useRef<HTMLInputElement>(null);
+  const [q, setQ] = useState(""); const [aberta, setAberta] = useState(false); const [sel, setSel] = useState(0); const [aba, setAba] = useState<"tudo" | "cliente" | "processo">("tudo");
+  const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement as HTMLElement)?.tagName || "")) { e.preventDefault(); ref.current?.focus(); } };
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
   }, []);
-  const n = semAcento(q), d = soDigitos(q);
-  const res: { href: string; tipo: string; t: string; s: string }[] = [];
-  if (n.length >= 2 || d.length >= 4) {
-    for (const c of clientes.values()) { if (semAcento(c.nome).includes(n) || (d.length >= 4 && soDigitos(c.cpf).includes(d))) res.push({ href: "/clientes/" + c.id, tipo: "cliente", t: nomeBonito(c.nome), s: "Cliente" + (c.cpf ? " · " + c.cpf : "") }); if (res.length >= 5) break; }
-    for (const p of processos.values()) { if (semAcento(p.cliente_nome).includes(n) || (d.length >= 4 && p.numero.includes(d))) res.push({ href: "/processos/" + p.numero, tipo: "processo", t: nomeBonito(p.cliente_nome || "—") + " x " + bancoCurto(p.banco), s: p.mascara + " · " + (p.orgao || "") }); if (res.length >= 11) break; }
-  }
-  const ir = (h: string) => { setAberta(false); setQ(""); ref.current?.blur(); if (h.startsWith("/processos/")) j.abrirProcesso(h.slice(11)); else router.push(h); };
+  const n = semAcento(q.trim()), d = soDigitos(q);
+  const todos = useMemo(() => {
+    const out: Achado[] = []; if (n.length < 2 && d.length < 4) return out;
+    const porCli = new Map<string, number>(); for (const p of processos.values()) if (p.cliente_id) porCli.set(p.cliente_id, (porCli.get(p.cliente_id) || 0) + 1);
+    let nc = 0;
+    for (const c of clientes.values()) {
+      if (!(semAcento(c.nome).includes(n) || (d.length >= 4 && (soDigitos(c.cpf).includes(d) || soDigitos(c.telefone).includes(d))))) continue;
+      const np = porCli.get(c.id) || 0;
+      out.push({ chave: "c" + c.id, tipo: "cliente", id: c.id, t: nomeBonito(c.nome), s: [[c.cpf, c.telefone].filter(Boolean).join(" · "), np ? np + (np === 1 ? " processo" : " processos") : "sem processo"].filter(Boolean) });
+      if (++nc >= 30) break;
+    }
+    let npr = 0;
+    for (const p of processos.values()) {
+      if (!(semAcento(p.cliente_nome).includes(n) || (d.length >= 4 && p.numero.includes(d)))) continue;
+      out.push({ chave: "p" + p.numero, tipo: "processo", id: p.numero, t: nomeBonito(p.cliente_nome || "—") + " x " + bancoCurto(p.banco), s: [p.mascara, p.orgao || ""].filter(Boolean) });
+      if (++npr >= 30) break;
+    }
+    return out;
+  }, [n, d, clientes, processos]);
+  const nCli = todos.filter((x) => x.tipo === "cliente").length, nProc = todos.length - nCli;
+  const res = aba === "tudo" ? todos : todos.filter((x) => x.tipo === aba);
+  const fechar = () => { setAberta(false); setQ(""); ref.current?.blur(); };
+  const ir = (x: Achado) => { fechar(); if (x.tipo === "processo") j.abrirProcesso(x.id); else router.push("/clientes/" + x.id); };
+  const acoes = (x: Achado): [string, string, () => void][] => {
+    if (x.tipo === "cliente") return [
+      ["Novo processo para este cliente", ICB.novoProc, () => j.novoProcesso({ clienteId: x.id })],
+      ["Petição inicial e pasta para protocolo (Word)", ICB.inicial, () => j.abrirInicial({ clienteId: x.id })],
+    ];
+    const p = processos.get(x.id);
+    return [
+      ["Gerar petição com o Claude", ICB.claude, () => j.gerarPeca({ numero: x.id })],
+      ["Nova tarefa neste processo", ICB.tarefa, () => j.novaTarefa(x.id)],
+      ...(p ? [["Petição inicial (Word)", ICB.inicial, () => j.abrirInicial({ clienteId: p.cliente_id, banco: p.banco, numero: p.numero })] as [string, string, () => void]] : []),
+    ];
+  };
   return (
     <div className="gsearch" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAberta(false); }}>
       {I('<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>')}
@@ -77,11 +122,20 @@ function Busca() {
           if (e.key === "Escape") { setAberta(false); ref.current?.blur(); }
           if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, res.length - 1)); }
           if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-          if (e.key === "Enter" && res[sel]) ir(res[sel].href);
+          if (e.key === "Enter" && res[sel]) ir(res[sel]);
         }} />
-      {aberta && res.length > 0 && <div className="gres">{res.map((x, i) => (
-        <button key={x.href} className={"gr" + (i === sel ? " sel" : "")} onMouseDown={(e) => e.preventDefault()} onClick={() => ir(x.href)}>
-          <span className="pill">{x.tipo}</span><span className="grt">{x.t}</span><span className="grs">{x.s}</span></button>))}</div>}
+      {aberta && todos.length > 0 && <div className="gres" onMouseDown={(e) => { if (!(e.target as HTMLElement).closest("input")) e.preventDefault(); }}>
+        <div className="gabas" role="tablist">
+          {([["tudo", "Tudo", todos.length], ["cliente", "Clientes", nCli], ["processo", "Processos", nProc]] as const).map(([k, rot, c]) =>
+            <button key={k} role="tab" aria-selected={aba === k} className={"gaba" + (aba === k ? " on" : "")} disabled={!c} onClick={() => { setAba(k); setSel(0); }}>{rot} <span className="gcnt">{c}</span></button>)}
+        </div>
+        <div className="glista">{res.map((x, i) => (
+          <div key={x.chave} className={"gr" + (i === sel ? " sel" : "")} role="button" tabIndex={-1} onMouseEnter={() => setSel(i)} onClick={() => ir(x)}>
+            <span className={"gic " + x.tipo} aria-hidden="true">{I(x.tipo === "cliente" ? ICB.pessoa : ICB.pasta)}</span>
+            <span className="gtx"><span className="grt"><Marca txt={x.t} q={n} /></span>{x.s.map((l, k) => <span key={k} className="grs">{l}</span>)}</span>
+            <span className="gacoes">{acoes(x).map(([tit, ic, f]) => <button key={tit} className="gac" title={tit} aria-label={tit} onClick={(e) => { e.stopPropagation(); fechar(); f(); }}>{I(ic)}</button>)}</span>
+          </div>))}</div>
+      </div>}
     </div>
   );
 }

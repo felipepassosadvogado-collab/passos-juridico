@@ -720,3 +720,22 @@ html.rail-fechado .rail .count::after{content:attr(data-curto);font-size:9.5px;f
 .chat-fio::-webkit-scrollbar-track,.cf-lista::-webkit-scrollbar-track{background:transparent}
 .chat-fio::-webkit-scrollbar-thumb,.cf-lista::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
 .chat-fio::-webkit-scrollbar-thumb:hover,.cf-lista::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+/* pesquisa: abas, ícones e ações rápidas */
+.gres{width:min(560px,calc(100vw - 24px));right:auto;padding:0;gap:0;overflow:hidden;max-height:min(70vh,560px)}
+.gabas{display:flex;gap:6px;padding:10px 10px 8px;border-bottom:1px solid var(--line);flex:none}
+.gaba{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:99px;font-size:13px;font-weight:600;color:var(--muted)}
+.gaba:hover{color:var(--fg);background:var(--sunken)}.gaba.on{background:var(--accent);color:var(--accent-ink)}.gaba:disabled{opacity:.45;cursor:default;background:none}
+.gcnt{font-size:11px;padding:0 6px;border-radius:99px;background:rgb(0 0 0 / .12);line-height:17px}.gaba:not(.on) .gcnt{background:var(--sunken)}
+.glista{overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:2px}
+.glista::-webkit-scrollbar{width:6px}.glista::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.gres .gr{display:flex;align-items:center;gap:12px;padding:9px 10px;cursor:pointer}
+.gic{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunken);color:var(--muted)}
+.gic.cliente{background:var(--accent-soft);color:var(--accent)}.gic svg{width:18px;height:18px}
+.gtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.gres .grs{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gmark{background:var(--accent-soft);color:var(--accent);border-radius:3px;padding:0;font-weight:700}
+.gacoes{flex:none;display:flex;gap:4px;opacity:0;transition:opacity .1s}
+.gr.sel .gacoes,.gr:hover .gacoes,.gr:focus-within .gacoes{opacity:1}
+.gac{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--accent);background:var(--accent-soft);border:1px solid transparent}
+.gac:hover{border-color:var(--accent);background:var(--surface)}.gac svg{width:17px;height:17px}
+@media (pointer:coarse){.gacoes{opacity:1}}
