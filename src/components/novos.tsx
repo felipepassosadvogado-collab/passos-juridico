@@ -238,7 +238,7 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
           const d = soDigitos(e.target.value); const i = infoCnj(d); set({ numero: d, ...(d.length === 20 && i ? { tribunal: i.tribunal } : {}) });
         }} /></label>
         {dig.length === 20 && (!valido ? <div className="banner erro">Os dígitos verificadores não conferem. Confira o número.</div>
-          : existe ? <div className="banner">Esse processo já está na carteira. <button className="reflink" onClick={() => j.abrirProcesso(dig)}>Abrir o processo</button>{caso && !caso.processo_numero && <> · <button className="reflink" disabled={busy} onClick={vincular}>Ligar este atendimento a ele</button></>}</div>
+          : existe ? <div className="banner">Esse processo já está na carteira. <button className="reflink" onClick={() => j.abrirProcesso(dig)}>Abrir o processo</button>{caso && !caso.processo_numero && (processos.get(dig) && mesmoCliente(processos.get(dig)!, caso) ? <> · <button className="reflink" disabled={busy} onClick={vincular}>Ligar este atendimento a ele</button></> : <> É de outro cliente ({nomeBonito(processos.get(dig)?.cliente_nome || "—")}): confira o número.</>)}</div>
             : busy && !nota ? <div className="banner">Buscando no DJEN…</div> : nota ? <div className="banner ok">{nota}</div> : null)}</>}
         <div className="f"><span>Cliente (parte autora)</span>
           {novoCli ? <NovoClienteEmbutido onCancelar={() => setNovoCli(false)} onUsar={(id, nome, reu) => { set({ clienteId: id, cliente: nome, ...(reu && !np.reus.length ? { reus: [nomeBonito(reu), INSS] } : {}) }); setNovoCli(false); aviso("Cliente cadastrado e selecionado."); }} />
@@ -298,11 +298,15 @@ export function JanelaNovoCliente({ onFechar }: { onFechar: () => void }) {
 /** protocolo da inicial, direto na tarefa: cria o processo com os dados do atendimento e do DJEN e liga o atendimento a ele */
 export function useProtocoloDireto() {
   const { processos, clientes, casos, tarefas, sb, eu, aplicar, aviso, registrar, config } = useDados();
-  return async (casoId: string, numero: string): Promise<boolean> => {
+  /** confirmar = true só depois que a pessoa confirmou ligar a um processo que já estava cadastrado */
+  return async (casoId: string, numero: string, confirmar = false): Promise<boolean> => {
     const caso = casos.get(casoId); const dig = soDigitos(numero);
     if (!caso) return false;
     if (dig.length !== 20 || !cnjValido(dig)) { aviso("O nº do processo não confere. Confira os 20 dígitos."); return false; }
-    if (!processos.has(dig)) {
+    const ja = processos.get(dig);
+    if (ja && !confirmar) return false; // quem chama mostra a pergunta antes
+    if (ja && !mesmoCliente(ja, caso)) { aviso("Esse processo é de outro cliente (" + nomeBonito(ja.cliente_nome || "—") + "). Confira o número."); return false; }
+    if (!ja) {
       let d: { orgao?: string; tribunal?: string; classe?: string; reus?: string[]; pubs?: PubDjen[] } | null = null;
       try { const r = await fetch("/api/djen/processo?numero=" + dig); const jj = await r.json().catch(() => ({})); if (r.ok) d = jj.dados || null; } catch { /* sem DJEN: cadastra com o que tem */ }
       const cli = caso.cliente_id ? clientes.get(caso.cliente_id) : undefined;
@@ -333,4 +337,10 @@ export function useProtocoloDireto() {
     aviso("Processo " + mascaraCnj(dig) + " cadastrado e ligado ao atendimento. Agora avise o cliente.");
     return true;
   };
+}
+
+/** o processo já cadastrado é do mesmo cliente do atendimento? (pela ficha ou, sem ficha, pelo nome) */
+export function mesmoCliente(p: { cliente_id: string | null; cliente_nome: string | null }, caso: { cliente_id: string | null; nome: string }) {
+  if (p.cliente_id && caso.cliente_id) return p.cliente_id === caso.cliente_id;
+  return semAcento(p.cliente_nome || "").trim() === semAcento(caso.nome || "").trim();
 }

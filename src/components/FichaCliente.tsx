@@ -1,7 +1,7 @@
 "use client";
 // Ficha do cliente no estilo do ADVBOX: foto/iniciais, nome, abas (dados, documentos, processos e honorários).
 // Abre numa caixa a partir da lista de clientes e também como página (/clientes/[id]).
-import { useProtocoloDireto } from "./novos";
+import { mesmoCliente, useProtocoloDireto } from "./novos";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
@@ -124,19 +124,30 @@ export function JanelaCliente({ id, onFechar }: { id: string; onFechar: () => vo
 
 /** transformar o atendimento em processo judicial: cola o nº CNJ e abre o cadastro já preenchido */
 export function ProtocolarCaso({ casoId, voltar }: { casoId: string; voltar?: boolean }) {
-  const j = useJanelas(); const [n, setN] = useState(""); const direto = useProtocoloDireto(); const [ind, setInd] = useState(false);
-  const dig = soDigitos(n); const ok = dig.length === 20;
+  const j = useJanelas(); const { processos, casos } = useDados(); const [n, setN] = useState(""); const direto = useProtocoloDireto(); const [ind, setInd] = useState(false);
+  const dig = soDigitos(n); const ok = dig.length === 20; const [perg, setPerg] = useState(false);
+  const ja = ok ? processos.get(dig) : undefined; const caso = casos.get(casoId);
+  const outro = !!(ja && caso && !mesmoCliente(ja, caso));
   // dentro da tarefa de protocolo: cadastra na hora, sem abrir outra janela; na ficha do cliente abre o cadastro completo
-  const ir = async () => {
+  const ir = async (confirmado = false) => {
     if (!ok || ind) return;
     if (!voltar) { j.novoProcesso({ casoId, numero: dig }); return; }
-    setInd(true); try { if (await direto(casoId, dig)) setN(""); } finally { setInd(false); }
+    if (ja && !confirmado) { setPerg(true); return; }
+    setInd(true); try { if (await direto(casoId, dig, confirmado)) { setN(""); setPerg(false); } } finally { setInd(false); }
   };
   return (
     <div className="prot-caso">
-      <label className="f">Já foi protocolado? Cole o nº do processo<input className="mono" inputMode="numeric" value={n.length > 2 ? mascaraCnj(dig) : n} placeholder="0000000-00.0000.0.00.0000" onChange={(e) => setN(e.target.value)}
+      <label className="f">Já foi protocolado? Cole o nº do processo<input className="mono" inputMode="numeric" value={n.length > 2 ? mascaraCnj(dig) : n} placeholder="0000000-00.0000.0.00.0000" onChange={(e) => { setN(e.target.value); setPerg(false); }}
         onKeyDown={(e) => { if (e.key === "Enter") ir(); }} /></label>
-      <button className={ok ? "btn primary" : "btn"} disabled={!ok || ind} onClick={ir} title={ok ? "" : "Cole os 20 dígitos do número CNJ"}>{ind ? "Cadastrando…" : "⚖ Transformar em processo judicial"}</button>
+      <button className={ok ? "btn primary" : "btn"} disabled={!ok || ind} onClick={() => ir()} title={ok ? "" : "Cole os 20 dígitos do número CNJ"}>{ind ? "Cadastrando…" : "⚖ Transformar em processo judicial"}</button>
+      {perg && ja && <div className={"banner" + (outro ? " erro" : "")} style={{ flexBasis: "100%" }}>
+        {outro ? <>Esse número já está cadastrado em nome de <b>{nomeBonito(ja.cliente_nome || "—")}</b>{ja.banco ? " x " + ja.banco : ""}, que é <b>outro cliente</b>. Confira o número do processo; não dá para ligar este atendimento a ele.</>
+          : <>Esse processo já está cadastrado ({nomeBonito(ja.cliente_nome || "—")}{ja.banco ? " x " + ja.banco : ""}). Ligar este atendimento e as tarefas dele a esse processo?</>}
+        <div className="tools" style={{ marginTop: 8 }}>
+          {!outro && <button className="btn primary" disabled={ind} onClick={() => ir(true)}>Sim, ligar a esse processo</button>}
+          <button className="btn ghost" onClick={() => setPerg(false)}>{outro ? "Fechar" : "Cancelar"}</button>
+        </div>
+      </div>}
     </div>
   );
 }
