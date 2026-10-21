@@ -753,3 +753,6 @@ html.rail-fechado .rail .count::after{content:attr(data-curto);font-size:9.5px;f
 .fc-at-kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:5px 10px;margin:0;font-size:13px}
 .fc-at-kv dt{color:var(--muted)}.fc-at-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .fc-at-obs{white-space:pre-wrap;max-height:4.5em;overflow:hidden}
+.bk-linhas{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.bk-l{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;flex-wrap:wrap}.bk-l+.bk-l{border-top:1px solid var(--line)}
+.bk-l>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}

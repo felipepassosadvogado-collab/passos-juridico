@@ -5,6 +5,7 @@ import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
 import { BotaoDjen } from "@/components/djen";
+import { CopiaSeguranca } from "@/components/backup";
 import { baixar } from "@/components/ui";
 
 export default function Configuracoes() {
@@ -43,11 +44,7 @@ export default function Configuracoes() {
           <div className="tools"><input style={{ flex: 1, minWidth: 240 }} value={url} placeholder="Ex.: https://seusite.com.br/clientes?cpf={cpf}" onChange={(e) => setUrl(e.target.value)} />
             <button className="btn primary" onClick={() => { const v = url.trim(); if (v && !/^https:\/\//.test(v)) { aviso("Use um endereço que comece com https://"); return; } salvarGeral({ atendeUrl: v }, "Endereço salvo."); }}>Salvar</button></div>
         </div></section>
-      <section className="panel"><div className="ph"><h3>Cópia de segurança</h3></div>
-        <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: "70ch" }}>
-          <p style={{ margin: 0 }}>Baixa um arquivo com processos, clientes, tarefas, atendimentos e avisos. O banco de dados já tem cópia diária no Supabase; este arquivo é uma garantia extra, guardada com você.</p>
-          <div><button className="btn" onClick={() => baixar("passos-juridico-" + hojeBR() + ".json", JSON.stringify({ exportadoEm: new Date().toISOString(), processos: [...processos.values()], clientes: [...clientes.values()], tarefas: [...tarefas.values()], casos: [...casos.values()], avisos: [...avisos.values()] }), "application/json")}>Baixar cópia (.json)</button></div>
-        </div></section>
+      <CopiaSeguranca />
       <section className="panel"><div className="ph"><h3>Como o prazo é calculado</h3></div>
         <div className="pb" style={{ maxWidth: "70ch", display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ margin: 0 }}>Intimação pelo eproc: ciência tácita no 10º dia corrido após a disponibilização (prorrogada para o dia útil seguinte), e o prazo começa no dia útil seguinte.</p>
