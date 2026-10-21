@@ -692,3 +692,4 @@ table.pubs .prazo{white-space:nowrap}table.pubs .prazo .pill{font-size:12px}
 .num-copia{display:inline-flex;align-items:center;gap:4px}
 .num-copia button{all:unset;cursor:pointer;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--muted)}
 .num-copia button:hover{background:var(--surface);color:var(--fg)}
+.sug-ag{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border:1px solid var(--accent);background:var(--accent-soft);border-radius:12px;padding:12px 14px;font-size:14px}.sug-ag>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}

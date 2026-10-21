@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, nomeBonito } from "@/lib/formato";
-import { FASES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, prazoDaPublicacao, precisaAvisar, rotuloPub } from "@/lib/regras";
+import { ATOS_AGENDA, FASES, MODALIDADES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, prazoDaPublicacao, precisaAvisar, rotuloPub } from "@/lib/regras";
+import { hojeBR } from "@/lib/prazos";
 import { situacaoPrazo } from "@/lib/prazos";
-import type { Analise, Publicacao } from "@/lib/tipos";
+import type { Analise, Aviso, Modalidade, Publicacao } from "@/lib/tipos";
 import { BlocoTexto, Ic, Janela, useConfirmar } from "./ui";
 import { FormTarefa, MiniTarefa } from "./tarefas";
 import { BlocoAviso, useCriarAviso } from "./avisos";
@@ -65,6 +66,28 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
   const a = pub.analise as Analise | null; const p = processos.get(pub.processo_numero);
   const ts = [...tarefas.values()].filter((t) => t.publicacao_id === pub.id).sort((x, y) => (x.vencimento || "").localeCompare(y.vencimento || ""));
   const av = [...avisos.values()].find((x) => x.publicacao_id === pub.id);
+  // agendamento que o Claude encontrou na intimação (audiência ou coleta com data): salva com um clique
+  const ev = a?.evento; const [salvandoAg, setSalvandoAg] = useState(false);
+  const texto = pub.texto || "";
+  const tipoAg = ev?.tipo && ATOS_AGENDA.includes(ev.tipo) ? ev.tipo : /coleta|padr[aã]o\s+(de\s+)?assinatura|grafot|colhido material/i.test(texto) && ev?.data ? ATOS_AGENDA[1] : /audi[eê]ncia/i.test(ev?.tipo || "") ? ATOS_AGENDA[0] : null;
+  const modAg: Modalidade | null = ev?.modalidade && ev.modalidade in MODALIDADES ? ev.modalidade as Modalidade
+    : /videoconfer|sala virtual|zoom|teams|link de acesso/i.test(texto) ? "video" : ev?.hora ? "jf_agendado" : ev?.data ? "jf_balcao" : null;
+  const dataAg = /^\d{4}-\d\d-\d\d$/.test(ev?.data || "") ? ev!.data! : null;
+  const sugestao = tipoAg && dataAg && modAg && !av?.modalidade ? { tipo_evento: tipoAg, modalidade: modAg, data_evento: dataAg, hora: modAg === "jf_balcao" ? null : (ev?.hora || "").slice(0, 5) || null,
+    local: modAg === "video" ? null : ev?.local || p?.orgao || null, orientacoes: ev?.orientacoes || null } : null;
+  const salvarSugestao = async () => {
+    if (!sugestao) return; setSalvandoAg(true);
+    try {
+      let id = av?.id || null;
+      if (!id) id = await criarAviso({ processo_numero: pub.processo_numero, publicacao_id: pub.id });
+      if (!id) return;
+      const { data, error } = await sb.from("avisos_cliente").update({ ...sugestao, realizado_em: null }).eq("id", id).select().single();
+      if (error) { aviso(msgErro(error)); return; }
+      aplicar("avisos", data);
+      registrar({ processo_numero: pub.processo_numero, publicacao_id: pub.id, tipo: "ato_agendado", dados: { texto: resumoAto(data as Aviso) + (modAg !== "jf_balcao" ? " em " + dataBR(dataAg!) : "") + " (pela análise do Claude)" } });
+      aviso("Agendado. Aparece no Painel, em Audiências e coletas, e na Agenda.");
+    } finally { setSalvandoAg(false); }
+  };
   const mudarFase = async () => {
     if (!faseEscolhida || !p || faseEscolhida === (p.fase || "")) return;
     const { data, error } = await sb.from("processos").update({ fase: faseEscolhida }).eq("numero", p.numero).select().single();
@@ -75,6 +98,15 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
     <div className="pub">
       {mostrarTexto && <BlocoTexto texto={pub.texto} />}
       {a ? <CaixaAnalise a={a} /> : analisando ? <div className="ai">O Claude está lendo a publicação…</div> : null}
+      {sugestao && !agendar && <div className="sug-ag">
+        <div><strong>📅 O Claude encontrou um agendamento nesta intimação</strong>
+          <div>{sugestao.tipo_evento} · {MODALIDADES[sugestao.modalidade].curto} · {sugestao.modalidade === "jf_balcao" ? "até " : ""}{dataBR(sugestao.data_evento)}{sugestao.hora ? " às " + sugestao.hora : ""}</div>
+          {sugestao.local && <div className="muted s">{sugestao.local}</div>}
+          {sugestao.orientacoes && <div className="muted s">{sugestao.orientacoes}</div>}
+          {sugestao.data_evento < hojeBR() && <div className="s" style={{ color: "var(--late)" }}>Atenção: a data já passou. Confira na intimação antes de salvar.</div>}</div>
+        <div className="tools"><button className="btn primary" disabled={salvandoAg} onClick={salvarSugestao}>{salvandoAg ? "Salvando…" : "✓ Salvar agendamento"}</button>
+          <button className="btn ghost" onClick={() => setAgendar(true)}>Ajustar antes</button></div>
+      </div>}
       <div className="acts">
         <button className={form ? "btn ghost" : "btn primary"} onClick={() => setForm(!form)}>{form ? "Fechar" : <>{Ic.tarefa}Criar tarefa</>}</button>
         <button className={!av?.modalidade && precisaAvisar(pub) ? "btn primary" : "btn"} onClick={() => setAgendar(!agendar)}>{agendar ? "Fechar agendamento" : av?.modalidade ? "Editar agendamento" : "📅 Agendar audiência / coleta"}</button>
