@@ -10,10 +10,11 @@ import { mascaraCnj } from "@/lib/cnj";
 import { situacaoPrazo } from "@/lib/prazos";
 import { BANCOS, ETAPAS } from "@/lib/regras";
 import type { Caso, Tarefa } from "@/lib/tipos";
-import { Ic, Janela, SelResp } from "./ui";
+import { Ic, Janela, SelResp, useConfirmar } from "./ui";
 import { FormTarefa, TabelaTarefas } from "./tarefas";
 import { useJanelas } from "./janelas";
 import { CampoValores } from "./valores";
+import { ProtocolarCaso } from "./FichaCliente";
 
 /** arrasto dos cartões: segue o ponteiro, rola o quadro e a coluna nas bordas, solta em qualquer ponto da coluna */
 export function useArrasto(onDrop: (id: string, coluna: string) => void) {
@@ -98,7 +99,7 @@ export function ProxTarefa({ t }: { t?: Tarefa }) {
 
 /** ficha do atendimento pré-processual */
 export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; comTarefa?: boolean; onFechar: () => void; onTrocar: (id: string) => void }) {
-  const { casos, clientes, tarefas, processos, sb, eu, aplicar, registrar, aviso } = useDados(); const j = useJanelas(); const router = useRouter();
+  const { casos, clientes, tarefas, processos, sb, eu, aplicar, registrar, aviso, remover, titular } = useDados(); const j = useJanelas(); const router = useRouter(); const confirmar = useConfirmar();
   const novo = id === "novo"; const c: Partial<Caso> = novo ? {} : casos.get(id) || {};
   const [ed, setEd] = useState({ cliente_id: c.cliente_id || "", nome: c.nome || "", banco: c.banco || "", contratos: c.contratos || "", etapa: c.etapa || ETAPAS[0], responsavel: c.responsavel || eu.id, obs: c.obs || "" });
   const [tf, setTf] = useState(!!comTarefa);
@@ -135,10 +136,15 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
       <div className="tools">
         <button className="btn primary" onClick={salvar}>{novo ? "Cadastrar atendimento" : "Salvar"}</button>
         {!novo && cli && <Link className="btn ghost" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente</Link>}
-        {!novo && !c.processo_numero && <button className="btn" onClick={() => j.novoProcesso({ casoId: id })}>Protocolado: cadastrar processo</button>}
+        {!novo && titular && <button className="btn ghost" onClick={async () => {
+          const nts = ts.length; if (!confirmar("caso" + id, aviso, `Clique de novo em “Excluir” para confirmar.${nts ? ` As ${nts} tarefa(s) do atendimento também serão excluídas.` : ""}`)) return;
+          const { error } = await sb.from("casos").delete().eq("id", id); if (error) { aviso(msgErro(error)); return; }
+          remover("casos", id); for (const t of ts) remover("tarefas", t.id); aviso("Atendimento excluído."); onFechar();
+        }}>Excluir</button>}
         {!novo && <button className="btn" onClick={() => j.abrirInicial({ clienteId: c.cliente_id || null, banco: c.banco || "", casoId: id })}>Petição inicial e pasta para protocolo</button>}
         {!novo && c.processo_numero && processos.has(c.processo_numero) && <button className="btn" onClick={() => j.abrirProcesso(c.processo_numero!)}>Abrir processo {mascaraCnj(c.processo_numero)}</button>}
       </div>
+      {!novo && !c.processo_numero && <ProtocolarCaso casoId={id} />}
       {!novo && <CampoValores compacto valor={c.valor_causa} pct={c.honorarios_pct} onSalvar={async (v) => {
         const { data, error } = await sb.from("casos").update(v).eq("id", id).select().single();
         if (error) { aviso(/valor_causa|honorarios/.test(error.message) ? "Falta instalar a etapa 10 (0009_valores.sql) no Supabase." : msgErro(error)); return; } aplicar("casos", data); aviso("Valores salvos.");

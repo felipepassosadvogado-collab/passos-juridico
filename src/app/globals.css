@@ -630,3 +630,5 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .tj-corr-h{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
 .tj-passos{margin:0;padding-left:20px;font-size:13.5px;display:flex;flex-direction:column;gap:4px}
 .tj-nota .ok-l{color:var(--ok)}.tj-nota .falta-l{color:var(--late);font-weight:600}
+.prot-caso{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px dashed var(--accent);border-radius:10px;padding:10px;background:var(--accent-soft)}
+.prot-caso .f{flex:1;min-width:220px}

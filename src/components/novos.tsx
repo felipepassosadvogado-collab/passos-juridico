@@ -122,13 +122,13 @@ function NovoClienteEmbutido({ onUsar, onCancelar }: { onUsar: (id: string, nome
   );
 }
 
-export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | null };
+export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | null; numero?: string | null };
 
 /** formulário de novo processo (caixa compacta ou página) */
 export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProcesso; onCriado: (numero: string) => void; onCaso: (id: string) => void }) {
   const j = useJanelas(); const { processos, clientes, casos, sb, eu, aplicar, aviso, registrar } = useDados();
   const caso = ctx.casoId ? casos.get(ctx.casoId) : undefined;
-  const [np, setNp] = useState({ numero: "", orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "" });
+  const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: caso?.contratos || "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "" });
   const [pubs, setPubs] = useState<PubDjen[]>([]); const [nota, setNota] = useState(""); const [busy, setBusy] = useState(false); const [novoCli, setNovoCli] = useState(false); const [mais, setMais] = useState(false);
   const dig = soDigitos(np.numero); const info = infoCnj(dig); const valido = dig.length === 20 && cnjValido(dig); const existe = valido && processos.has(dig);
   const varas = useMemo(() => {

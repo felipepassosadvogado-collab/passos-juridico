@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, iniciais, moeda, nomeBonito } from "@/lib/formato";
-import { soDigitos } from "@/lib/cnj";
+import { mascaraCnj, soDigitos } from "@/lib/cnj";
 import { faseCRM } from "@/lib/regras";
 import { honorarios, pctPadrao } from "@/lib/valores";
 import type { Cliente } from "@/lib/tipos";
@@ -19,7 +19,7 @@ const S = (d: string) => <svg viewBox="0 0 20 20" width="18" height="18" aria-hi
 type Aba = "dados" | "docs" | "processos";
 
 export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?: boolean; onFechar?: () => void }) {
-  const { processos, casos, config, sb, aplicar, remover, aviso, titular } = useDados(); const router = useRouter(); const confirmar = useConfirmar(); const j = useJanelas();
+  const { processos, casos, tarefas, config, sb, aplicar, remover, aviso, titular } = useDados(); const router = useRouter(); const confirmar = useConfirmar(); const j = useJanelas();
   const f = useFichaCliente(c); const [vinc, setVinc] = useState(""); const [n, setN] = useState(0); const [aba, setAba] = useState<Aba>("dados");
   const ps = c ? [...processos.values()].filter((p) => p.cliente_id === c.id).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")) : [];
   const cs = c ? [...casos.values()].filter((x) => x.cliente_id === c.id && !x.processo_numero) : [];
@@ -32,6 +32,13 @@ export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?
   const salvarCaso = async (id: string, v: Record<string, unknown>) => {
     const { data, error } = await sb.from("casos").update(v).eq("id", id).select().single();
     if (error) { aviso(/valor_causa|honorarios/.test(error.message) ? "Falta instalar a etapa 10 (0009_valores.sql) no Supabase." : msgErro(error)); return; } aplicar("casos", data); aviso("Valores salvos.");
+  };
+  const excluirCaso = async (id: string) => {
+    const nts = [...tarefas.values()].filter((t) => t.caso_id === id).length;
+    if (!confirmar("caso" + id, aviso, `Clique de novo em “Excluir atendimento” para confirmar.${nts ? ` As ${nts} tarefa(s) dele também serão excluídas.` : ""}`)) return;
+    const { error } = await sb.from("casos").delete().eq("id", id);
+    if (error) { aviso(msgErro(error)); return; }
+    remover("casos", id); for (const t of [...tarefas.values()]) if (t.caso_id === id) remover("tarefas", t.id); aviso("Atendimento excluído.");
   };
   const nomeTela = nomeBonito(f.ed.nome || c?.nome || "") || "Novo cliente";
   const botaoAba = (k: Aba, rot: string, icone: string) => <button type="button" role="tab" aria-selected={aba === k} title={rot} aria-label={rot} className={"fc-aba" + (aba === k ? " on" : "")} onClick={() => setAba(k)}>{S(icone)}</button>;
@@ -82,8 +89,13 @@ export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?
           {cs.map((x) => (
             <div key={x.id} className="fc-proc">
               <button className="fc-proc-tit" onClick={() => j.abrirCaso(x.id)}><span>Atendimento pré-processual</span><span className="pill">{bancoCurto(x.banco)}</span></button>
-              <div className="muted s">Etapa: {x.etapa}</div>
+              <div className="muted s">Etapa: {x.etapa} · desde {dataBR(x.criado_em.slice(0, 10))}{x.contratos ? " · " + x.contratos : ""}</div>
               <CampoValores compacto valor={x.valor_causa} pct={x.honorarios_pct} onSalvar={(v) => salvarCaso(x.id, v)} />
+              <ProtocolarCaso casoId={x.id} />
+              <div className="tools">
+                <button className="btn ghost" onClick={() => j.abrirCaso(x.id)}>Abrir atendimento</button>
+                {titular && <button className="btn ghost" onClick={() => excluirCaso(x.id)}>Excluir atendimento</button>}
+              </div>
             </div>))}
           {!ps.length && !cs.length && <div className="empty">Nenhum processo vinculado.</div>}
           <button className="btn" onClick={() => j.novoProcesso({ clienteId: c.id })}>Novo processo para este cliente</button>
@@ -105,6 +117,19 @@ export function JanelaCliente({ id, onFechar }: { id: string; onFechar: () => vo
       <div className="modal compacto fc-modal" role="dialog" aria-modal="true" aria-label={"Cliente " + (c?.nome || "")}>
         {c ? <FichaCliente key={c.id} c={c} emJanela onFechar={onFechar} /> : <div className="empty">Cliente não encontrado. <button className="reflink" onClick={onFechar}>Fechar</button></div>}
       </div>
+    </div>
+  );
+}
+
+/** transformar o atendimento em processo judicial: cola o nº CNJ e abre o cadastro já preenchido */
+export function ProtocolarCaso({ casoId }: { casoId: string }) {
+  const j = useJanelas(); const [n, setN] = useState("");
+  const dig = soDigitos(n); const ok = dig.length === 20;
+  return (
+    <div className="prot-caso">
+      <label className="f">Já foi protocolado? Cole o nº do processo<input className="mono" inputMode="numeric" value={n.length > 2 ? mascaraCnj(dig) : n} placeholder="0000000-00.0000.0.00.0000" onChange={(e) => setN(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && ok) j.novoProcesso({ casoId, numero: dig }); }} /></label>
+      <button className="btn" disabled={!ok} onClick={() => j.novoProcesso({ casoId, numero: dig })} title={ok ? "" : "Cole os 20 dígitos do número CNJ"}>⚖ Transformar em processo judicial</button>
     </div>
   );
 }
