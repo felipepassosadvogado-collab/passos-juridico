@@ -45,7 +45,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
       {topo?.k === "caso" && <JanelaCaso key={topo.id} id={topo.id} comTarefa={topo.tarefa} onFechar={fechar} onTrocar={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "inicial" && <JanelaInicial ctx={topo.ctx} onFechar={fechar} onIntermediaria={(numero) => trocar({ k: "peca", ctx: { numero } })} />}
       {topo?.k === "peca" && <JanelaPeca ctx={topo.ctx} onFechar={fechar} onInicial={topo.ctx.tarefaId || topo.ctx.publicacaoId ? undefined : () => { const p = topo.ctx.numero; const pr = processos.get(p); trocar({ k: "inicial", ctx: { clienteId: pr?.cliente_id || null, banco: pr?.banco, numero: p } }); }} />}
-      {topo?.k === "novoProcesso" && <JanelaNovoProcesso ctx={topo.ctx} onFechar={fechar} onCriado={(n) => trocar({ k: "processo", numero: n })} onCaso={(id) => trocar({ k: "caso", id })} />}
+      {topo?.k === "novoProcesso" && <JanelaNovoProcesso ctx={topo.ctx} onFechar={fechar} onCriado={(n) => trocar(topo.ctx.voltar ? null : { k: "processo", numero: n })} onCaso={(id) => trocar({ k: "caso", id })} />}
       {topo?.k === "novoCliente" && <JanelaNovoCliente onFechar={fechar} />}
       {topo?.k === "cliente" && <JanelaCliente key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "verTarefa" && <JanelaTarefa key={topo.id} id={topo.id} onFechar={fechar} />}

@@ -107,7 +107,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             {t.tipo === "Protocolo da inicial" && caso && !caso.processo_numero && !done && <div className="tj-corr">
               <div className="tj-corr-h"><strong>Protocolo da inicial</strong><span className="muted s">a peça e a pasta estão nos anexos acima</span></div>
               <ol className="tj-passos"><li>Protocole no eproc com os arquivos da pasta.</li><li>Cole abaixo o nº do processo: o atendimento vira processo judicial e as publicações passam a ser acompanhadas.</li><li>Depois, “Protocolado” registra o protocolo e conclui esta tarefa.</li></ol>
-              <ProtocolarCaso casoId={caso.id} />
+              <ProtocolarCaso casoId={caso.id} voltar />
             </div>}
             {souRev && <div className="tj-corr">
               <div className="tj-corr-h"><strong>Você está corrigindo esta peça</strong><span className="muted s">enviada por {nome(t.responsavel)}{t.enviado_em ? " em " + dataHoraBR(t.enviado_em) : ""}</span></div>

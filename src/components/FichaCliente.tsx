@@ -122,14 +122,14 @@ export function JanelaCliente({ id, onFechar }: { id: string; onFechar: () => vo
 }
 
 /** transformar o atendimento em processo judicial: cola o nº CNJ e abre o cadastro já preenchido */
-export function ProtocolarCaso({ casoId }: { casoId: string }) {
+export function ProtocolarCaso({ casoId, voltar }: { casoId: string; voltar?: boolean }) {
   const j = useJanelas(); const [n, setN] = useState("");
   const dig = soDigitos(n); const ok = dig.length === 20;
   return (
     <div className="prot-caso">
       <label className="f">Já foi protocolado? Cole o nº do processo<input className="mono" inputMode="numeric" value={n.length > 2 ? mascaraCnj(dig) : n} placeholder="0000000-00.0000.0.00.0000" onChange={(e) => setN(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && ok) j.novoProcesso({ casoId, numero: dig }); }} /></label>
-      <button className="btn" disabled={!ok} onClick={() => j.novoProcesso({ casoId, numero: dig })} title={ok ? "" : "Cole os 20 dígitos do número CNJ"}>⚖ Transformar em processo judicial</button>
+        onKeyDown={(e) => { if (e.key === "Enter" && ok) j.novoProcesso({ casoId, numero: dig, voltar }); }} /></label>
+      <button className="btn" disabled={!ok} onClick={() => j.novoProcesso({ casoId, numero: dig, voltar })} title={ok ? "" : "Cole os 20 dígitos do número CNJ"}>⚖ Transformar em processo judicial</button>
     </div>
   );
 }

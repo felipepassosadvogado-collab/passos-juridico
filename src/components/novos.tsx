@@ -123,11 +123,11 @@ function NovoClienteEmbutido({ onUsar, onCancelar }: { onUsar: (id: string, nome
   );
 }
 
-export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | null; numero?: string | null };
+export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | null; numero?: string | null; voltar?: boolean };
 
 /** formulário de novo processo (caixa compacta ou página) */
 export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProcesso; onCriado: (numero: string) => void; onCaso: (id: string) => void }) {
-  const j = useJanelas(); const { processos, clientes, casos, sb, eu, aplicar, aviso, registrar, config } = useDados();
+  const j = useJanelas(); const { processos, clientes, casos, tarefas, sb, eu, aplicar, aviso, registrar, config } = useDados();
   const caso = ctx.casoId ? casos.get(ctx.casoId) : undefined;
   const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: caso?.contratos || "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "",
     valor: caso?.valor_causa ? String(caso.valor_causa).replace(".", ",") : "", pct: caso?.honorarios_pct != null ? String(caso.honorarios_pct).replace(".", ",") : "" });
@@ -189,14 +189,20 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
       if (pubs.length) { const r = await sb.from("publicacoes").upsert(pubs.map((x) => ({ ...x, processo_numero: dig, triagem: "concluida" })), { onConflict: "id", ignoreDuplicates: true }); if (r.error) aviso("O processo foi cadastrado, mas as publicações do DJEN não foram gravadas."); }
       await registrar({ processo_numero: dig, tipo: "processo_cadastrado", dados: { texto: pubs.length ? pubs.length + " publicações do DJEN importadas." : "" } });
       if (np.resp) await registrar({ processo_numero: dig, tipo: "responsavel", dados: { responsavel: np.resp } });
-      if (caso) {
-        const r = await sb.from("casos").update({ processo_numero: dig, etapa: "Protocolado" }).eq("id", caso.id).select().single(); if (r.data) aplicar("casos", r.data);
-        registrar({ caso_id: caso.id, tipo: "fase", dados: { fase: "Protocolado: processo " + mascaraCnj(dig) } });
-        registrar({ processo_numero: dig, tipo: "comentario", dados: { texto: "Originado do atendimento pré-processual." } });
-      }
+      if (caso) await ligarCaso(dig);
       aviso("Processo cadastrado."); onCriado(dig);
     } finally { setBusy(false); }
   };
+  /** atendimento protocolado: liga o atendimento e as tarefas abertas dele ao processo */
+  const ligarCaso = async (num: string) => {
+    if (!caso) return;
+    const r = await sb.from("casos").update({ processo_numero: num, etapa: "Protocolado" }).eq("id", caso.id).select().single(); if (r.data) aplicar("casos", r.data);
+    const ts = [...tarefas.values()].filter((t) => t.caso_id === caso.id && !t.processo_numero && t.status !== "feito");
+    if (ts.length) { const u = await sb.from("tarefas").update({ processo_numero: num }).in("id", ts.map((t) => t.id)).select(); for (const t of u.data || []) aplicar("tarefas", t); }
+    registrar({ caso_id: caso.id, tipo: "fase", dados: { fase: "Protocolado: processo " + mascaraCnj(num) } });
+    registrar({ processo_numero: num, tipo: "comentario", dados: { texto: "Originado do atendimento pré-processual." } });
+  };
+  const vincular = async () => { setBusy(true); try { await ligarCaso(dig); aviso("Atendimento ligado ao processo."); onCriado(dig); } finally { setBusy(false); } };
   const criarCaso = async () => {
     if (novoCli) { aviso("Clique antes em “Usar este cliente” no quadro do novo cliente."); return; }
     const cli = np.clienteId ? clientes.get(np.clienteId) : undefined; const nome = cli?.nome || np.cliente;
@@ -232,7 +238,7 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
           const d = soDigitos(e.target.value); const i = infoCnj(d); set({ numero: d, ...(d.length === 20 && i ? { tribunal: i.tribunal } : {}) });
         }} /></label>
         {dig.length === 20 && (!valido ? <div className="banner erro">Os dígitos verificadores não conferem. Confira o número.</div>
-          : existe ? <div className="banner">Esse processo já está na carteira. <button className="reflink" onClick={() => j.abrirProcesso(dig)}>Abrir o processo</button></div>
+          : existe ? <div className="banner">Esse processo já está na carteira. <button className="reflink" onClick={() => j.abrirProcesso(dig)}>Abrir o processo</button>{caso && !caso.processo_numero && <> · <button className="reflink" disabled={busy} onClick={vincular}>Ligar este atendimento a ele</button></>}</div>
             : busy && !nota ? <div className="banner">Buscando no DJEN…</div> : nota ? <div className="banner ok">{nota}</div> : null)}</>}
         <div className="f"><span>Cliente (parte autora)</span>
           {novoCli ? <NovoClienteEmbutido onCancelar={() => setNovoCli(false)} onUsar={(id, nome, reu) => { set({ clienteId: id, cliente: nome, ...(reu && !np.reus.length ? { reus: [nomeBonito(reu), INSS] } : {}) }); setNovoCli(false); aviso("Cliente cadastrado e selecionado."); }} />
