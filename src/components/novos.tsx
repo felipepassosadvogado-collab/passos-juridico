@@ -294,3 +294,43 @@ export function JanelaNovoCliente({ onFechar }: { onFechar: () => void }) {
     </CaixaCompacta>
   );
 }
+
+/** protocolo da inicial, direto na tarefa: cria o processo com os dados do atendimento e do DJEN e liga o atendimento a ele */
+export function useProtocoloDireto() {
+  const { processos, clientes, casos, tarefas, sb, eu, aplicar, aviso, registrar, config } = useDados();
+  return async (casoId: string, numero: string): Promise<boolean> => {
+    const caso = casos.get(casoId); const dig = soDigitos(numero);
+    if (!caso) return false;
+    if (dig.length !== 20 || !cnjValido(dig)) { aviso("O nº do processo não confere. Confira os 20 dígitos."); return false; }
+    if (!processos.has(dig)) {
+      let d: { orgao?: string; tribunal?: string; classe?: string; reus?: string[]; pubs?: PubDjen[] } | null = null;
+      try { const r = await fetch("/api/djen/processo?numero=" + dig); const jj = await r.json().catch(() => ({})); if (r.ok) d = jj.dados || null; } catch { /* sem DJEN: cadastra com o que tem */ }
+      const cli = caso.cliente_id ? clientes.get(caso.cliente_id) : undefined;
+      const reus = d?.reus?.length ? d.reus.map((x) => nomeBonito(x)) : [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS];
+      const pubs = d?.pubs || []; const ult = [...pubs].sort((a, b) => b.data.localeCompare(a.data))[0];
+      const pct = caso.honorarios_pct ?? (cli?.kit?.pct ? Number(cli.kit.pct) : pctPadrao(config));
+      const linha: Record<string, unknown> = {
+        numero: dig, tribunal: d?.tribunal || infoCnj(dig)?.tribunal || null, orgao: d?.orgao || null, cidade: cidadeDoJuizo(d?.orgao) || null, classe: d?.classe || null,
+        cliente_id: caso.cliente_id || null, cliente_nome: cli?.nome || caso.nome || "", reus, banco: bancoDosReus(reus) || null, fase: "Protocolo / citação", responsavel: eu.id,
+        notas: caso.contratos ? "Contratos impugnados: " + caso.contratos : null, ultima_data: ult?.data || null,
+        ultimo_ato: ult ? (ult.tipo_doc && ult.tipo_doc !== "Outros" ? ult.tipo_doc : ult.tipo_com) : "Protocolo da inicial", cadastro_manual: true,
+        honorarios_pct: pct, ...(caso.valor_causa ? { valor_causa: caso.valor_causa } : {}),
+      };
+      let r = await sb.from("processos").insert(linha).select().single();
+      if (r.error && /honorarios_pct|valor_causa/.test(r.error.message)) { delete linha.honorarios_pct; delete linha.valor_causa; r = await sb.from("processos").insert(linha).select().single(); }
+      if (r.error) { aviso(msgErro(r.error)); return false; }
+      aplicar("processos", r.data);
+      if (pubs.length) await sb.from("publicacoes").upsert(pubs.map((x) => ({ ...x, processo_numero: dig, triagem: "concluida" })), { onConflict: "id", ignoreDuplicates: true });
+      await registrar({ processo_numero: dig, tipo: "processo_cadastrado", dados: { texto: "Cadastrado no protocolo da inicial." + (pubs.length ? " " + pubs.length + " publicações do DJEN importadas." : "") } });
+    }
+    const rc = await sb.from("casos").update({ processo_numero: dig, etapa: "Protocolado" }).eq("id", caso.id).select().single();
+    if (rc.error) { aviso(msgErro(rc.error)); return false; }
+    aplicar("casos", rc.data);
+    const ts = [...tarefas.values()].filter((t) => t.caso_id === caso.id && !t.processo_numero && t.status !== "feito");
+    if (ts.length) { const u = await sb.from("tarefas").update({ processo_numero: dig }).in("id", ts.map((t) => t.id)).select(); for (const t of u.data || []) aplicar("tarefas", t); }
+    registrar({ caso_id: caso.id, tipo: "fase", dados: { fase: "Protocolado: processo " + mascaraCnj(dig) } });
+    registrar({ processo_numero: dig, tipo: "comentario", dados: { texto: "Originado do atendimento pré-processual." } });
+    aviso("Processo " + mascaraCnj(dig) + " cadastrado e ligado ao atendimento. Agora avise o cliente.");
+    return true;
+  };
+}

@@ -189,7 +189,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
 /** depois do protocolo da inicial: avisar o cliente (número do processo, juízo), na caixa padrão de aviso */
 function AvisoProtocolo({ numero }: { numero: string | null }) {
   const { avisos, processos } = useDados(); const criar = useCriarAviso(); const [criando, setCriando] = useState(false);
-  if (!numero || !processos.get(numero)) return <div className="tj-corr min"><div className="tj-corr-h"><strong>Avisar o cliente</strong><span className="muted s">depois de colar o nº do processo, a mensagem ao cliente aparece aqui</span></div></div>;
+  if (!numero || !processos.get(numero)) return <div className="tj-corr min"><div className="tj-corr-h"><strong>Avisar o cliente</strong><span className="muted s">cole o nº do processo abaixo e clique em “Transformar em processo judicial”: a mensagem ao cliente aparece aqui</span></div></div>;
   const av = [...avisos.values()].find((a) => a.processo_numero === numero && a.tipo_evento === PROTOCOLO_ACAO);
   if (av) return <BlocoAviso av={av} inicioAberto={av.status !== "avisado" && av.status !== "dispensado"} />;
   return <div className="tj-corr">
