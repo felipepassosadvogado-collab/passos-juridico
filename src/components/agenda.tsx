@@ -67,7 +67,7 @@ export function FormAgendar({ numero, pub, av, onFim }: { numero: string; pub?: 
 }
 
 /** caixa de Meus expedientes: audiências e coletas ainda não realizadas (de toda a equipe) */
-export function CaixaAgenda() {
+export function CaixaAgenda({ onAbrir }: { onAbrir?: () => void } = {}) {
   const { avisos, processos, sb, aplicar, registrar, aviso, nome, eu, v } = useDados(); const j = useJanelas();
   const [verFeitos, setVerFeitos] = useState(false);
   const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em))
@@ -84,7 +84,8 @@ export function CaixaAgenda() {
   return (
     <section className="panel agenda" id="sec-agenda">
       <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação"}</span>
-        {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}</div>
+        {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}
+        {onAbrir && <button className="btn ghost" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} onClick={onAbrir} title="Abrir na tela inteira">⤢ Abrir caixa</button>}</div>
       {lista.length ? <div className="rows">{lista.map((a) => {
         const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hoje) : null; const balcao = a.modalidade === "jf_balcao";
         const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";

@@ -11,6 +11,7 @@ import { ListaEnxuta, TabelaTarefas } from "@/components/tarefas";
 import { BotaoDjen } from "@/components/djen";
 import { useJanelas } from "@/components/janelas";
 
+type Cheia = "" | "minhas" | "corrigir" | "agenda" | "flag";
 const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const ir = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
@@ -19,9 +20,9 @@ function Painel() {
   const sp = useSearchParams(); const corrigirId = sp.get("corrigir");
   useEffect(() => { if (corrigirId) setTimeout(() => ir("sec-corrigir"), 120); }, [corrigirId]);
   // "Cumprir minhas tarefas" aberto na tela inteira (fica lembrado neste navegador)
-  const abriuCorr = useRef(""); const [caixaCheia, setCaixaCheia] = useState<"" | "minhas" | "corrigir">(""); const [filtro, setFiltro] = useState("");
-  useEffect(() => { try { const v = localStorage.getItem("painel.cheia"); if (v === "minhas" || v === "corrigir") setCaixaCheia(v); } catch { /* sem armazenamento */ } }, []);
-  const cheia = (v: "" | "minhas" | "corrigir") => { setCaixaCheia(v); setFiltro(""); try { localStorage.setItem("painel.cheia", v); } catch { /* sem armazenamento */ } window.scrollTo({ top: 0 }); };
+  const abriuCorr = useRef(""); const [caixaCheia, setCaixaCheia] = useState<Cheia>(""); const [filtro, setFiltro] = useState("");
+  useEffect(() => { try { const v = localStorage.getItem("painel.cheia"); if (v === "minhas" || v === "corrigir" || v === "agenda" || v === "flag") setCaixaCheia(v); } catch { /* sem armazenamento */ } }, []);
+  const cheia = (v: Cheia) => { setCaixaCheia(v); setFiltro(""); try { localStorage.setItem("painel.cheia", v); } catch { /* sem armazenamento */ } window.scrollTo({ top: 0 }); };
   const partesTxt = (t: { processo_numero: string | null; caso_id: string | null; descricao: string; tipo: string | null }) => semAcento([t.descricao, t.tipo, t.processo_numero ? processos.get(t.processo_numero)?.cliente_nome : ""].join(" ")).toLowerCase();
   const x = useMemo(() => {
     const t = hojeBR(); const abertas = [...tarefas.values()].filter((y) => y.status !== "feito");
@@ -42,19 +43,28 @@ function Painel() {
   if (caixaCheia) {
     if (corrigirId && abriuCorr.current !== corrigirId) { abriuCorr.current = corrigirId; setTimeout(() => j.abrirTarefa(corrigirId), 0); }
     const q = semAcento(filtro.trim()).toLowerCase();
-    const ehCorr = caixaCheia === "corrigir"; const base = ehCorr ? x.corrigir : x.minhas;
-    const lista = [...base].sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9")).filter((t) => !q || partesTxt(t).includes(q));
+    const ordena = (l: typeof x.minhas) => [...l].sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9")).filter((t) => !q || partesTxt(t).includes(q));
+    const tit = { minhas: "Cumprir minhas tarefas", corrigir: "Corrigir peças da equipe", agenda: "Audiências e coletas", flag: "Importantes e urgentes" }[caixaCheia];
+    const sub = caixaCheia === "corrigir" ? `${x.corrigir.length} ${x.corrigir.length === 1 ? "peça enviada" : "peças enviadas"} para você revisar`
+      : caixaCheia === "minhas" ? `${x.minhas.length} em aberto${x.venc ? ` · ${x.venc} vencendo ou vencidas` : ""}`
+      : caixaCheia === "flag" ? `${x.flag.length} marcadas, de toda a equipe` : "de toda a equipe";
+    const vazio = (base: number, msg: string) => <div className="empty"><strong>{base ? "Nada com esse filtro." : msg}</strong></div>;
     return (
       <>
-        <div className="head"><div><h2>{ehCorr ? "Corrigir peças da equipe" : "Cumprir minhas tarefas"}</h2><div className="sub">{ehCorr ? `${base.length} ${base.length === 1 ? "peça enviada" : "peças enviadas"} para você revisar` : `${x.minhas.length} em aberto${x.venc ? ` · ${x.venc} vencendo ou vencidas` : ""}`} · no Painel</div></div>
-          <div className="tools"><input className="gs-busca" value={filtro} placeholder="Filtrar por cliente ou tarefa" onChange={(e) => setFiltro(e.target.value)} />
+        <div className="head"><div><h2>{tit}</h2><div className="sub">{sub} · no Painel</div></div>
+          <div className="tools">{caixaCheia !== "agenda" && <input className="gs-busca" value={filtro} placeholder="Filtrar por cliente ou tarefa" onChange={(e) => setFiltro(e.target.value)} />}
             <button className="btn" onClick={() => cheia("")} title="Volta ao Painel completo">⤡ Minimizar</button></div></div>
-        <section className="panel" id={ehCorr ? "sec-corrigir" : "sec-minhas"}>
-          {lista.length ? <TabelaTarefas lista={lista} limite={1000} /> : <div className="empty"><strong>{base.length ? "Nada com esse filtro." : ehCorr ? "Nada esperando sua correção." : "Nenhuma tarefa sua em aberto."}</strong></div>}
-        </section>
+        {caixaCheia === "agenda" ? <CaixaAgenda />
+          : caixaCheia === "flag" ? (x.flag.length ? x.q.filter(([, l]) => l.length).map(([t, l, dica]) => { const f = ordena(l as typeof x.minhas); return (
+            <section key={t as string} className="panel"><div className="ph"><h3>{t as string}</h3><span className="muted" style={{ fontSize: 12 }}>{dica as string} · {f.length}</span></div>
+              {f.length ? <TabelaTarefas lista={f} limite={1000} /> : vazio(1, "")}</section>); }) : <section className="panel">{vazio(0, "Nenhuma tarefa marcada como importante ou urgente.")}</section>)
+          : (() => { const base = caixaCheia === "corrigir" ? x.corrigir : x.minhas; const f = ordena(base); return (
+            <section className="panel" id={caixaCheia === "corrigir" ? "sec-corrigir" : "sec-minhas"}>
+              {f.length ? <TabelaTarefas lista={f} limite={1000} /> : vazio(base.length, caixaCheia === "corrigir" ? "Nada esperando sua correção." : "Nenhuma tarefa sua em aberto.")}</section>); })()}
       </>
     );
   }
+
   return (
     <>
       <div className="head"><div><h2>Olá, {eu.nome.split(/[\s.]/)[0]}</h2><div className="sub">{dia.charAt(0).toUpperCase() + dia.slice(1)} · o que está com você e com a equipe</div></div><div className="tools"><BotaoDjen /></div></div>
@@ -65,7 +75,7 @@ function Painel() {
         <button className="stat" onClick={() => ir("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
       </div>
       <div className="pcols"><div className="pcol">
-      <CaixaAgenda />
+      <CaixaAgenda onAbrir={() => cheia("agenda")} />
       {x.nl.length > 0 && <section className="panel"><div className="ph"><h3>Avisos novos</h3><span className="count hot">{x.nl.length}</span></div>
         <div className="rows">{x.nl.slice(0, 8).map((n) => (
           <div key={n.id} className="row click" onClick={() => { lida(n.id); if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); }}>
@@ -83,7 +93,7 @@ function Painel() {
         {x.corrigir.length ? <ListaEnxuta key={corrigirId || "c"} lista={x.corrigir} abrirId={corrigirId} /> : <div className="empty"><strong>Nada esperando sua correção.</strong>Quando alguém enviar uma peça para você revisar, ela aparece aqui com o arquivo anexado.</div>}</section>
       <section className="panel" id="sec-minhas"><div className="ph"><h3>3. Cumprir minhas tarefas</h3><span className="muted" style={{ fontSize: 12 }}>criadas por você ou pela equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("minhas")} title="Abrir as suas tarefas na tela inteira">⤢ Abrir caixa</button></div>
         {x.minhas.length ? <ListaEnxuta lista={x.minhas} /> : <div className="empty"><strong>Nenhuma tarefa sua em aberto.</strong>Quando alguém criar uma tarefa com você como responsável, ela aparece aqui.</div>}</section>
-      <section className="panel" id="sec-flag"><div className="ph"><h3>4. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span></div>
+      <section className="panel" id="sec-flag"><div className="ph"><h3>4. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("flag")} title="Abrir na tela inteira">⤢ Abrir caixa</button></div>
         {x.flag.length ? <div>{x.q.filter(([, l]) => l.length).map(([tit, l, dica]) => <div key={tit} className="quad"><div className="qh"><strong>{tit}</strong><span className="muted"> · {dica} · {l.length}</span></div><ListaEnxuta lista={l} limite={5} /></div>)}</div>
           : <div className="empty"><strong>Nenhuma tarefa marcada.</strong>Ao criar ou editar uma tarefa, marque “Importante” e/ou “Urgente” para ela aparecer aqui.</div>}</section>
       </div></div>
