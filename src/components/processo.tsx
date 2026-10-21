@@ -152,6 +152,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           {icone("Linha do tempo (andamentos)", S('<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/>'), () => setAba("andamentos"), aba === "andamentos")}
           {icone("Nova tarefa", S('<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M10 6.5v7M6.5 10h7"/>'), () => { setAba("tarefas"); setTf(true); })}
           {icone("Gerar petição com o Claude", S('<path d="M10 2.5l1.7 5 5.3.1-4.2 3.2 1.5 5.1L10 12.9l-4.3 3 1.5-5.1L3 7.6l5.3-.1z"/>'), () => j.gerarPeca({ numero: p.numero }))}
+          {icone("Cumprimento de sentença (cálculo e petição)", S('<path d="M4 16.5h12M6 16.5V9.5M10 16.5V6.5M14 16.5V3.5"/>'), () => j.gerarCumprimento({ numero: p.numero }))}
           {icone("Petição inicial (Word)", S('<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>'), () => j.abrirInicial({ clienteId: p.cliente_id, banco: p.banco, cidade: p.cidade || cidadeDoJuizo(p.orgao), numero: p.numero }))}
           {icone("Avisar o cliente", S('<path d="M5 13.5V9a5 5 0 0 1 10 0v4.5l1.5 1.5h-13z"/><path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>'), async () => { const id = await criarAviso({ processo_numero: p.numero }); if (id) j.abrirAviso(id); })}
           {cli && <Link className="icb-q" title="Ficha do cliente" aria-label="Ficha do cliente" href={"/clientes/" + cli.id} onClick={onFechar}>{S('<circle cx="10" cy="7" r="3"/><path d="M4 16.5c.8-3 3.2-4.5 6-4.5s5.2 1.5 6 4.5"/>')}</Link>}
