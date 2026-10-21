@@ -138,8 +138,9 @@ export function useAcoesTarefa() {
       return gravar(t, campos, msg);
     },
     excluir: async (t: Tarefa) => {
-      const { error } = await sb.from("tarefas").delete().eq("id", t.id);
+      const { data, error } = await sb.from("tarefas").delete().eq("id", t.id).select("id");
       if (error) { aviso(msgErro(error)); return; }
+      if (!data?.length) { aviso("Não foi possível excluir: só quem criou a tarefa (ou o titular) pode excluí-la."); return; }
       remover("tarefas", t.id); aviso("Tarefa excluída.");
     },
   };

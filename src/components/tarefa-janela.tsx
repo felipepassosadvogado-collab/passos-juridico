@@ -79,7 +79,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
           {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" onClick={() => j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}Gerar petição</button>}
           <button className="btn ghost" onClick={async () => { const u = location.origin + "/agenda?tarefa=" + t.id; try { await navigator.clipboard.writeText(u); aviso("Link da tarefa copiado."); } catch { aviso(u); } }}>{S('<path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9"/>')}Copiar link</button>
           {podeEditar && !done && <button className="btn ghost" onClick={() => alterna("editar")}>{S('<path d="M13.5 3.5l3 3L7 16H4v-3z"/>')}{form === "editar" ? "Fechar edição" : "Editar"}</button>}
-          {titular && <button className="btn ghost" onClick={() => { if (confirmar("x" + t.id, aviso, "Clique de novo em “Excluir” para confirmar.")) { acoes.excluir(t); onFechar(); } }}>{S('<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/>')}Excluir</button>}
+          {podeEditar && <button className="btn ghost" onClick={() => { if (confirmar("x" + t.id, aviso, "Clique de novo em “Excluir” para confirmar.")) { acoes.excluir(t); onFechar(); } }}>{S('<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/>')}Excluir</button>}
           <button className="icb tj-x" title="Fechar" aria-label="Fechar" onClick={onFechar}>✕</button>
         </div>
         <div className="tj-corpo">
