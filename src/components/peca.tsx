@@ -15,7 +15,7 @@ import type { Documento } from "@/lib/tipos";
 
 export type CtxPeca = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo?: string | null; orientacoes?: string };
 
-export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => void }) {
+export function JanelaPeca({ ctx, onFechar, onInicial }: { ctx: CtxPeca; onFechar: () => void; onInicial?: () => void }) {
   const { processos, caixa, tarefas, sb, eu, aviso, equipe, nome } = useDados(); const acoes = useAcoesTarefa(); const visor = useVisor();
   const p = processos.get(ctx.numero); const pub = ctx.publicacaoId ? caixa.get(ctx.publicacaoId) : undefined;
   const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
@@ -76,8 +76,10 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
     finally { setGerando(false); setEtapa(""); }
   };
   return (
-    <Janela largo onFechar={onFechar} titulo="Gerar petição" sub={nomeBonito(p?.cliente_nome || "") + (p ? " · " + p.mascara : "")}
+    <Janela largo onFechar={onFechar} titulo="Petição intermediária" sub={nomeBonito(p?.cliente_nome || "") + (p ? " · " + p.mascara : "")}
       acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "O Claude está redigindo…" : "Gerar Word (.docx)"}</button>}>
+      {onInicial && <AbasPeticao modo="intermediaria" clienteId={p?.cliente_id} numero={ctx.numero} onInicial={onInicial} />}
+      {p && <div className="muted" style={{ fontSize: 13 }}>Dados do processo que vão para a peça: <b>Autor(a):</b> {nomeBonito(p.cliente_nome || "—")} · <b>Réus:</b> {(p.reus || []).join("; ") || "—"} · <b>Juízo:</b> {p.orgao || "—"} · <b>Processo:</b> {p.mascara}</div>}
       <div className="muted" style={{ fontSize: 13.5, maxWidth: "70ch" }}>O Claude redige a minuta a partir {pub ? "da publicação " + rotuloPub(pub) + ", " : ""}das publicações do processo e dos documentos que você anexar, no papel timbrado do escritório. O que ele não souber fica entre [colchetes] para você completar. Leva de 1 a 2 minutos.
         {" "}Já vão junto, sem precisar repetir: {ctx.tarefaId ? "a descrição da tarefa e o recado de quem a enviou, " : ""}a análise do Claude, as anotações fixas e as anotações da equipe na linha do tempo.</div>
       <div className="form2">
@@ -120,5 +122,33 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
           <div className="wide tools"><button className="btn primary" disabled={enviando || !env.revisor} onClick={enviarCorrecao}>{enviando ? "Enviando…" : "Enviar para correção"}</button></div>
         </section> : <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(tarefa.responsavel)} (responsável pela tarefa) pode enviar para correção.</div>)}
     </Janela>
+  );
+}
+
+/** alternância no topo da janela de petição: inicial (modelo do escritório) ou intermediária (o Claude redige no processo) */
+export function AbasPeticao({ modo, clienteId, numero, onInicial, onIntermediaria }: {
+  modo: "inicial" | "intermediaria"; clienteId: string | null | undefined; numero?: string | null;
+  onInicial?: () => void; onIntermediaria?: (numero: string) => void;
+}) {
+  const { processos, aviso } = useDados(); const [escolher, setEscolher] = useState(false);
+  const doCliente = [...processos.values()].filter((p) => clienteId && p.cliente_id === clienteId);
+  const irInter = () => {
+    if (modo === "intermediaria" || !onIntermediaria) return;
+    if (numero && processos.get(numero)) { onIntermediaria(numero); return; }
+    if (doCliente.length === 1) { onIntermediaria(doCliente[0].numero); return; }
+    if (!doCliente.length) { aviso("Este cliente ainda não tem processo judicial cadastrado. A petição intermediária precisa do processo."); return; }
+    setEscolher(true);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="seg" role="tablist" aria-label="Tipo de petição" style={{ alignSelf: "flex-start" }}>
+        <button role="tab" aria-selected={modo === "inicial"} onClick={() => modo !== "inicial" && onInicial?.()}>Petição inicial</button>
+        <button role="tab" aria-selected={modo === "intermediaria"} onClick={irInter}>Petição intermediária</button>
+      </div>
+      {escolher && <div className="banner" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span>Em qual processo?</span>
+        <div className="tools">{doCliente.map((p) => <button key={p.numero} className="btn" onClick={() => onIntermediaria?.(p.numero)}>{p.mascara}{p.banco ? " · x " + p.banco.split(/\s/)[0] : ""}</button>)}</div>
+      </div>}
+    </div>
   );
 }

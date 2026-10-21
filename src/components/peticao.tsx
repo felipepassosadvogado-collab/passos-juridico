@@ -1,5 +1,6 @@
 "use client";
 // Petição inicial em Word a partir do modelo do escritório, com leitura do extrato do INSS pelo Claude.
+import { AbasPeticao } from "./peca";
 import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { idade, moeda, nomeBonito, numeroBR, porExtenso } from "@/lib/formato";
@@ -13,7 +14,7 @@ export type CtxInicial = { clienteId: string | null; banco?: string | null; cida
 type Contrato = { numero: string; parcela: string; inclusao: string; inicio?: string; qtd?: string };
 const mesAtual = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
 
-export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: () => void }) {
+export function JanelaInicial({ ctx, onFechar, onIntermediaria }: { ctx: CtxInicial; onFechar: () => void; onIntermediaria?: (numero: string) => void }) {
   const { clientes, config, sb, eu, aviso } = useDados();
   const cli = ctx.clienteId ? clientes.get(ctx.clienteId) : undefined;
   const banco = nomeBonito((ctx.banco || cli?.kit?.banco || "").replace(/\s*(?:\be\b|;|,|\/)\s*(?:o\s+)?(?:INSS|Instituto Nacional do Seguro Social).*$/i, "").trim()); const k = chaveBanco(banco);
@@ -39,7 +40,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
       const q = data?.[0]?.qualificacao; if (q) setPi((x) => ({ ...x, bancoQualif: q.startsWith(",") ? q : ", " + q }));
     });
   }, [pi.banco]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!cli) return <Janela onFechar={onFechar} titulo="Petição inicial"><div className="banner">Escolha ou cadastre o cliente primeiro (o processo ou o atendimento precisa estar ligado a uma ficha de cliente).</div></Janela>;
+  if (!cli) return <Janela onFechar={onFechar} titulo="Petição inicial">{onIntermediaria && ctx.numero && <AbasPeticao modo="inicial" clienteId={null} numero={ctx.numero} onIntermediaria={onIntermediaria} />}<div className="banner">Escolha ou cadastre o cliente primeiro (o processo ou o atendimento precisa estar ligado a uma ficha de cliente).</div></Janela>;
   const set = (c: Partial<typeof pi>) => setPi({ ...pi, ...c });
   const faltam = [["nome", "nome"], ["cpf", "CPF"], ["endereco", "endereço"], ["cep", "CEP"], ["cidade", "cidade"]].filter(([c]) => !cli[c as keyof typeof cli]).map(([, r]) => r);
   const anos = idade(cli.nascimento);
@@ -108,6 +109,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
   return (
     <Janela largo onFechar={onFechar} titulo="Petição inicial" sub={nomeBonito(cli.nome) + " x " + (pi.banco || "banco") + " e INSS · modelo do escritório"}
       acoes={<><button className="btn" disabled={calculando} onClick={() => rodarCalculo(true)}>{calculando ? "Calculando…" : "Gerar cálculo (PDF)"}</button><button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "Gerando…" : "Gerar Word (.docx)"}</button></>}>
+      {onIntermediaria && <AbasPeticao modo="inicial" clienteId={cli.id} numero={ctx.numero} onIntermediaria={onIntermediaria} />}
       {faltam.length > 0 && <div className="banner">Falta na ficha do cliente: {faltam.join(", ")}. Complete a ficha antes de gerar.</div>}
       <div className="muted" style={{ fontSize: 13 }}>Qualificação: {[nomeBonito(cli.nome), cli.nacionalidade || (pi.genero === "F" ? "brasileira" : "brasileiro"), cli.estado_civil, cli.profissao, "CPF " + (cli.cpf || "—"), cli.endereco, cli.cep, cli.cidade].filter(Boolean).join(", ")}{anos != null ? ` · ${anos} anos${anos >= 60 ? " (pede prioridade de idoso)" : ""}` : ""}</div>
       <section className="novo-cli">

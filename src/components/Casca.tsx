@@ -104,13 +104,11 @@ function Busca() {
   const acoes = (x: Achado): [string, string, () => void][] => {
     if (x.tipo === "cliente") return [
       ["Novo processo para este cliente", ICB.novoProc, () => j.novoProcesso({ clienteId: x.id })],
-      ["Petição inicial e pasta para protocolo (Word)", ICB.inicial, () => j.abrirInicial({ clienteId: x.id })],
+      ["Petição (inicial ou intermediária)", ICB.inicial, () => j.abrirInicial({ clienteId: x.id })],
     ];
-    const p = processos.get(x.id);
     return [
-      ["Gerar petição com o Claude", ICB.claude, () => j.gerarPeca({ numero: x.id })],
+      ["Petição intermediária (o Claude redige neste processo)", ICB.claude, () => j.gerarPeca({ numero: x.id })],
       ["Nova tarefa neste processo", ICB.tarefa, () => j.novaTarefa(x.id)],
-      ...(p ? [["Petição inicial (Word)", ICB.inicial, () => j.abrirInicial({ clienteId: p.cliente_id, banco: p.banco, numero: p.numero })] as [string, string, () => void]] : []),
     ];
   };
   return (
