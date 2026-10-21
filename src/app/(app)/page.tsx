@@ -44,6 +44,7 @@ function Painel() {
         <button className={"stat" + (x.eqVenc ? " late" : "")} onClick={() => ir("sec-equipe")}><span className="n">{x.equipe.length}</span><span className="l">{x.eqVenc ? `prazos da equipe na semana, ${x.eqVenc} vencendo ou vencidos` : "prazos da equipe nos próximos 7 dias"}</span></button>
         <button className="stat" onClick={() => ir("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
       </div>
+      <div className="pcols"><div className="pcol">
       <CaixaAgenda />
       {x.nl.length > 0 && <section className="panel"><div className="ph"><h3>Avisos novos</h3><span className="count hot">{x.nl.length}</span></div>
         <div className="rows">{x.nl.slice(0, 8).map((n) => (
@@ -58,6 +59,7 @@ function Painel() {
             <div className="main"><div className="t">{nomeBonito(p?.cliente_nome || "—")}</div><div className="s">{[a.tipo_evento || "Ato a definir", (a.hora || "").slice(0, 5), a.local].filter(Boolean).join(" · ")}</div></div>
             <span className={"pill " + (dias != null && dias <= 3 ? "late" : "soon")}>{dias == null ? "sem data" : dias < 0 ? "já passou" : dias === 0 ? "é hoje" : "em " + dias + " dias"}</span></div>; })}</div>
           : <div className="empty">Nenhum cliente esperando aviso.</div>}</section>
+      </div><div className="pcol">
       <section className="panel"><div className="ph"><h3>1. Ler intimações</h3><Link className="btn ghost" href="/publicacoes">Abrir a caixa</Link></div>
         {x.cx.length ? <div className="rows">{x.cx.slice(0, 8).map((c) => { const p = processos.get(c.processo_numero); return (
           <div key={c.id} className="row click" onClick={() => j.abrirPub(c.id)}><span className="pill acc">{dataBR(c.data).slice(0, 5)}</span>
@@ -68,11 +70,12 @@ function Painel() {
         {x.corrigir.length ? <ListaEnxuta key={corrigirId || "c"} lista={x.corrigir} abrirId={corrigirId} /> : <div className="empty"><strong>Nada esperando sua correção.</strong>Quando alguém enviar uma peça para você revisar, ela aparece aqui com o arquivo anexado.</div>}</section>
       <section className="panel" id="sec-minhas"><div className="ph"><h3>3. Cumprir minhas tarefas</h3><span className="muted" style={{ fontSize: 12 }}>criadas por você ou pela equipe</span></div>
         {x.minhas.length ? <ListaEnxuta lista={x.minhas} /> : <div className="empty"><strong>Nenhuma tarefa sua em aberto.</strong>Quando alguém criar uma tarefa com você como responsável, ela aparece aqui.</div>}</section>
-      <section className="panel" id="sec-equipe"><div className="ph"><h3>4. Prazos da equipe</h3><span className="muted" style={{ fontSize: 12 }}>vencidos, de hoje e dos próximos 7 dias, de todos</span><Link className="btn ghost" href="/agenda?modo=lista" style={{ marginLeft: "auto" }}>Ver todos</Link></div>
-        {x.equipe.length ? <TabelaTarefas lista={x.equipe} /> : <div className="empty"><strong>Nada vencido nem vencendo nesta semana.</strong></div>}</section>
-      <section className="panel" id="sec-flag"><div className="ph"><h3>5. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span></div>
+      <section className="panel" id="sec-flag"><div className="ph"><h3>4. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span></div>
         {x.flag.length ? <div>{x.q.filter(([, l]) => l.length).map(([tit, l, dica]) => <div key={tit} className="quad"><div className="qh"><strong>{tit}</strong><span className="muted"> · {dica} · {l.length}</span></div><ListaEnxuta lista={l} limite={5} /></div>)}</div>
           : <div className="empty"><strong>Nenhuma tarefa marcada.</strong>Ao criar ou editar uma tarefa, marque “Importante” e/ou “Urgente” para ela aparecer aqui.</div>}</section>
+      </div></div>
+      <section className="panel" id="sec-equipe"><div className="ph"><h3>5. Prazos da equipe</h3><span className="muted" style={{ fontSize: 12 }}>vencidos, de hoje e dos próximos 7 dias, de todos</span><Link className="btn ghost" href="/agenda?modo=lista" style={{ marginLeft: "auto" }}>Ver todos</Link></div>
+        {x.equipe.length ? <TabelaTarefas lista={x.equipe} /> : <div className="empty"><strong>Nada vencido nem vencendo nesta semana.</strong></div>}</section>
     </>
   );
 }

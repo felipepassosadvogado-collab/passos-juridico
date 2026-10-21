@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { dataBR, dataHoraBR, semAcento } from "@/lib/formato";
 import { dataValida, diferencaDias, hojeBR, isoData, paraData, situacaoPrazo, somaDias } from "@/lib/prazos";
@@ -34,17 +34,20 @@ function numeros(ts: Tarefa[], ini: string, fim: string, t0: string) {
 }
 
 function Grafico({ ts, ini, fim, modo }: { ts: Tarefa[]; ini: string; fim: string; modo: "mes" | "ano" }) {
+  // o gráfico acompanha a largura da tela (e do zoom)
+  const caixa = useRef<HTMLDivElement>(null); const [cw, setCw] = useState(0);
+  useEffect(() => { const el = caixa.current; if (!el) return; const ro = new ResizeObserver(() => setCw(Math.floor(el.clientWidth))); ro.observe(el); return () => ro.disconnect(); }, []);
   const chaves: string[] = [];
   if (modo === "mes") { let d = paraData(ini); while (isoData(d) <= fim) { chaves.push(isoData(d)); d = somaDias(d, 1); } } else for (let m = 1; m <= 12; m++) chaves.push(ini.slice(0, 4) + "-" + String(m).padStart(2, "0"));
   const k = (x: string) => (modo === "mes" ? x : x.slice(0, 7)); const t0 = hojeBR();
   const conc: Record<string, number> = Object.fromEntries(chaves.map((c) => [c, 0])), venc: Record<string, number> = Object.fromEntries(chaves.map((c) => [c, 0]));
   for (const t of ts) { if (t.status === "feito") { const c = k(diaLocal(t.feito_em)); if (c in conc) conc[c]++; } else if (t.vencimento && t.vencimento < t0) { const c = k(t.vencimento); if (c in venc) venc[c]++; } }
-  const max = Math.max(1, ...chaves.map((c) => Math.max(conc[c], venc[c]))); const W = Math.max(520, chaves.length * 26), H = 180, pb = 26, pt = 12, pl = 28;
+  const max = Math.max(1, ...chaves.map((c) => Math.max(conc[c], venc[c]))); const W = Math.max(520, chaves.length * 26, cw), H = 200, pb = 26, pt = 12, pl = 28;
   const bw = (W - pl) / chaves.length; const y = (v: number) => H - pb - (v / max) * (H - pb - pt); const passo = max <= 5 ? 1 : Math.ceil(max / 4);
   const grades = []; for (let v = 0; v <= max; v += passo) grades.push(v);
   return (
     <section className="panel"><div className="ph"><h3>{modo === "mes" ? "Dia a dia" : "Mês a mês"}</h3><span className="legenda"><span className="lg ok">Concluídas</span><span className="lg late">Vencidas sem cumprir</span></span></div>
-      <div className="tscroll" style={{ padding: "12px 16px" }}><div className="gchart">
+      <div className="tscroll" style={{ padding: "12px 16px" }}><div className="gchart" ref={caixa}>
         <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={"Tarefas concluídas e vencidas por " + (modo === "mes" ? "dia" : "mês")}>
           {grades.map((v) => <g key={v}><line x1={pl} x2={W} y1={y(v)} y2={y(v)} stroke="var(--line)" /><text x={pl - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="var(--muted)">{v}</text></g>)}
           {chaves.map((c, i) => { const x0 = pl + i * bw + bw * 0.15, w = Math.max(3, (bw * 0.7 - 2) / 2); const rot = modo === "mes" ? dataBR(c) : MESES[+c.slice(5, 7) - 1] + " " + c.slice(0, 4);
