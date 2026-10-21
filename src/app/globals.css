@@ -645,3 +645,4 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 @media (max-width:1000px){.logotxt{display:none}.ola{display:none}.topbar{gap:8px}}
 .topbar{min-width:0}.tright{flex-shrink:0}
 .ag>*{min-width:0}
+.ag-bh{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.ag-bh h4{margin:0}.ag-todos{font-size:12.5px}

@@ -138,9 +138,9 @@ function Agenda() {
           <select value={f.base} onChange={(e) => muda({ base: e.target.value as Filtros["base"] })} aria-label="Data das tarefas"><option value="compromisso">Data do compromisso</option><option value="conclusao">Data de conclusão (concluídas)</option></select>
           {f.resp && <button className="reflink" onClick={() => muda({ resp: "" })}>Limpar filtro</button>}
         </div>
-        <div className="ag-bloco"><h4>Mostrar</h4>{(Object.keys(TIPOS) as Tipo[]).map((k) => (
+        <div className="ag-bloco"><div className="ag-bh"><h4>Mostrar</h4><TodosNenhum todos={f.tipos.length === Object.keys(TIPOS).length} onChange={(v) => muda({ tipos: v ? (Object.keys(TIPOS) as Tipo[]) : [] })} /></div>{(Object.keys(TIPOS) as Tipo[]).map((k) => (
           <label key={k} className="ag-chk"><input type="checkbox" checked={f.tipos.includes(k)} onChange={() => muda({ tipos: alterna(f.tipos, k) })} /><span className="ag-dot" style={{ background: TIPOS[k].cor }} />{TIPOS[k].nome}</label>))}</div>
-        <div className="ag-bloco"><h4>Situação</h4>{(Object.keys(SITS) as Sit[]).map((k) => (
+        <div className="ag-bloco"><div className="ag-bh"><h4>Situação</h4><TodosNenhum todos={f.sits.length === Object.keys(SITS).length} onChange={(v) => muda({ sits: v ? (Object.keys(SITS) as Sit[]) : [] })} /></div>{(Object.keys(SITS) as Sit[]).map((k) => (
           <label key={k} className="ag-chk"><input type="checkbox" checked={f.sits.includes(k)} onChange={() => muda({ sits: alterna(f.sits, k) })} /><span className="ag-dot" style={{ background: SITS[k].cor }} />{SITS[k].nome}</label>))}</div>
         <div className="muted" style={{ fontSize: 12 }}>{f.modo === "lista" ? `${lista.length} ${lista.length === 1 ? "tarefa" : "tarefas"}` : `${itens.length} ${itens.length === 1 ? "item" : "itens"} no período`}</div>
       </aside>
@@ -175,4 +175,9 @@ function Agenda() {
       </section>
     </div>
   );
+}
+
+/** marcar ou desmarcar todos os itens de um bloco de filtros */
+function TodosNenhum({ todos, onChange }: { todos: boolean; onChange: (marcar: boolean) => void }) {
+  return <button type="button" className="reflink ag-todos" onClick={() => onChange(!todos)}>{todos ? "Desmarcar todos" : "Marcar todos"}</button>;
 }
