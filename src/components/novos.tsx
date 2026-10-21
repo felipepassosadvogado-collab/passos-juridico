@@ -10,6 +10,7 @@ import { CamposCliente, EnvioDocumentos, useFichaCliente } from "./cliente";
 import { useJanelas } from "./janelas";
 import { KitProcuracao } from "./kitProcuracao";
 import { SelResp } from "./ui";
+import { pctPadrao } from "@/lib/valores";
 
 type PubDjen = { id: number; data: string; tipo_com: string | null; tipo_doc: string | null; orgao: string | null; texto: string; link: string | null };
 const S = (d: string) => <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
@@ -126,9 +127,10 @@ export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | nul
 
 /** formulário de novo processo (caixa compacta ou página) */
 export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProcesso; onCriado: (numero: string) => void; onCaso: (id: string) => void }) {
-  const j = useJanelas(); const { processos, clientes, casos, sb, eu, aplicar, aviso, registrar } = useDados();
+  const j = useJanelas(); const { processos, clientes, casos, sb, eu, aplicar, aviso, registrar, config } = useDados();
   const caso = ctx.casoId ? casos.get(ctx.casoId) : undefined;
-  const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: caso?.contratos || "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "" });
+  const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: caso?.contratos || "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "",
+    valor: caso?.valor_causa ? String(caso.valor_causa).replace(".", ",") : "", pct: caso?.honorarios_pct != null ? String(caso.honorarios_pct).replace(".", ",") : "" });
   const [pubs, setPubs] = useState<PubDjen[]>([]); const [nota, setNota] = useState(""); const [busy, setBusy] = useState(false); const [novoCli, setNovoCli] = useState(false); const [mais, setMais] = useState(false);
   const dig = soDigitos(np.numero); const info = infoCnj(dig); const valido = dig.length === 20 && cnjValido(dig); const existe = valido && processos.has(dig);
   const varas = useMemo(() => {
@@ -138,6 +140,10 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
   }, [info?.chave]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (c: Partial<typeof np>) => setNp((x) => ({ ...x, ...c }));
   const kitCli = np.clienteId ? clientes.get(np.clienteId)?.kit : undefined;
+  const padraoPct = pctPadrao(config); const num = (s: string) => { const t = s.trim(); if (!t) return null; const v = parseFloat(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); return isFinite(v) && v >= 0 ? v : null; };
+  // honorários: o que for digitado; senão o do kit procuração; senão o padrão do escritório
+  const valoresLinha = () => { const pct = num(np.pct) ?? (kitCli?.pct ? Number(kitCli.pct) : padraoPct); const v = num(np.valor);
+    return { honorarios_pct: pct, ...(v ? { valor_causa: v } : {}) }; };
   const textoContratos = (k: NonNullable<typeof kitCli>) => k.contratos.map((c) => [c.numero, c.averbacao ? "averbado em " + c.averbacao : "", c.parcela ? "parcela R$ " + c.parcela : ""].filter(Boolean).join(", ")).join("; ");
   // o que foi preenchido no kit procuração do cliente já vem no cadastro (sem apagar o que foi digitado)
   useEffect(() => {
@@ -173,10 +179,10 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
         numero: dig, tribunal: np.tribunal.trim() || info?.tribunal || null, orgao: np.orgao.trim() || null, cidade: np.cidade.trim() || null, classe: np.classe.trim() || null,
         cliente_id: np.clienteId || null, cliente_nome: cli?.nome || np.cliente || "", reus, banco: bancoDosReus(reus) || null, fase: np.fase || null, responsavel: np.resp || null, notas,
         ultima_data: ult?.data || null, ultimo_ato: ult ? (ult.tipo_doc && ult.tipo_doc !== "Outros" ? ult.tipo_doc : ult.tipo_com) : "Cadastro manual", cadastro_manual: true,
-        ...(kitCli?.pct ? { honorarios_pct: kitCli.pct } : {}),
+        ...valoresLinha(),
       };
       let r = await sb.from("processos").insert(linha).select().single();
-      if (r.error && /honorarios_pct/.test(r.error.message)) { delete linha.honorarios_pct; r = await sb.from("processos").insert(linha).select().single(); }
+      if (r.error && /honorarios_pct|valor_causa/.test(r.error.message)) { delete linha.honorarios_pct; delete linha.valor_causa; r = await sb.from("processos").insert(linha).select().single(); }
       const { data, error } = r;
       if (error) { aviso(msgErro(error)); return; }
       aplicar("processos", data);
@@ -198,9 +204,9 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
     setBusy(true);
     try {
       const bancos = np.reus.filter((r) => !/INSS|Seguro Social/i.test(r));
-      const linha: Record<string, unknown> = { cliente_id: np.clienteId || null, nome, banco: (bancos.length ? bancos : np.reus).join("; ") || null, contratos: np.contratos.trim() || null, etapa: np.etapa, responsavel: np.resp || null, obs: np.notas.trim() || null, ...(kitCli?.pct ? { honorarios_pct: kitCli.pct } : {}) };
+      const linha: Record<string, unknown> = { cliente_id: np.clienteId || null, nome, banco: (bancos.length ? bancos : np.reus).join("; ") || null, contratos: np.contratos.trim() || null, etapa: np.etapa, responsavel: np.resp || null, obs: np.notas.trim() || null, ...valoresLinha() };
       let r = await sb.from("casos").insert(linha).select().single();
-      if (r.error && /honorarios_pct/.test(r.error.message)) { delete linha.honorarios_pct; r = await sb.from("casos").insert(linha).select().single(); }
+      if (r.error && /honorarios_pct|valor_causa/.test(r.error.message)) { delete linha.honorarios_pct; delete linha.valor_causa; r = await sb.from("casos").insert(linha).select().single(); }
       const { data, error } = r;
       if (error) { aviso(msgErro(error)); return; }
       aplicar("casos", data); registrar({ caso_id: data.id, tipo: "fase", dados: { fase: np.etapa } });
@@ -232,6 +238,10 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
           {novoCli ? <NovoClienteEmbutido onCancelar={() => setNovoCli(false)} onUsar={(id, nome, reu) => { set({ clienteId: id, cliente: nome, ...(reu && !np.reus.length ? { reus: [nomeBonito(reu), INSS] } : {}) }); setNovoCli(false); aviso("Cliente cadastrado e selecionado."); }} />
             : <BuscaCliente valor={np.clienteId} nomeSemFicha={!np.clienteId ? np.cliente : ""} onEscolher={(id, nome) => set({ clienteId: id, cliente: nome || np.cliente })} onNovo={() => setNovoCli(true)} />}</div>
         <div className="f"><span>Réus</span><SelReus valor={np.reus} onChange={(l) => set({ reus: l })} /></div>
+        <div className="form2">
+          <label className="f">Valor da causa (R$){pre ? " (opcional)" : ""}<input inputMode="decimal" value={np.valor} placeholder="Ex.: 25.000,00" onChange={(e) => set({ valor: e.target.value })} /></label>
+          <label className="f">Honorários contratuais (%)<input inputMode="decimal" value={np.pct} placeholder={String(kitCli?.pct || padraoPct).replace(".", ",") + (kitCli?.pct ? " (do kit procuração)" : " (padrão)")} onChange={(e) => set({ pct: e.target.value })} /></label>
+        </div>
         {<label className="f">Contratos impugnados (opcional){kitCli?.contratos?.length ? <span className="muted" style={{ fontWeight: 400 }}> · do kit procuração</span> : null}<input value={np.contratos} placeholder="Ex.: 010016334309; 010017220011" onChange={(e) => set({ contratos: e.target.value })} /></label>}
         <label className="f">Responsável<SelResp valor={np.resp} onChange={(v) => set({ resp: v })} /></label>
         <label className="f">Anotações gerais<textarea rows={2} value={np.notas} placeholder="Anotações, fatos e fundamentos (o Claude lê ao redigir peças)" onChange={(e) => set({ notas: e.target.value })} /></label>
