@@ -48,7 +48,7 @@ function Menu() {
   const ativo = (h: string) => (h === "/" ? p === "/" : p.startsWith(h));
   const item = ([h, t, n, hot]: [string, string, number?, boolean?]) => (
     <Link key={h} href={h} aria-current={ativo(h) ? "page" : undefined} title={t}>{I(ICONES[h])}<span className="lbl">{t}</span>
-      {n !== undefined && <span className={"count" + (hot ? " hot" : "") + (n ? "" : " zero")}>{n}</span>}</Link>
+      {n !== undefined && <span className={"count" + (hot ? " hot" : "") + (n ? "" : " zero")} data-curto={n > 99 ? "99+" : String(n)}>{n}</span>}</Link>
   );
   return <nav className="rail" aria-label="Seções">{itens.map(item)}<div className="sep" />{adm.map(item)}</nav>;
 }
