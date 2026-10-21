@@ -35,7 +35,7 @@ function Menu() {
     const minhas = abertas.filter((t) => t.responsavel === eu.id || (t.status === "revisao" && t.revisor === eu.id));
     return {
       abertas: abertas.length, vencidas: abertas.some((t) => t.vencimento && t.vencimento <= hoje),
-      meus: minhas.length + caixa.size + [...notificacoes.values()].filter((n) => !n.lida).length + [...avisos.values()].filter((a) => a.status === "pendente").length,
+      meus: minhas.length + caixa.size + [...notificacoes.values()].filter((n) => !n.lida).length,
       meusHot: minhas.some((t) => t.vencimento && t.vencimento <= hoje),
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps

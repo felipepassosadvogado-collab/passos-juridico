@@ -30,7 +30,6 @@ function Painel() {
       nl: [...notificacoes.values()].filter((n) => !n.lida && !(n.tipo === "correcao" && n.tarefa_id && tarefas.get(n.tarefa_id)?.status === "revisao")).sort((a, b) => b.em.localeCompare(a.em)),
       equipe: abertas.filter((y) => y.vencimento && diferencaDias(y.vencimento, t) <= 7).sort((a, b) => (a.vencimento || "").localeCompare(b.vencimento || "")),
       eqVenc: abertas.filter((y) => y.vencimento && y.vencimento <= t).length,
-      pend: [...avisos.values()].filter((a) => a.status === "pendente" && !ehAgenda(a)).sort((a, b) => (a.data_evento || "9").localeCompare(b.data_evento || "9")),
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const dia = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "numeric", month: "long" });
@@ -52,20 +51,13 @@ function Painel() {
             <span className="pill ok">{n.tipo === "protocolo" ? "protocolo" : n.tipo === "tarefa" ? "tarefa" : "aviso"}</span>
             <div className="main"><div className="t">{n.texto}</div><div className="s">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), "de " + nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</div></div>
             <button className="btn ghost" onClick={(e) => { e.stopPropagation(); lida(n.id); }}>Lido</button></div>))}</div></section>}
-      <section className="panel"><div className="ph"><h3>Clientes para avisar</h3><span className="muted" style={{ fontSize: 12 }}>perícias e outros atos (audiências e coletas ficam na caixa acima)</span></div>
-        {x.pend.length ? <div className="rows">{x.pend.map((a) => { const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null;
-          return <div key={a.id} className="row click" onClick={() => j.abrirAviso(a.id)}>
-            <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
-            <div className="main"><div className="t">{nomeBonito(p?.cliente_nome || "—")}</div><div className="s">{[a.tipo_evento || "Ato a definir", (a.hora || "").slice(0, 5), a.local].filter(Boolean).join(" · ")}</div></div>
-            <span className={"pill " + (dias != null && dias <= 3 ? "late" : "soon")}>{dias == null ? "sem data" : dias < 0 ? "já passou" : dias === 0 ? "é hoje" : "em " + dias + " dias"}</span></div>; })}</div>
-          : <div className="empty">Nenhum cliente esperando aviso.</div>}</section>
-      </div><div className="pcol">
       <section className="panel"><div className="ph"><h3>1. Ler intimações</h3><Link className="btn ghost" href="/publicacoes">Abrir a caixa</Link></div>
         {x.cx.length ? <div className="rows">{x.cx.slice(0, 8).map((c) => { const p = processos.get(c.processo_numero); return (
           <div key={c.id} className="row click" onClick={() => j.abrirPub(c.id)}><span className="pill acc">{dataBR(c.data).slice(0, 5)}</span>
             <div className="main"><div className="t">{nomeBonito(p?.cliente_nome || "") || p?.mascara}</div><div className="s">{atoPub(c)} · {c.orgao || ""}{c.analise ? " · já analisada" : ""}</div></div><span className="mono muted">{p?.mascara}</span></div>); })}
           {x.cx.length > 8 && <div className="row"><span /><div className="s">e mais {x.cx.length - 8} na caixa</div><span /></div>}</div>
           : <div className="empty"><strong>Nenhuma intimação para ler.</strong>A caixa está em dia.</div>}</section>
+      </div><div className="pcol">
       <section className="panel" id="sec-corrigir"><div className="ph"><h3>2. Corrigir peças da equipe</h3><span className="muted" style={{ fontSize: 12 }}>enviadas para você revisar</span></div>
         {x.corrigir.length ? <ListaEnxuta key={corrigirId || "c"} lista={x.corrigir} abrirId={corrigirId} /> : <div className="empty"><strong>Nada esperando sua correção.</strong>Quando alguém enviar uma peça para você revisar, ela aparece aqui com o arquivo anexado.</div>}</section>
       <section className="panel" id="sec-minhas"><div className="ph"><h3>3. Cumprir minhas tarefas</h3><span className="muted" style={{ fontSize: 12 }}>criadas por você ou pela equipe</span></div>
