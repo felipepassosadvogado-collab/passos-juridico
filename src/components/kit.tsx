@@ -37,7 +37,8 @@ export async function guardarNaFicha(sb: any, clienteId: string, tipo: string, n
 
 export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar, numero, casoId }: { clienteId: string; nomeCliente: string; banco: string; atualizar: number; numero?: string | null; casoId?: string | null }) {
   const { sb, aviso, eu, equipe, casos, aplicar, registrar } = useDados(); const visor = useVisor(); const acoes = useAcoesTarefa();
-  const titular = equipe.find((p) => p.papel === "titular" && p.ativo && p.id !== eu.id);
+  // quem corrige: o titular; o próprio titular também pode corrigir a si mesmo (para conferir como fica)
+  const souTitular = eu.papel === "titular"; const titular = equipe.find((p) => p.papel === "titular" && p.ativo && p.id !== eu.id) || (souTitular ? eu : undefined);
   const [envio, setEnvio] = useState<{ revisor: string; prazo: string; recado: string } | null>(null);
   const [docs, setDocs] = useState<Documento[]>([]); const [fora, setFora] = useState<Set<string>>(new Set()); const [ocupado, setOcupado] = useState(""); const alvo = useRef<{ tipo: string } | null>(null); const inp = useRef<HTMLInputElement>(null);
   const carregar = () => sb.from("documentos").select("*").eq("cliente_id", clienteId).order("em", { ascending: false }).then(({ data }: { data: unknown }) => setDocs((data as Documento[]) || []));
@@ -117,7 +118,7 @@ export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar, numer
         <button className="btn" disabled={!!ocupado} onClick={() => setEnvio(envio ? null : { revisor: titular?.id || "", prazo: amanha(), recado: "" })}>{envio ? "Cancelar envio" : "Enviar para correção"}</button>
         <button className="btn primary" disabled={!!ocupado} onClick={baixarZip}>{ocupado || "Baixar pasta (.zip)"}</button></span></div>
       {envio && <div className="triage" style={{ margin: "0 16px 12px" }}>
-        <label className="f">Quem corrige<SelResp valor={envio.revisor} vazio="— escolher —" excluir={[eu.id]} onChange={(v) => setEnvio({ ...envio, revisor: v || "" })} /></label>
+        <label className="f">Quem corrige<SelResp valor={envio.revisor} vazio="— escolher —" excluir={souTitular ? [] : [eu.id]} onChange={(v) => setEnvio({ ...envio, revisor: v || "" })} /></label>
         <label className="f">Prazo da correção<input type="date" value={envio.prazo} onChange={(e) => setEnvio({ ...envio, prazo: e.target.value })} /></label>
         <label className="f wide">Recado (opcional)<input value={envio.recado} placeholder="Ex.: conferir o valor da causa e os contratos" onChange={(e) => setEnvio({ ...envio, recado: e.target.value })} /></label>
         <div className="wide muted" style={{ fontSize: 12.5 }}>Cria a tarefa da inicial e envia para correção com a inicial em Word e a pasta (.zip) anexadas, mais a lista do que está e do que falta na documentação. {casoId && !numero ? "O atendimento passa para “Revisão da inicial”." : ""}</div>

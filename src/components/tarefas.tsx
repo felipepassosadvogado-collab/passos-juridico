@@ -156,7 +156,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
 export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "devolver"; onFim: () => void }) {
   const { eu, equipe, aviso } = useDados();
   const acoes = useAcoesTarefa();
-  const ops = equipe.filter((p) => p.ativo && p.id !== eu.id);
+  const ops = equipe.filter((p) => p.ativo && (p.id !== eu.id || eu.papel === "titular"));
   const padrao = t.criado_por && t.criado_por !== eu.id ? t.criado_por : t.revisor && t.revisor !== eu.id ? t.revisor : ops[0]?.id || "";
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [rev, setRev] = useState(padrao); const [ocupado, setOcupado] = useState(false);
   const ir = async () => {
@@ -179,7 +179,7 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
         <span key={i} className="anexo"><span className="ext">{(f.name.split(".").pop() || "").toUpperCase()}</span><span className="an">{f.name}</span><span className="muted">{tamanhoBR(f.size)}</span>
           <button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
       <label className="f wide">{modo === "enviar" ? "Recado para quem vai corrigir" : "O que precisa ser ajustado"}<textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></label>
-      {modo === "enviar" && <label className="f">Enviar para<select value={rev} onChange={(e) => setRev(e.target.value)}>{ops.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>}
+      {modo === "enviar" && <label className="f">Enviar para<select value={rev} onChange={(e) => setRev(e.target.value)}>{ops.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === eu.id ? " (você)" : ""}</option>)}</select></label>}
       <div className="tools"><button className="btn primary" disabled={ocupado} onClick={ir}>{ocupado ? "Enviando…" : modo === "enviar" ? "Enviar para correção" : "Devolver com ajustes"}</button></div>
     </div>
   );

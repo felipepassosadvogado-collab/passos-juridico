@@ -92,7 +92,17 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 {t.protocolo_numero && <span>nº <strong className="mono">{t.protocolo_numero}</strong> <button className="icb-q mini" title="Copiar o nº do protocolo" onClick={async () => { try { await navigator.clipboard.writeText(t.protocolo_numero!); aviso("Nº do protocolo copiado."); } catch { aviso(t.protocolo_numero!); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button></span>}
                 {t.protocolo_obs && <span className="muted" style={{ flexBasis: "100%" }}>“{t.protocolo_obs}”</span>}</dd></>}
             </dl>
-            {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span> {t.nota_correcao}</div>}
+            {souRev && <div className="tj-corr">
+              <div className="tj-corr-h"><strong>Você está corrigindo esta peça</strong><span className="muted s">enviada por {nome(t.responsavel)}{t.enviado_em ? " em " + dataHoraBR(t.enviado_em) : ""}</span></div>
+              <ol className="tj-passos">
+                <li>Abra os anexos, na linha “Anexos” acima: clique para ver ao lado; o Word você baixa e corrige.</li>
+                <li>Confira a documentação{t.nota_correcao && /[✓✗]/.test(t.nota_correcao) ? " pela lista do recado" : ""}{(cli || caso) ? <> ou abra a <button className="reflink" onClick={() => j.abrirInicial({ clienteId: cli?.id || null, banco: p?.banco || caso?.banco || "", numero: t.processo_numero, casoId: t.caso_id })}>pasta para protocolo</button></> : null}.</li>
+                <li><b>Aprovar</b> libera o protocolo para {nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
+              </ol>
+              <div className="tools"><button className="btn primary" onClick={() => acoes.aprovar(t)}>✓ Aprovar</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
+            </div>}
+            {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span>
+              <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
             {!souResp && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</div>}
             {form === "enviar" && <FormRevisao t={t} modo="enviar" onFim={() => setForm("")} />}
             {form === "devolver" && <FormRevisao t={t} modo="devolver" onFim={() => setForm("")} />}

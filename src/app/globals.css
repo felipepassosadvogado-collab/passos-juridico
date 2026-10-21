@@ -626,3 +626,7 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .visor-corpo .empty{background:var(--surface);height:100%}
 @media (max-width:640px){.visor{left:8px!important;right:8px;width:auto!important;top:auto!important;bottom:8px;height:60vh!important;resize:none}}
 @media (min-width:1000px){body.com-visor .modal-bg{place-items:center end;padding-right:24px}}
+.tj-corr{border:1px solid var(--accent);background:var(--accent-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.tj-corr-h{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.tj-passos{margin:0;padding-left:20px;font-size:13.5px;display:flex;flex-direction:column;gap:4px}
+.tj-nota .ok-l{color:var(--ok)}.tj-nota .falta-l{color:var(--late);font-weight:600}
