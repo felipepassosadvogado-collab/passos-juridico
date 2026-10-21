@@ -7,7 +7,10 @@ import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR, nomeBonito } from "@/lib/formato";
 import type { Documento } from "@/lib/tipos";
-import { baixar, tamanhoBR } from "./ui";
+import { SelResp, baixar, tamanhoBR } from "./ui";
+import { useAcoesTarefa } from "./tarefas";
+import { proximoDiaUtil, hojeBR, paraData, isoData } from "@/lib/prazos";
+const amanha = () => isoData(proximoDiaUtil(paraData(hojeBR())));
 import { useVisor } from "./visor";
 
 export const ITENS_KIT: { n: string; nome: string; tipos: string[]; dica: string }[] = [
@@ -32,8 +35,10 @@ export async function guardarNaFicha(sb: any, clienteId: string, tipo: string, n
   return (data as Documento) || null;
 }
 
-export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { clienteId: string; nomeCliente: string; banco: string; atualizar: number }) {
-  const { sb, aviso } = useDados(); const visor = useVisor();
+export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar, numero, casoId }: { clienteId: string; nomeCliente: string; banco: string; atualizar: number; numero?: string | null; casoId?: string | null }) {
+  const { sb, aviso, eu, equipe, casos, aplicar, registrar } = useDados(); const visor = useVisor(); const acoes = useAcoesTarefa();
+  const titular = equipe.find((p) => p.papel === "titular" && p.ativo && p.id !== eu.id);
+  const [envio, setEnvio] = useState<{ revisor: string; prazo: string; recado: string } | null>(null);
   const [docs, setDocs] = useState<Documento[]>([]); const [fora, setFora] = useState<Set<string>>(new Set()); const [ocupado, setOcupado] = useState(""); const alvo = useRef<{ tipo: string } | null>(null); const inp = useRef<HTMLInputElement>(null);
   const carregar = () => sb.from("documentos").select("*").eq("cliente_id", clienteId).order("em", { ascending: false }).then(({ data }: { data: unknown }) => setDocs((data as Documento[]) || []));
   useEffect(() => { carregar(); }, [clienteId, atualizar]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -49,9 +54,8 @@ export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { c
     try { for (const f of files) if (!(await guardarNaFicha(sb, clienteId, t, f.name, f))) aviso("Não consegui guardar " + f.name + "."); await carregar(); aviso("Guardado na ficha do cliente."); }
     finally { setOcupado(""); }
   };
-  const baixarZip = async () => {
-    setOcupado("Montando a pasta…");
-    try {
+  /** monta o .zip na ordem do escritório; devolve o arquivo e o que ficou faltando */
+  const montar = async (): Promise<{ blob: Blob; nome: string; faltam: string[] }> => {
       const zip = new JSZip(); const faltam: string[] = [];
       for (const i of ITENS_KIT) {
         const l = doItem(i).filter((d) => !fora.has(d.id)); if (!l.length) { faltam.push(i.n + " " + i.nome); continue; }
@@ -75,9 +79,32 @@ export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { c
         } else arqs.forEach((a, k) => zip.file(base + (arqs.length > 1 ? ` (${k + 1})` : "") + "." + (a.d.nome.split(".").pop() || "bin").toLowerCase(), a.buf));
       }
       const blob = await zip.generateAsync({ type: "blob" });
-      baixar(`Protocolo - ${semAc(nomeBonito(nomeCliente))}${banco ? " x " + semAc(banco) : ""}.zip`, blob);
-      aviso(faltam.length ? "Pasta baixada. Ficou faltando: " + faltam.join(", ") + "." : "Pasta para protocolo baixada.");
-    } catch (e) { aviso((e as Error).message || "Não consegui montar a pasta."); }
+      return { blob, nome: `Protocolo - ${semAc(nomeBonito(nomeCliente))}${banco ? " x " + semAc(banco) : ""}.zip`, faltam };
+  };
+  const baixarZip = async () => {
+    setOcupado("Montando a pasta…");
+    try { const z = await montar(); baixar(z.nome, z.blob); aviso(z.faltam.length ? "Pasta baixada. Ficou faltando: " + z.faltam.join(", ") + "." : "Pasta para protocolo baixada."); }
+    catch (e) { aviso((e as Error).message || "Não consegui montar a pasta."); }
+    finally { setOcupado(""); }
+  };
+  /** cria a tarefa da inicial e já envia para correção, com a pasta (.zip) e a inicial em Word anexadas */
+  const enviarCorrecao = async () => {
+    if (!envio) return; if (!envio.revisor) { aviso("Escolha quem vai corrigir."); return; } if (!numero && !casoId) { aviso("Cadastre antes o atendimento ou o processo deste cliente."); return; }
+    setOcupado("Montando a pasta…");
+    try {
+      const z = await montar();
+      const ini = docs.find((d) => d.tipo === "inicial"); const arquivos: File[] = [new File([z.blob], z.nome, { type: "application/zip" })];
+      if (ini) { const { data } = await sb.storage.from("documentos").download(ini.caminho); if (data) arquivos.unshift(new File([data], ini.nome, { type: ini.mime || data.type })); }
+      setOcupado("Enviando para correção…");
+      const conf = ITENS_KIT.map((i) => (z.faltam.some((x) => x.startsWith(i.n)) ? "✗ " : "✓ ") + i.n + " " + i.nome).join("\n");
+      const { data: t, error } = await sb.from("tarefas").insert({ processo_numero: numero || null, caso_id: numero ? null : casoId, tipo: "Elaboração de inicial", descricao: "Petição inicial: corrigir a peça e conferir a documentação do protocolo", vencimento: envio.prazo || null, responsavel: eu.id }).select().single();
+      if (error || !t) { aviso(msgErro(error)); return; }
+      aplicar("tarefas", t);
+      const nota = [envio.recado.trim(), "Conferir a documentação:\n" + conf].filter(Boolean).join("\n\n");
+      const ok = await acoes.enviar(t, arquivos, nota, envio.revisor);
+      if (ok && casoId && !numero) { const c = casos.get(casoId); if (c && c.etapa !== "Revisão da inicial") { const r = await sb.from("casos").update({ etapa: "Revisão da inicial" }).eq("id", casoId).select().single(); if (r.data) { aplicar("casos", r.data); registrar({ caso_id: casoId, tipo: "fase", dados: { fase: "Revisão da inicial" } }); } } }
+      if (ok) setEnvio(null);
+    } catch (e) { aviso((e as Error).message || "Não consegui enviar."); }
     finally { setOcupado(""); }
   };
   const apagar = async (d: Documento) => {
@@ -86,14 +113,23 @@ export function PastaProtocolo({ clienteId, nomeCliente, banco, atualizar }: { c
   };
   return (
     <section className="panel kit">
-      <div className="ph"><h3>Pasta para protocolo</h3><button className="btn primary" disabled={!!ocupado} onClick={baixarZip}>{ocupado || "Baixar pasta (.zip)"}</button></div>
+      <div className="ph"><h3>Pasta para protocolo</h3><span className="tools">
+        <button className="btn" disabled={!!ocupado} onClick={() => setEnvio(envio ? null : { revisor: titular?.id || "", prazo: amanha(), recado: "" })}>{envio ? "Cancelar envio" : "Enviar para correção"}</button>
+        <button className="btn primary" disabled={!!ocupado} onClick={baixarZip}>{ocupado || "Baixar pasta (.zip)"}</button></span></div>
+      {envio && <div className="triage" style={{ margin: "0 16px 12px" }}>
+        <label className="f">Quem corrige<SelResp valor={envio.revisor} vazio="— escolher —" excluir={[eu.id]} onChange={(v) => setEnvio({ ...envio, revisor: v || "" })} /></label>
+        <label className="f">Prazo da correção<input type="date" value={envio.prazo} onChange={(e) => setEnvio({ ...envio, prazo: e.target.value })} /></label>
+        <label className="f wide">Recado (opcional)<input value={envio.recado} placeholder="Ex.: conferir o valor da causa e os contratos" onChange={(e) => setEnvio({ ...envio, recado: e.target.value })} /></label>
+        <div className="wide muted" style={{ fontSize: 12.5 }}>Cria a tarefa da inicial e envia para correção com a inicial em Word e a pasta (.zip) anexadas, mais a lista do que está e do que falta na documentação. {casoId && !numero ? "O atendimento passa para “Revisão da inicial”." : ""}</div>
+        <div className="wide tools"><button className="btn primary" disabled={!!ocupado} onClick={enviarCorrecao}>{ocupado || "Enviar para correção"}</button></div>
+      </div>}
       <div className="kit-lista">{ITENS_KIT.map((i) => { const l = doItem(i); return (
         <div key={i.n} className={"kit-item" + (l.filter((d) => !fora.has(d.id)).length ? " ok" : "")}>
           <span className="kit-n">{i.n}</span>
           <div className="kit-main"><div className="kit-t">{i.nome} <span className="muted s">· {i.dica}</span></div>
             {l.length ? l.map((d) => <label key={d.id} className="kit-doc"><input type="checkbox" checked={!fora.has(d.id)} onChange={() => { const n = new Set(fora); if (n.has(d.id)) n.delete(d.id); else n.add(d.id); setFora(n); }} />
               <button type="button" className="reflink an" title="Ver" onClick={(e) => { e.preventDefault(); visor.verGuardado(d.caminho, d.nome, d.mime); }}>{d.nome}</button><span className="muted s">{dataHoraBR(d.em).slice(0, 10)}{d.tamanho ? " · " + tamanhoBR(d.tamanho) : ""}</span>
-              {(i.n === "01" || i.n === "07") && <button className="reflink" style={{ fontSize: 12 }} onClick={(e) => { e.preventDefault(); apagar(d); }}>tirar</button>}</label>)
+              {(i.n === "01" || i.n === "07") && <button className="reflink" style={{ fontSize: 12 }} onClick={(e) => { e.preventDefault(); apagar(d); }}>excluir</button>}</label>)
               : <div className="muted s">{i.n === "01" ? "Gere a inicial acima (o Word fica guardado aqui)." : i.n === "07" ? "Gere o cálculo acima (o PDF fica guardado aqui)." : "Nada na ficha do cliente."}</div>}
           </div>
           <button className="btn ghost" disabled={!!ocupado} onClick={() => { alvo.current = { tipo: i.n === "03" ? "proc_hipo_contrato" : i.tipos[0] }; inp.current?.click(); }}>Anexar</button>

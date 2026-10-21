@@ -166,7 +166,7 @@ export function JanelaInicial({ ctx, onFechar }: { ctx: CtxInicial; onFechar: ()
           </div>}
         </div></section>
       <div className="valores"><span>Restituição em dobro: <strong>R$ {moeda(dobro)}</strong></span>{atualizado ? <span>Indébito atualizado: <strong>R$ {moeda(atualizado)}</strong></span> : null}<span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
-      <PastaProtocolo clienteId={cli.id} nomeCliente={cli.nome} banco={pi.banco} atualizar={kitV} />
+      <PastaProtocolo clienteId={cli.id} nomeCliente={cli.nome} banco={pi.banco} atualizar={kitV} numero={ctx.numero} casoId={ctx.casoId} />
     </Janela>
   );
 }
