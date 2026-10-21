@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
-import { calcularVencimento, dataValida, hojeBR, situacaoPrazo } from "@/lib/prazos";
+import { calcularVencimento, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { TAREFAS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
@@ -34,7 +34,34 @@ export function CirculoStatus({ t }: { t: Tarefa }) {
 
 /** ações das tarefas, todas gravando no banco e atualizando a tela na hora */
 export function useAcoesTarefa() {
-  const { sb, eu, aplicar, remover, aviso, nome } = useDados();
+  const { sb, eu, aplicar, remover, aviso, nome, tarefas, anexos } = useDados();
+  /** inicial aprovada: cria a tarefa de protocolo para quem fez a inicial, com a peça e a pasta anexadas */
+  const criarProtocolo = async (t: Tarefa) => {
+    if (t.tipo !== "Elaboração de inicial" || t.processo_numero || !t.responsavel) return "";
+    if ([...tarefas.values()].some((x) => x.caso_id === t.caso_id && x.tipo === "Protocolo da inicial" && x.status !== "feito")) return "";
+    const hoje = paraData(hojeBR()); const venc = isoData(proximoDiaUtil(hoje));
+    const { data: n, error } = await sb.from("tarefas").insert({ caso_id: t.caso_id, processo_numero: null, tipo: "Protocolo da inicial",
+      descricao: "Protocolo da inicial: protocolar no eproc e cadastrar o nº do processo", vencimento: venc, responsavel: t.responsavel, importante: true }).select().single();
+    if (error || !n) return " Não consegui criar a tarefa de protocolo: " + msgErro(error);
+    aplicar("tarefas", n);
+    // a versão corrigida (se houver) vem antes; senão, o que foi enviado para correção
+    let copiados = 0; const docs = [...anexos.values()].filter((a) => a.tarefa_id === t.id); const dev = docs.filter((a) => a.etapa === "devolucao");
+    for (const a of (dev.length ? [...dev, ...docs.filter((x) => x.etapa !== "devolucao" && /\.zip$/i.test(x.nome))] : docs)) {
+      const caminho = `tarefas/${n.id}/${Date.now().toString(36)}-${a.caminho.split("/").pop()}`;
+      const cp = await sb.storage.from("documentos").copy(a.caminho, caminho); if (cp.error) continue;
+      const r = await sb.from("documentos").insert({ tarefa_id: n.id, etapa: "envio", nome: a.nome, caminho, tamanho: a.tamanho, mime: a.mime }).select().single();
+      if (r.data) { aplicar("anexos", r.data); copiados++; }
+    }
+    if (eu.id === t.responsavel) { const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", t.id).select().single(); if (r.data) aplicar("tarefas", r.data); }
+    return ` Criei a tarefa “Protocolo da inicial” para ${nome(t.responsavel).split(" ")[0]}${copiados ? ", com a peça e a pasta anexadas" : " (os arquivos continuam nesta tarefa)"}.`;
+  };
+  /** protocolo da inicial concluído: a tarefa da inicial (aprovada) também é concluída */
+  const fecharInicial = async (t: Tarefa) => {
+    if (t.tipo !== "Protocolo da inicial" || !t.caso_id) return;
+    for (const x of [...tarefas.values()]) if (x.caso_id === t.caso_id && x.tipo === "Elaboração de inicial" && x.status === "aprovada" && x.responsavel === eu.id) {
+      const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", x.id).select().single(); if (r.data) aplicar("tarefas", r.data);
+    }
+  };
   const gravar = async (t: Tarefa, campos: Partial<Tarefa>, ok?: string) => {
     let r: { data: unknown; error: unknown };
     try {
@@ -43,7 +70,10 @@ export function useAcoesTarefa() {
     } catch { aviso("O servidor não respondeu. Recarregue a página (Cmd+R) e tente de novo."); return false; }
     const { data, error } = r;
     if (error) { aviso(msgErro(error)); return false; }
-    aplicar("tarefas", data as Tarefa); if (ok) aviso(ok); return true;
+    aplicar("tarefas", data as Tarefa);
+    if (campos.status === "feito") fecharInicial(t);
+    if (campos.status === "aprovada") { const extra = await criarProtocolo(t); if (ok) aviso(ok + extra); return true; }
+    if (ok) aviso(ok); return true;
   };
   const subir = async (t: Tarefa, files: File[], etapa: "envio" | "devolucao") => {
     const out: Documento[] = [];

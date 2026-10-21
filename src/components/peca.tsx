@@ -25,7 +25,7 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
   const [outro, setOutro] = useState(""); const [orient, setOrient] = useState(sugestao);
   const [files, setFiles] = useState<File[]>([]); const [gerando, setGerando] = useState(false); const [etapa, setEtapa] = useState("");
   const [res, setRes] = useState<{ nome: string; pendencias: string[]; titulo: string; aviso?: string } | null>(null); const [erroMsg, setErroMsg] = useState("");
-  const pecas = TAREFAS.filter((t) => !["Contato com o cliente", "Audiência", "Outra"].includes(t));
+  const pecas = TAREFAS.filter((t) => !["Contato com o cliente", "Audiência", "Outra", "Protocolo da inicial"].includes(t));
   const gerar = async () => {
     const t = tipo === "outra" ? outro.trim() : tipo;
     if (!t) { aviso("Escolha a peça que o Claude vai redigir."); return; }

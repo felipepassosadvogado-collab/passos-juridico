@@ -3,7 +3,7 @@ import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Pro
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
 import { paraData } from "./prazos";
 
-export const TAREFAS = ["Elaboração de inicial", "Petição simples", "Petição de juntada", "Alegações finais", "Réplica com pedido de perícia",
+export const TAREFAS = ["Elaboração de inicial", "Protocolo da inicial", "Petição simples", "Petição de juntada", "Alegações finais", "Réplica com pedido de perícia",
   "Manifestação ao laudo pericial", "Recurso inominado", "Contrarrazões ao recurso inominado", "Embargos de declaração",
   "Cumprimento de sentença / cálculos", "Contato com o cliente", "Audiência", "Outra"];
 

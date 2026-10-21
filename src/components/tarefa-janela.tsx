@@ -11,6 +11,7 @@ import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
+import { ProtocolarCaso } from "./FichaCliente";
 import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
 
 const diaSemana = (iso?: string | null) => (iso ? paraData(iso).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long" }).split("-")[0] + ", " + dataBR(iso) : "—");
@@ -93,12 +94,17 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 {t.protocolo_numero && <span>nº <strong className="mono">{t.protocolo_numero}</strong> <button className="icb-q mini" title="Copiar o nº do protocolo" onClick={async () => { try { await navigator.clipboard.writeText(t.protocolo_numero!); aviso("Nº do protocolo copiado."); } catch { aviso(t.protocolo_numero!); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button></span>}
                 {t.protocolo_obs && <span className="muted" style={{ flexBasis: "100%" }}>“{t.protocolo_obs}”</span>}</dd></>}
             </dl>
+            {t.tipo === "Protocolo da inicial" && caso && !caso.processo_numero && !done && <div className="tj-corr">
+              <div className="tj-corr-h"><strong>Protocolo da inicial</strong><span className="muted s">a peça e a pasta estão nos anexos acima</span></div>
+              <ol className="tj-passos"><li>Protocole no eproc com os arquivos da pasta.</li><li>Cole abaixo o nº do processo: o atendimento vira processo judicial e as publicações passam a ser acompanhadas.</li><li>Depois, “Protocolado” registra o protocolo e conclui esta tarefa.</li></ol>
+              <ProtocolarCaso casoId={caso.id} />
+            </div>}
             {souRev && <div className="tj-corr">
               <div className="tj-corr-h"><strong>Você está corrigindo esta peça</strong><span className="muted s">enviada por {nome(t.responsavel)}{t.enviado_em ? " em " + dataHoraBR(t.enviado_em) : ""}</span></div>
               <ol className="tj-passos">
                 <li>Abra os anexos, na linha “Anexos” acima: clique para ver ao lado; o Word você baixa e corrige.</li>
                 <li>Confira a documentação{t.nota_correcao && /[✓✗]/.test(t.nota_correcao) ? " pela lista do recado" : ""}{(cli || caso) ? <> ou abra a <button className="reflink" onClick={() => j.abrirInicial({ clienteId: cli?.id || null, banco: p?.banco || caso?.banco || "", numero: t.processo_numero, casoId: t.caso_id })}>pasta para protocolo</button></> : null}.</li>
-                <li><b>Aprovar</b> libera o protocolo para {nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
+                <li><b>Aprovar</b> {t.tipo === "Elaboração de inicial" && !t.processo_numero ? "cria a tarefa “Protocolo da inicial” para " : "libera o protocolo para "}{nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
               </ol>
               <div className="tools"><button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
