@@ -10,8 +10,20 @@ type Bloco = { type: "text"; text: string } | { type: "image"; source: { type: "
 
 export class ErroClaude extends Error { constructor(msg: string, public status = 502) { super(msg); } }
 
+/** manda o pedido e devolve o texto puro da resposta */
+export async function pedirTexto(conteudo: Bloco[], maxTokens = 2000, modelo = MODELO): Promise<string> {
+  return (await chamar(conteudo, maxTokens, modelo)).trim();
+}
+
 /** manda o pedido e devolve o JSON da resposta */
 export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000, modelo = MODELO): Promise<T> {
+  const texto = await chamar(conteudo, maxTokens, modelo);
+  const a = texto.search(/[[{]/); const b = Math.max(texto.lastIndexOf("]"), texto.lastIndexOf("}"));
+  if (a < 0 || b < a) throw new ErroClaude("A resposta veio fora do formato. Tente de novo.");
+  try { return JSON.parse(texto.slice(a, b + 1)) as T; } catch { throw new ErroClaude("A resposta veio fora do formato. Tente de novo."); }
+}
+
+async function chamar(conteudo: Bloco[], maxTokens: number, modelo: string): Promise<string> {
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) throw new ErroClaude("Falta cadastrar a chave ANTHROPIC_API_KEY na Vercel para usar o Claude.", 503);
   let r: Response | null = null;
@@ -34,10 +46,7 @@ export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000
     throw new ErroClaude("O Claude não respondeu agora. Tente de novo em instantes.");
   }
   const j = await r.json();
-  const texto: string = (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
-  const a = texto.search(/[[{]/); const b = Math.max(texto.lastIndexOf("]"), texto.lastIndexOf("}"));
-  if (a < 0 || b < a) throw new ErroClaude("A resposta veio fora do formato. Tente de novo.");
-  try { return JSON.parse(texto.slice(a, b + 1)) as T; } catch { throw new ErroClaude("A resposta veio fora do formato. Tente de novo."); }
+  return (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
 }
 
 // ───────────── análise das publicações (mesmas instruções do painel antigo) ─────────────

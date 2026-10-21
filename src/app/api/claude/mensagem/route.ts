@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
-import { pedirJson, ErroClaude } from "@/lib/claude";
+import { pedirTexto, ErroClaude } from "@/lib/claude";
 import { MODALIDADES } from "@/lib/regras";
 import { bancoCurto, dataBR, nomeBonito } from "@/lib/formato";
 import type { Modalidade } from "@/lib/tipos";
@@ -43,14 +43,17 @@ Regras:
 - Não invente datas, horários, endereços nem telefones que não estejam no contexto. Se faltar algo essencial, escreva a mensagem sem isso e aponte em "alertas".
 - No máximo uns 900 caracteres, em 3 a 5 parágrafos curtos, sem emojis em excesso (no máximo 1), sem markdown.
 - Termine pedindo que o cliente responda confirmando que recebeu.
-Responda só com JSON: {"mensagem": string, "alertas": [strings curtas para a equipe, ou vazio]}
+Formato da resposta (texto puro, sem JSON e sem comentários antes): primeiro a mensagem pronta para enviar; depois, se houver algo para a equipe conferir, uma linha só com ===CONFERIR=== e, abaixo, um item por linha começando com "- ".
 
 Contexto:
 ${ctx}`;
   try {
-    const r = await pedirJson<{ mensagem?: string; alertas?: string[] }>([{ type: "text", text: prompt }], 1500);
-    if (!r?.mensagem) return erro("O Claude não devolveu a mensagem. Tente de novo.", 502);
-    return NextResponse.json({ mensagem: r.mensagem.trim(), alertas: Array.isArray(r.alertas) ? r.alertas.slice(0, 5) : [] });
+    const t = await pedirTexto([{ type: "text", text: prompt }], 2000);
+    const [msg, conf = ""] = t.split(/^\s*={2,}\s*CONFERIR\s*={2,}\s*$/m);
+    const mensagem = (msg || "").replace(/^```\w*\s*|```\s*$/g, "").trim();
+    if (!mensagem) return erro("O Claude não devolveu a mensagem. Tente de novo.", 502);
+    const alertas = conf.split("\n").map((l) => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean).slice(0, 5);
+    return NextResponse.json({ mensagem, alertas });
   } catch (e) {
     if (e instanceof ErroClaude) return erro(e.message, e.status);
     return erro("Não consegui escrever a mensagem agora. Tente de novo.", 500);
