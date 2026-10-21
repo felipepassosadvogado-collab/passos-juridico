@@ -3,9 +3,20 @@ import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Pro
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
 import { calcularVencimento, paraData } from "./prazos";
 
-export const TAREFAS = ["Elaboração de inicial", "Protocolo da inicial", "Protocolo da peça", "Petição simples", "Petição de juntada", "Alegações finais", "Réplica com pedido de perícia",
-  "Manifestação ao laudo pericial", "Recurso inominado", "Contrarrazões ao recurso inominado", "Embargos de declaração",
-  "Cumprimento de sentença / cálculos", "Contato com o cliente", "Audiência", "Outra"];
+/** tipos de tarefa, agrupados como aparecem na escolha (inclui os que vieram do ADVBOX) */
+export const TAREFAS_GRUPOS: [string, string[]][] = [
+  ["Peças", ["Elaboração de inicial", "Petição simples", "Petição de juntada", "Petição de quesitos", "Réplica com pedido de perícia",
+    "Manifestação ao laudo pericial", "Alegações finais", "Recurso inominado", "Contrarrazões ao recurso inominado", "Embargos de declaração"]],
+  ["Protocolo", ["Protocolo da inicial", "Protocolo da peça", "Conferir protocolo realizado"]],
+  ["Cumprimento de sentença", ["Cumprimento de sentença / cálculos", "Alterar valor da causa e honorários", "Elaborar cálculo de cumprimento (Claude)",
+    "Elaborar petição de cumprimento (Claude)", "Verificar trânsito em julgado", "Efetuar pagamento ao cliente", "Transferir pagamento de acordo ao cliente"]],
+  ["Cliente e agenda", ["Contato com o cliente", "Enviar mensagem ao cliente (Atende Direito)", "Verificar retorno do cliente", "Confirmar comparecimento à audiência",
+    "Agendar coleta de padrão grafotécnico", "Audiência"]],
+  ["Rotina", ["Recado da equipe", "Verificar documentação", "Estudo de caso", "Outra"]],
+];
+export const TAREFAS = TAREFAS_GRUPOS.flatMap(([, l]) => l);
+/** os tipos que são peças (para "Gerar petição") */
+export const PECAS = [...TAREFAS_GRUPOS[0][1], "Cumprimento de sentença / cálculos", "Elaborar petição de cumprimento (Claude)"];
 
 export const ETAPAS = ["Primeiro atendimento", "Documentos pendentes", "Elaboração da inicial", "Revisão da inicial", "Pronto para protocolar", "Protocolado"];
 export const DICAS_ETAPA: Record<string, string> = {

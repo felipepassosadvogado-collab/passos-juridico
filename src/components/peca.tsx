@@ -6,7 +6,7 @@ import { useDados } from "@/lib/dados";
 import { nomeBonito } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { LIMITE_VISUAL, contarPaginas, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
-import { TAREFAS, rotuloPub } from "@/lib/regras";
+import { PECAS, rotuloPub } from "@/lib/regras";
 import { Janela, SelResp, baixar } from "./ui";
 import { useAcoesTarefa } from "./tarefas";
 import { useVisor } from "./visor";
@@ -38,7 +38,7 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
     if (!tarefa || !env.revisor) { aviso("Escolha quem vai corrigir."); return; }
     setEnviando(true); const ok = await acoes.enviar(tarefa, [], env.recado.trim(), env.revisor, env.ate); setEnviando(false); if (ok) setEnviada(true);
   }; const [erroMsg, setErroMsg] = useState("");
-  const pecas = TAREFAS.filter((t) => !["Contato com o cliente", "Audiência", "Outra", "Protocolo da inicial", "Protocolo da peça"].includes(t));
+  const pecas = PECAS;
   const gerar = async () => {
     const t = tipo === "outra" ? outro.trim() : tipo;
     if (!t) { aviso("Escolha a peça que o Claude vai redigir."); return; }

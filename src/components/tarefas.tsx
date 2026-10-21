@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { calcularVencimento, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
-import { TAREFAS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
+import { TAREFAS, TAREFAS_GRUPOS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
 import { ChipResp, Avatar, Ic, SelResp, useConfirmar, tamanhoBR } from "./ui";
 import { useJanelas } from "./janelas";
@@ -199,7 +199,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
   return (
     <div className="tarefa">
       <div className="triage">
-        <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— escolher —</option>{TAREFAS.map((t) => <option key={t}>{t}</option>)}</select></label>
+        <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— escolher —</option>{TAREFAS_GRUPOS.map(([g, l]) => <optgroup key={g} label={g}>{l.map((t) => <option key={t}>{t}</option>)}</optgroup>)}</select></label>
         <label className="f wide2">Detalhe<input value={f.desc} placeholder="Ex.: juntar comprovante de residência" onChange={(e) => setF({ ...f, desc: e.target.value })} /></label>
         {pub && <label className="f">Dias úteis<input type="number" min={1} value={f.dias} onChange={(e) => setF({ ...f, dias: e.target.value, vencMan: false })} /></label>}
         <label className="f">Prazo fatal<input type="date" value={venc} onChange={(e) => setF({ ...f, venc: e.target.value, vencMan: true })} /></label>
@@ -265,7 +265,7 @@ export function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
   };
   return (
     <div className="triage edit-t" onClick={(e) => e.stopPropagation()}>
-      <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— sem tipo —</option>{TAREFAS.map((x) => <option key={x}>{x}</option>)}</select></label>
+      <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— sem tipo —</option>{TAREFAS_GRUPOS.map(([g, l]) => <optgroup key={g} label={g}>{l.map((x) => <option key={x}>{x}</option>)}</optgroup>)}</select></label>
       <label className="f wide2">Detalhe<input value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} /></label>
       <label className="f">Prazo fatal<input type="date" value={f.venc} onChange={(e) => setF({ ...f, venc: e.target.value })} /></label>
       <label className="f">Responsável<div style={{ padding: "7px 0" }}><ChipResp id={t.responsavel} /></div></label>
