@@ -7,12 +7,13 @@ import { nomeBonito } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { LIMITE_VISUAL, contarPaginas, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
 import { TAREFAS, rotuloPub } from "@/lib/regras";
-import { Janela, baixar } from "./ui";
+import { Janela, SelResp, baixar } from "./ui";
+import { useAcoesTarefa } from "./tarefas";
 
 export type CtxPeca = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo?: string | null; orientacoes?: string };
 
 export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => void }) {
-  const { processos, caixa, tarefas, sb, eu, aviso } = useDados();
+  const { processos, caixa, tarefas, sb, eu, aviso, equipe, nome } = useDados(); const acoes = useAcoesTarefa();
   const p = processos.get(ctx.numero); const pub = ctx.publicacaoId ? caixa.get(ctx.publicacaoId) : undefined;
   const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
   /** orientações já preenchidas com o que a tarefa diz (descrição, recado da correção e providência da análise) */
@@ -24,7 +25,15 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
   const [tipo, setTipo] = useState(ctx.tipo && ctx.tipo !== "Outra" && ctx.tipo !== "Contato com o cliente" ? ctx.tipo : "");
   const [outro, setOutro] = useState(""); const [orient, setOrient] = useState(sugestao);
   const [files, setFiles] = useState<File[]>([]); const [gerando, setGerando] = useState(false); const [etapa, setEtapa] = useState("");
-  const [res, setRes] = useState<{ nome: string; pendencias: string[]; titulo: string; aviso?: string } | null>(null); const [erroMsg, setErroMsg] = useState("");
+  const [res, setRes] = useState<{ nome: string; pendencias: string[]; titulo: string; aviso?: string; anexada?: boolean } | null>(null);
+  // depois de gerar: a minuta já vai anexada na tarefa e dá para mandar para correção daqui mesmo
+  const souTitular = eu.papel === "titular"; const titularId = equipe.find((x) => x.papel === "titular" && x.ativo && x.id !== eu.id)?.id || (souTitular ? eu.id : "");
+  const [env, setEnv] = useState({ revisor: titularId, recado: "" }); const [enviando, setEnviando] = useState(false); const [enviada, setEnviada] = useState(false);
+  const podeEnviar = !!tarefa && tarefa.responsavel === eu.id && !["revisao", "feito"].includes(tarefa.status);
+  const enviarCorrecao = async () => {
+    if (!tarefa || !env.revisor) { aviso("Escolha quem vai corrigir."); return; }
+    setEnviando(true); const ok = await acoes.enviar(tarefa, [], env.recado.trim(), env.revisor); setEnviando(false); if (ok) setEnviada(true);
+  }; const [erroMsg, setErroMsg] = useState("");
   const pecas = TAREFAS.filter((t) => !["Contato com o cliente", "Audiência", "Outra", "Protocolo da inicial"].includes(t));
   const gerar = async () => {
     const t = tipo === "outra" ? outro.trim() : tipo;
@@ -53,8 +62,11 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErroMsg(j.erro || "Não consegui gerar a peça agora."); return; }
       const bin = atob(j.base64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      baixar(j.nome, new Blob([u], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
-      setRes({ nome: j.nome, pendencias: j.pendencias || [], titulo: j.titulo, aviso: textos.filter((x) => x.semTexto.length).map((x) => `Em ${x.nome}, ${x.semTexto.length} de ${x.paginas} páginas eram só imagem e não foram lidas.`).join(" ") || undefined }); aviso("Minuta pronta e baixada. Revise no Word antes de protocolar.");
+      const blob = new Blob([u], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      baixar(j.nome, blob);
+      let anexada = false;
+      if (tarefa) { setEtapa("Anexando a minuta na tarefa…"); anexada = await acoes.anexar(tarefa, [new File([blob], j.nome, { type: blob.type })]); }
+      setRes({ nome: j.nome, pendencias: j.pendencias || [], titulo: j.titulo, aviso: textos.filter((x) => x.semTexto.length).map((x) => `Em ${x.nome}, ${x.semTexto.length} de ${x.paginas} páginas eram só imagem e não foram lidas.`).join(" ") || undefined, anexada }); setEnviada(false); aviso(anexada ? "Minuta baixada e anexada na tarefa." : "Minuta pronta e baixada. Revise no Word antes de protocolar.");
     } catch (e) { setErroMsg((e as Error).message || "Não consegui gerar a peça agora."); }
     finally { setGerando(false); setEtapa(""); }
   };
@@ -77,7 +89,16 @@ export function JanelaPeca({ ctx, onFechar }: { ctx: CtxPeca; onFechar: () => vo
       </section>
       {erroMsg && <div className="banner erro">{erroMsg}</div>}
       {res && <div className="banner ok"><strong>{res.titulo}</strong> — o arquivo {res.nome} foi baixado.{res.aviso ? " " + res.aviso : ""}
+        {res.anexada && " Também ficou anexada na tarefa."}
         {res.pendencias.length > 0 && <><div style={{ marginTop: 6 }}>Confira antes de protocolar:</div><ul style={{ margin: "4px 0 0 18px", padding: 0 }}>{res.pendencias.map((x, i) => <li key={i}>{x}</li>)}</ul></>}</div>}
+      {res?.anexada && tarefa && (enviada || tarefa.status === "revisao" ? <div className="banner ok">Enviada para correção de {nome(tarefa.revisor)}, com a minuta anexada.</div>
+        : podeEnviar ? <section className="triage">
+          <div className="wide" style={{ fontWeight: 600 }}>Enviar para correção</div>
+          <label className="f">Quem corrige<SelResp valor={env.revisor} vazio="— escolher —" excluir={souTitular ? [] : [eu.id]} onChange={(v) => setEnv({ ...env, revisor: v || "" })} /></label>
+          <label className="f wide">Recado (opcional)<input value={env.recado} placeholder="Ex.: conferir o pedido de reinclusão do INSS" onChange={(e) => setEnv({ ...env, recado: e.target.value })} /></label>
+          <div className="wide muted" style={{ fontSize: 12.5 }}>A minuta gerada já está nos anexos da tarefa. Se for revisar no Word antes, envie depois pela própria tarefa, anexando a versão revisada.</div>
+          <div className="wide tools"><button className="btn primary" disabled={enviando || !env.revisor} onClick={enviarCorrecao}>{enviando ? "Enviando…" : "Enviar para correção"}</button></div>
+        </section> : <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(tarefa.responsavel)} (responsável pela tarefa) pode enviar para correção.</div>)}
     </Janela>
   );
 }

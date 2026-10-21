@@ -99,6 +99,8 @@ export function useAcoesTarefa() {
       const campos: Partial<Tarefa> = { protocolo_avisado_em: new Date().toISOString(), protocolo_numero: numero.trim() || null, protocolo_obs: obs.trim() || null };
       return gravar(t, concluir && t.status !== "feito" ? { ...campos, status: "feito" } : campos, dest ? "Protocolo registrado. " + nome(dest) + " foi avisado." : "Protocolo registrado.");
     },
+    /** só anexa arquivos à tarefa (ex.: a minuta gerada pelo Claude), sem mudar a situação */
+    anexar: async (t: Tarefa, files: File[]) => { try { await subir(t, files, "envio"); return true; } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; } },
     enviar: async (t: Tarefa, files: File[], nota: string, revisor: string) => {
       try { await subir(t, files, "envio"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; }
       return gravar(t, { status: "revisao", revisor, nota_correcao: nota || null }, "Enviado para correção de " + nome(revisor) + ".");
