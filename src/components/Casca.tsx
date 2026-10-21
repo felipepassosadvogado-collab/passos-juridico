@@ -147,7 +147,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
         <header className="topbar">
           <button className="icb railtoggle" title="Recolher ou mostrar o menu" onClick={() => { const f = document.documentElement.classList.toggle("rail-fechado"); try { localStorage.setItem("menu", f ? "recolhido" : "aberto"); } catch { /* sem armazenamento */ } }}>
             {I('<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/>')}</button>
-          <Link href="/" className="logo"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">FELIPE PASSOS</span><span className="t2">ADVOGADO</span></span></Link>
+          <Link href="/" className="logo"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS ADVOCACIA</span><span className="t2">ADVOGADO</span></span></Link>
           <Busca />
           <div className="tright">
             <InfoDjen />
