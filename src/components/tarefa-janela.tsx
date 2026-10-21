@@ -45,6 +45,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   const done = t.status === "feito"; const souResp = t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
   const dest = destinoProtocolo(t, eu.id); const podeEditar = titular || t.criado_por === eu.id; const s = situacaoPrazo(t.vencimento);
   const alterna = (x: typeof form) => setForm(form === x ? "" : x);
+  const aprovar = async () => { setSalvando(true); try { await acoes.aprovar(t); } finally { setSalvando(false); } };
   const podeProtocolar = souResp && !t.protocolo_avisado_em && !["revisao", "ajustes"].includes(t.status);
   const registrarProtocolo = async () => {
     if (!prot.numero.trim() && !confirmar("p" + t.id, aviso, "Sem o nº do protocolo? Clique de novo em “Registrar” para salvar assim mesmo.")) return;
@@ -68,7 +69,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
           {souResp && t.status !== "revisao" && <button className={done ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "↺ Reabrir" : "✓ Concluir"}</button>}
           {souResp && t.status === "aberto" && <button className="btn" onClick={() => acoes.status(t, "andamento")}>Iniciar</button>}
           {souResp && !done && t.status !== "revisao" && <button className="btn" onClick={() => alterna("enviar")}>{form === "enviar" ? "Cancelar envio" : "Enviar p/ correção"}</button>}
-          {souRev && <button className="btn primary" onClick={() => acoes.aprovar(t)}>Aprovar</button>}
+          {souRev && <button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "Aprovar"}</button>}
           {souRev && <button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button>}
           {podeProtocolar && <button className={t.status === "aprovada" ? "btn primary" : "btn"} onClick={() => alterna("protocolo")}>{form === "protocolo" ? "Cancelar protocolo" : <>{S('<path d="M4 10.5l4 4 8-9"/>')}Protocolado</>}</button>}
           {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" onClick={() => j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}Gerar petição</button>}
@@ -99,7 +100,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 <li>Confira a documentação{t.nota_correcao && /[✓✗]/.test(t.nota_correcao) ? " pela lista do recado" : ""}{(cli || caso) ? <> ou abra a <button className="reflink" onClick={() => j.abrirInicial({ clienteId: cli?.id || null, banco: p?.banco || caso?.banco || "", numero: t.processo_numero, casoId: t.caso_id })}>pasta para protocolo</button></> : null}.</li>
                 <li><b>Aprovar</b> libera o protocolo para {nome(t.responsavel).split(" ")[0]}; <b>Devolver com ajustes</b> manda de volta com o seu recado e, se quiser, a versão corrigida.</li>
               </ol>
-              <div className="tools"><button className="btn primary" onClick={() => acoes.aprovar(t)}>✓ Aprovar</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
+              <div className="tools"><button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
             {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}

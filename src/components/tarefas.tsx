@@ -36,9 +36,14 @@ export function CirculoStatus({ t }: { t: Tarefa }) {
 export function useAcoesTarefa() {
   const { sb, eu, aplicar, remover, aviso, nome } = useDados();
   const gravar = async (t: Tarefa, campos: Partial<Tarefa>, ok?: string) => {
-    const { data, error } = await sb.from("tarefas").update(campos).eq("id", t.id).select().single();
+    let r: { data: unknown; error: unknown };
+    try {
+      r = await Promise.race([sb.from("tarefas").update(campos).eq("id", t.id).select().single(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("tempo")), 20000))]);
+    } catch { aviso("O servidor não respondeu. Recarregue a página (Cmd+R) e tente de novo."); return false; }
+    const { data, error } = r;
     if (error) { aviso(msgErro(error)); return false; }
-    aplicar("tarefas", data); if (ok) aviso(ok); return true;
+    aplicar("tarefas", data as Tarefa); if (ok) aviso(ok); return true;
   };
   const subir = async (t: Tarefa, files: File[], etapa: "envio" | "devolucao") => {
     const out: Documento[] = [];

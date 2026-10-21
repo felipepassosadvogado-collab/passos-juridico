@@ -40,6 +40,8 @@ function Visor({ docs, ativo, setAtivo, fechar, fecharTodos }: { docs: Doc[]; at
   }); // eslint-disable-line react-hooks/exhaustive-deps
   // com o visualizador aberto, as caixas do sistema vão para a direita, para os dois ficarem lado a lado
   useEffect(() => { document.body.classList.toggle("com-visor", !min); return () => document.body.classList.remove("com-visor"); }, [min]);
+  // as caixas começam depois da borda direita do visualizador, para ele não tampar os botões
+  useEffect(() => { document.body.style.setProperty("--visor-dir", Math.max(24, Math.round(p.x + p.w + 16)) + "px"); return () => { document.body.style.removeProperty("--visor-dir"); }; }, [p.x, p.w]);
   const d = docs.find((x) => x.id === ativo) || docs[docs.length - 1];
   const limita = (x: number, y: number) => ({ x: Math.min(Math.max(x, 8 - p.w + 120), window.innerWidth - 120), y: Math.min(Math.max(y, 8), window.innerHeight - 48) });
   return (
