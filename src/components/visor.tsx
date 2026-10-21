@@ -4,11 +4,34 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useDados } from "@/lib/dados";
 
-type Doc = { id: string; nome: string; url: string; tipo: "pdf" | "img" | "outro"; local?: boolean };
+type Doc = { id: string; nome: string; url: string; tipo: "pdf" | "img" | "docx" | "outro"; local?: boolean };
 type Ctx = { verArquivo: (f: File | Blob, nome?: string) => void; verGuardado: (caminho: string, nome: string, mime?: string | null) => void };
 const C = createContext<Ctx | null>(null);
 export function useVisor() { const c = useContext(C); if (!c) throw new Error("useVisor fora do provedor"); return c; }
-const tipoDe = (nome: string, mime?: string | null): Doc["tipo"] => (mime === "application/pdf" || /\.pdf$/i.test(nome) ? "pdf" : /^image\//.test(mime || "") || /\.(jpe?g|png|webp|gif)$/i.test(nome) ? "img" : "outro");
+const tipoDe = (nome: string, mime?: string | null): Doc["tipo"] => (mime === "application/pdf" || /\.pdf$/i.test(nome) ? "pdf" : /^image\//.test(mime || "") || /\.(jpe?g|png|webp|gif)$/i.test(nome) ? "img"
+  : /\.docx$/i.test(nome) || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "docx" : "outro");
+
+/** Word (.docx) desenhado no navegador, página por página, para conferir sem baixar */
+function VerDocx({ url, nome }: { url: string; nome: string }) {
+  const caixa = useRef<HTMLDivElement>(null); const [erro, setErro] = useState(false);
+  useEffect(() => {
+    let vivo = true; const el = caixa.current; if (!el) return;
+    (async () => {
+      try {
+        const [{ renderAsync }, blob] = await Promise.all([import("docx-preview"), fetch(url).then((r) => r.blob())]);
+        if (!vivo) return; el.innerHTML = "";
+        await renderAsync(blob, el, undefined, { className: "docx", inWrapper: true, ignoreLastRenderedPageBreak: true, breakPages: true });
+        const pg = el.querySelector<HTMLElement>("section.docx"); el.style.setProperty("--z", String(Math.min(1, (el.clientWidth - 24) / (pg?.offsetWidth || 816))));
+      } catch { if (vivo) setErro(true); }
+    })();
+    // a página do Word cabe na largura do visualizador
+    const ro = new ResizeObserver(() => { const pg = el.querySelector<HTMLElement>("section.docx"); const w = pg?.offsetWidth || 816; el.style.setProperty("--z", String(Math.min(1, (el.clientWidth - 24) / w))); });
+    ro.observe(el);
+    return () => { vivo = false; ro.disconnect(); };
+  }, [url]);
+  if (erro) return <div className="empty">Não consegui mostrar este Word aqui. <a className="reflink" href={url} download={nome}>Baixar {nome}</a></div>;
+  return <div className="visor-docx" ref={caixa}><div className="empty">Abrindo o Word…</div></div>;
+}
 
 export function ProvedorVisor({ children }: { children: React.ReactNode }) {
   const { sb, aviso } = useDados();
@@ -62,6 +85,7 @@ function Visor({ docs, ativo, setAtivo, fechar, fecharTodos }: { docs: Doc[]; at
       {!min && d && <div className="visor-corpo">
         {d.tipo === "pdf" ? <iframe key={d.id} src={d.url + (d.local ? "" : "#view=FitH")} title={d.nome} />
           : d.tipo === "img" ? <div className="visor-img"><img src={d.url} alt={d.nome} /></div>
+          : d.tipo === "docx" ? <VerDocx key={d.id + d.url} url={d.url} nome={d.nome} />
             : <div className="empty">Esse tipo de arquivo não tem pré-visualização. <a className="reflink" href={d.url} target="_blank" rel="noopener noreferrer" download={d.nome}>Baixar {d.nome}</a></div>}
       </div>}
     </div>

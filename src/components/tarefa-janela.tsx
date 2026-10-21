@@ -85,7 +85,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             <dl className="tj-kv">
               <dt>Responsável</dt><dd><span className="chip"><Avatar id={t.responsavel} pequeno />{t.responsavel ? nome(t.responsavel) : "Sem responsável"}</span>
                 {!t.responsavel && titular && !done && <SelResp valor={null} vazio="— atribuir a —" onChange={(v) => v && acoes.atribuir(t, v)} />}</dd>
-              {t.revisor && <><dt>Corrige</dt><dd><span className="chip"><Avatar id={t.revisor} pequeno />{nome(t.revisor)}</span></dd></>}
+              {t.revisor && <><dt>Corrige</dt><dd><span className="chip"><Avatar id={t.revisor} pequeno />{nome(t.revisor)}</span>{t.status === "revisao" && t.correcao_ate && <span className={"pill " + situacaoPrazo(t.correcao_ate).cor} style={{ marginLeft: 8 }}>corrigir até {dataBR(t.correcao_ate)}</span>}</dd></>}
               <dt>Situação</dt><dd>{situacao}</dd>
               <dt>Prazo fatal</dt><dd>{S('<rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/>')} {diaSemana(t.vencimento)}{t.dias ? <span className="muted"> · {t.dias} dias úteis</span> : null}</dd>
               <dt>Anexos</dt><dd><ListaAnexos t={t} />{!t.id || <span className="muted s">{""}</span>}</dd>

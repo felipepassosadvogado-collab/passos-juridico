@@ -100,10 +100,26 @@ export function useAcoesTarefa() {
       return gravar(t, concluir && t.status !== "feito" ? { ...campos, status: "feito" } : campos, dest ? "Protocolo registrado. " + nome(dest) + " foi avisado." : "Protocolo registrado.");
     },
     /** só anexa arquivos à tarefa (ex.: a minuta gerada pelo Claude), sem mudar a situação */
-    anexar: async (t: Tarefa, files: File[]) => { try { await subir(t, files, "envio"); return true; } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; } },
-    enviar: async (t: Tarefa, files: File[], nota: string, revisor: string) => {
+    anexar: async (t: Tarefa, files: File[]) => { try { return await subir(t, files, "envio"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return null; } },
+    /** troca o arquivo de um anexo pela versão editada (mesmo lugar no armazenamento) */
+    substituir: async (d: Documento, f: File) => {
+      const up = await sb.storage.from("documentos").upload(d.caminho, f, { upsert: true, contentType: f.type || undefined });
+      if (up.error) { aviso("Não consegui enviar a versão editada: " + up.error.message); return null; }
+      const { data, error } = await sb.from("documentos").update({ nome: f.name, tamanho: f.size, mime: f.type || d.mime }).eq("id", d.id).select().single();
+      if (error) { aviso(msgErro(error)); return null; }
+      aplicar("anexos", data); return data as Documento;
+    },
+    enviar: async (t: Tarefa, files: File[], nota: string, revisor: string, ate?: string) => {
       try { await subir(t, files, "envio"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; }
-      return gravar(t, { status: "revisao", revisor, nota_correcao: nota || null }, "Enviado para correção de " + nome(revisor) + ".");
+      const campos: Partial<Tarefa> = { status: "revisao", revisor, nota_correcao: nota || null };
+      const msg = "Enviado para correção de " + nome(revisor) + (ate ? " até " + dataBR(ate) : "") + ".";
+      if (ate) {
+        const r = await sb.from("tarefas").update({ ...campos, correcao_ate: ate }).eq("id", t.id).select().single();
+        if (!r.error) { aplicar("tarefas", r.data); aviso(msg); return true; }
+        if (!/correcao_ate/.test(r.error.message)) { aviso(msgErro(r.error)); return false; }
+        aviso("Falta instalar a etapa 0013 (0013_prazo_correcao.sql) no Supabase; enviei sem a data da correção.");
+      }
+      return gravar(t, campos, msg);
     },
     devolver: async (t: Tarefa, files: File[], nota: string) => {
       try { await subir(t, files, "devolucao"); } catch (e) { aviso(msgErro(e, (e as Error).message)); return false; }
@@ -196,12 +212,13 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
   const ops = equipe.filter((p) => p.ativo && (p.id !== eu.id || eu.papel === "titular"));
   const padrao = t.criado_por && t.criado_por !== eu.id ? t.criado_por : t.revisor && t.revisor !== eu.id ? t.revisor : ops[0]?.id || "";
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [rev, setRev] = useState(padrao); const [ocupado, setOcupado] = useState(false);
+  const [ate, setAte] = useState(() => isoData(proximoDiaUtil(paraData(hojeBR()))));
   const ir = async () => {
     if (modo === "enviar" && !files.length) { aviso("Anexe a peça que vai para correção."); return; }
     if (modo === "enviar" && !rev) { aviso("Escolha quem vai corrigir. Convide a pessoa em Equipe, se faltar."); return; }
     if (modo === "devolver" && !nota.trim() && !files.length) { aviso("Escreva o que precisa ajustar ou anexe a versão corrigida."); return; }
     setOcupado(true);
-    const ok = modo === "enviar" ? await acoes.enviar(t, files, nota.trim(), rev) : await acoes.devolver(t, files, nota.trim());
+    const ok = modo === "enviar" ? await acoes.enviar(t, files, nota.trim(), rev, ate) : await acoes.devolver(t, files, nota.trim());
     setOcupado(false); if (ok) onFim();
   };
   return (
@@ -217,6 +234,7 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
           <button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
       <label className="f wide">{modo === "enviar" ? "Recado para quem vai corrigir" : "O que precisa ser ajustado"}<textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></label>
       {modo === "enviar" && <label className="f">Enviar para<select value={rev} onChange={(e) => setRev(e.target.value)}>{ops.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === eu.id ? " (você)" : ""}</option>)}</select></label>}
+      {modo === "enviar" && <label className="f">Corrigir até<input type="date" value={ate} min={hojeBR()} onChange={(e) => setAte(e.target.value)} /></label>}
       <div className="tools"><button className="btn primary" disabled={ocupado} onClick={ir}>{ocupado ? "Enviando…" : modo === "enviar" ? "Enviar para correção" : "Devolver com ajustes"}</button></div>
     </div>
   );
