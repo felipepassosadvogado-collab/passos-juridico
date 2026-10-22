@@ -1,4 +1,5 @@
 // Chamadas à API da Anthropic (só no servidor; a chave fica na Vercel).
+import { jsonrepair } from "jsonrepair";
 import { FASES } from "./tipos";
 import { TAREFAS, TIPOS_EV } from "./regras";
 import type { Analise } from "./tipos";
@@ -17,13 +18,30 @@ export async function pedirTexto(conteudo: Bloco[], maxTokens = 2000, modelo = M
 
 /** manda o pedido e devolve o JSON da resposta */
 export async function pedirJson<T = unknown>(conteudo: Bloco[], maxTokens = 6000, modelo = MODELO): Promise<T> {
-  const texto = await chamar(conteudo, maxTokens, modelo);
-  const a = texto.search(/[[{]/); const b = Math.max(texto.lastIndexOf("]"), texto.lastIndexOf("}"));
-  if (a < 0 || b < a) throw new ErroClaude("A resposta veio fora do formato. Tente de novo.");
-  try { return JSON.parse(texto.slice(a, b + 1)) as T; } catch { throw new ErroClaude("A resposta veio fora do formato. Tente de novo."); }
+  const r = await chamarCompleto(conteudo, maxTokens, modelo);
+  const lerJson = (texto: string): T | undefined => {
+    const a = texto.search(/[[{]/); if (a < 0) return undefined;
+    const b = Math.max(texto.lastIndexOf("]"), texto.lastIndexOf("}"));
+    if (b > a) { try { return JSON.parse(texto.slice(a, b + 1)) as T; } catch { /* tenta consertar abaixo */ } }
+    try { return JSON.parse(jsonrepair(texto.slice(a))) as T; } catch { return undefined; } // aspas sem escape, vírgula sobrando, resposta cortada
+  };
+  const v = lerJson(r.texto);
+  if (v !== undefined && r.parada !== "max_tokens") return v;
+  if (r.parada === "max_tokens") {
+    console.warn("claude: resposta cortada no limite", maxTokens, modelo);
+    if (v !== undefined && (v as { blocos?: unknown[] })?.blocos?.length) return v; // peça quase inteira: aproveita o que veio (o fim fica para revisar)
+    throw new ErroClaude("A resposta ficou longa demais e foi cortada. Tente de novo com menos documentos ou orientações mais objetivas.");
+  }
+  console.warn("claude: JSON inválido", r.texto.slice(0, 300), "…", r.texto.slice(-300));
+  throw new ErroClaude("A resposta veio fora do formato. Tente de novo.");
 }
 
 async function chamar(conteudo: Bloco[], maxTokens: number, modelo: string): Promise<string> {
+  return (await chamarCompleto(conteudo, maxTokens, modelo)).texto;
+}
+
+async function chamarCompleto(conteudo: Bloco[], maxTokens: number, modelo: string): Promise<{ texto: string; parada: string }> {
+  const longo = maxTokens > 8000; // respostas longas vêm em streaming (a API exige para limites altos e não corta por tempo)
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) throw new ErroClaude("Falta cadastrar a chave ANTHROPIC_API_KEY na Vercel para usar o Claude.", 503);
   let r: Response | null = null;
@@ -31,7 +49,7 @@ async function chamar(conteudo: Bloco[], maxTokens: number, modelo: string): Pro
     r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: modelo, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }] }),
+      body: JSON.stringify({ model: modelo, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }], ...(longo ? { stream: true } : {}) }),
     });
     if (r.status !== 429 && r.status !== 529 && r.status < 500) break;
     await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
@@ -45,8 +63,27 @@ async function chamar(conteudo: Bloco[], maxTokens: number, modelo: string): Pro
     if (r?.status === 413 || /too large|too long/i.test(corpo || "")) throw new ErroClaude("Arquivo ou texto grande demais. Envie menos páginas por vez.", 413);
     throw new ErroClaude("O Claude não respondeu agora. Tente de novo em instantes.");
   }
-  const j = await r.json();
-  return (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
+  if (!longo) {
+    const j = await r.json();
+    return { texto: (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n"), parada: j.stop_reason || "" };
+  }
+  // streaming (SSE): junta os pedaços de texto e guarda o motivo da parada
+  let texto = "", parada = "", resto = "";
+  const leitor = r.body!.getReader(); const dec = new TextDecoder();
+  for (;;) {
+    const { value, done } = await leitor.read(); if (done) break;
+    resto += dec.decode(value, { stream: true });
+    const linhas = resto.split("\n"); resto = linhas.pop() || "";
+    for (const l of linhas) {
+      if (!l.startsWith("data:")) continue;
+      let ev: { type?: string; delta?: { type?: string; text?: string; stop_reason?: string }; error?: { message?: string } };
+      try { ev = JSON.parse(l.slice(5)); } catch { continue; }
+      if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") texto += ev.delta.text || "";
+      else if (ev.type === "message_delta" && ev.delta?.stop_reason) parada = ev.delta.stop_reason;
+      else if (ev.type === "error") { console.warn("claude stream", ev.error); throw new ErroClaude(/overload/i.test(ev.error?.message || "") ? "O Claude está sobrecarregado agora. Tente de novo em instantes." : "O Claude não respondeu agora. Tente de novo em instantes."); }
+    }
+  }
+  return { texto, parada };
 }
 
 // ───────────── análise das publicações (mesmas instruções do painel antigo) ─────────────

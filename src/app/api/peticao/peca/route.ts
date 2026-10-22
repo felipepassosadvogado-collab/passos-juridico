@@ -6,7 +6,7 @@ import { encurtar } from "@/lib/encurtar";
 import { dataBR, idade, nomeBonito } from "@/lib/formato";
 import type { Cliente, Processo, Publicacao, Tarefa } from "@/lib/tipos";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 type Pedido = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo: string; orientacoes?: string; arquivos?: { caminho: string; mime: string }[]; textos?: { nome: string; paginas: number; semTexto: number[]; texto: string }[] };
 const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       const { data } = await adm.storage.from("documentos").download(a.caminho);
       if (data) blocos.push(blocoArquivo(a.mime, Buffer.from(await data.arrayBuffer()).toString("base64")));
     }
-    const peca = await pedirJson<Peca>([...blocos, { type: "text", text: INSTRUCOES_PECA + "\n\n" + contexto }], 16000, MODELO_REDACAO);
+    const peca = await pedirJson<Peca>([...blocos, { type: "text", text: INSTRUCOES_PECA + "\n\n" + contexto }], 32000, MODELO_REDACAO);
     if (!peca?.titulo || !Array.isArray(peca.blocos)) return { corpo: { erro: "A peça veio incompleta. Tente de novo." } };
     const buf = await montarDocx(peca, `Autos nº ${p.mascara}`, prioridade);
     const nome = (peca.nomeArquivo || `${pd.tipo}_-_${nomeBonito(cli?.nome || p.cliente_nome)}`).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w\-]+/g, "_").slice(0, 110) + ".docx";
