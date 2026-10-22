@@ -1,7 +1,7 @@
 "use client";
 // Audiências e coletas de padrão grafotécnico: agendar a partir da publicação e acompanhar em Meus expedientes.
 // O ato fica no próprio aviso ao cliente (avisos_cliente), então o aviso pelo WhatsApp é o mesmo de sempre.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { diferencaDias, hojeBR } from "@/lib/prazos";
@@ -66,44 +66,72 @@ export function FormAgendar({ numero, pub, av, onFim }: { numero: string; pub?: 
   );
 }
 
-/** caixa de Meus expedientes: audiências e coletas ainda não realizadas (de toda a equipe) */
-export function CaixaAgenda({ onAbrir }: { onAbrir?: () => void } = {}) {
-  const { avisos, processos, sb, aplicar, registrar, aviso, nome, eu, v } = useDados(); const j = useJanelas();
-  const [verFeitos, setVerFeitos] = useState(false);
-  const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em))
-    .sort((a, b) => verFeitos ? (b.realizado_em || "").localeCompare(a.realizado_em || "") : (a.data_evento || "9").localeCompare(b.data_evento || "9")), [avisos, verFeitos, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const feitos = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && a.realizado_em).length, [avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const realizado = async (a: Aviso, sim: boolean) => {
+/** marca o ato como realizado (o cliente compareceu / assinou o termo) ou desfaz */
+export function useRealizado() {
+  const { sb, aplicar, registrar, aviso, eu } = useDados();
+  return async (a: Aviso, sim: boolean) => {
     const { data, error } = await sb.from("avisos_cliente").update(sim ? { realizado_em: new Date().toISOString(), realizado_por: eu.id } : { realizado_em: null, realizado_por: null }).eq("id", a.id).select().single();
     if (error) { aviso(msgErro(error)); return; }
     aplicar("avisos", data);
     if (sim) registrar({ processo_numero: a.processo_numero, publicacao_id: a.publicacao_id, tipo: "ato_realizado", dados: { texto: (a.tipo_evento || "Ato") + " realizada(o)" + (a.data_evento ? " · " + dataBR(a.data_evento) : "") } });
     aviso(sim ? "Marcado como realizado." : "Voltou para a agenda.");
   };
-  const hoje = hojeBR();
+}
+
+/** uma linha de audiência/coleta: data, situação, aviso ao cliente e o botão de realizado */
+function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean; onEditar?: () => void }) {
+  const { processos, nome } = useDados(); const j = useJanelas(); const realizado = useRealizado();
+  const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null; const balcao = a.modalidade === "jf_balcao";
+  const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";
+  const avisado = a.status === "avisado";
+  return <div className={"row ag-row" + (a.realizado_em ? " feito" : "")}>
+    <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
+    <div className="main">{comCliente ? <div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
+        : <div className="t">{a.tipo_evento || "Ato"}</div>}
+      <div className="s">{comCliente ? resumoAto(a) : [a.modalidade ? MODALIDADES[a.modalidade].curto : "", balcao ? (a.data_evento ? "até " + dataBR(a.data_evento) : "") : [a.data_evento ? dataBR(a.data_evento) : "", (a.hora || "").slice(0, 5)].filter(Boolean).join(" às ")].filter(Boolean).join(" · ")}{a.modalidade === "video" && (a.link ? <> · <a href={a.link} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
+      <div className="ag-tags">{a.realizado_em ? <span className="pill ok">✓ REALIZADO · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
+        : <span className={"pill " + (dias != null && dias < 0 ? "late" : dias != null && dias <= 3 ? "late" : dias != null && dias <= 7 ? "soon" : "acc")}>{rel}</span>}
+        {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}
+        {avisado && <PillConfirmacao av={a} />}</div></div>
+    <div className="ag-acts">
+      <button className={a.status !== "pendente" ? "btn ghost" : "btn wa"} onClick={() => j.abrirAviso(a.id)}>{a.status !== "pendente" ? "Ver aviso" : "Avisar o cliente"}</button>
+      {onEditar && !a.realizado_em && <button className="btn ghost" onClick={onEditar}>Editar</button>}
+      {a.realizado_em ? <button className="btn ghost" onClick={() => realizado(a, false)}>Desfazer</button>
+        : <button className="btn ghost" title="O ato aconteceu (o cliente compareceu / assinou o termo)" onClick={() => realizado(a, true)}>✓ Realizado</button>}
+    </div></div>;
+}
+
+/** dentro do processo: audiências e coletas deste processo (inclusive as realizadas) e o botão de agendar */
+export function AtosDoProcesso({ numero, abrirForm, onFecharForm }: { numero: string; abrirForm?: boolean; onFecharForm?: () => void }) {
+  const { avisos, v } = useDados(); const [form, setForm] = useState<"novo" | string | null>(null);
+  const lista = useMemo(() => [...avisos.values()].filter((a) => a.processo_numero === numero && ehAgenda(a) && a.modalidade)
+    .sort((a, b) => (!!a.realizado_em === !!b.realizado_em ? (b.data_evento || "").localeCompare(a.data_evento || "") : a.realizado_em ? 1 : -1)), [avisos, numero, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (abrirForm) { setForm("novo"); onFecharForm?.(); } }, [abrirForm]); // eslint-disable-line react-hooks/exhaustive-deps
+  const aberto = form; const fechar = () => setForm(null);
+  return (
+    <section className="panel agenda">
+      <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>deste processo</span>
+        <button className={aberto === "novo" ? "btn ghost" : "btn"} style={{ marginLeft: "auto" }} onClick={() => (aberto === "novo" ? fechar() : setForm("novo"))}>{aberto === "novo" ? "Cancelar" : "📅 Agendar audiência / coleta"}</button></div>
+      {aberto && <div style={{ padding: "0 14px 12px" }}><FormAgendar numero={numero} av={aberto !== "novo" ? avisos.get(aberto) : undefined} onFim={fechar} /></div>}
+      {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} onEditar={() => setForm(a.id)} />)}</div>
+        : !aberto && <div className="empty" style={{ padding: "10px 14px" }}>Nenhuma audiência ou coleta agendada neste processo.</div>}
+    </section>
+  );
+}
+
+/** caixa de Meus expedientes: audiências e coletas ainda não realizadas (de toda a equipe) */
+export function CaixaAgenda({ onAbrir }: { onAbrir?: () => void } = {}) {
+  const { avisos, v } = useDados();
+  const [verFeitos, setVerFeitos] = useState(false);
+  const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em))
+    .sort((a, b) => verFeitos ? (b.realizado_em || "").localeCompare(a.realizado_em || "") : (a.data_evento || "9").localeCompare(b.data_evento || "9")), [avisos, verFeitos, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const feitos = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && a.realizado_em).length, [avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className="panel agenda" id="sec-agenda">
-      <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação"}</span>
+      <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação ou dentro do processo"}</span>
         {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}
         {onAbrir && <button className="btn ghost" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} onClick={onAbrir} title="Abrir na tela inteira">⤢ Abrir caixa</button>}</div>
-      {lista.length ? <div className="rows">{lista.map((a) => {
-        const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hoje) : null; const balcao = a.modalidade === "jf_balcao";
-        const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";
-        const avisado = a.status === "avisado";
-        return <div key={a.id} className={"row ag-row" + (a.realizado_em ? " feito" : "")}>
-          <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
-          <div className="main"><div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
-            <div className="s">{resumoAto(a)}{a.modalidade === "video" && (a.link ? <> · <a href={a.link} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
-            <div className="ag-tags">{a.realizado_em ? <span className="pill ok">realizado · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
-              : <span className={"pill " + (dias != null && dias < 0 ? "late" : dias != null && dias <= 3 ? "late" : dias != null && dias <= 7 ? "soon" : "acc")}>{rel}</span>}
-              {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}
-              {avisado && <PillConfirmacao av={a} />}</div></div>
-          <div className="ag-acts">
-            <button className={a.status !== "pendente" ? "btn ghost" : "btn wa"} onClick={() => j.abrirAviso(a.id)}>{a.status !== "pendente" ? "Ver aviso" : "Avisar o cliente"}</button>
-            {a.realizado_em ? <button className="btn ghost" onClick={() => realizado(a, false)}>Desfazer</button>
-              : <button className="btn ghost" title="O ato aconteceu: sai desta caixa" onClick={() => realizado(a, true)}>✓ Realizado</button>}
-          </div></div>;
-      })}</div> : <div className="empty">{verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, clique em “Agendar audiência / coleta”.</>}</div>}
+      {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} comCliente />)}</div> : <div className="empty">{verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, ou dentro do processo, clique em “Agendar audiência / coleta”.</>}</div>}
     </section>
   );
 }

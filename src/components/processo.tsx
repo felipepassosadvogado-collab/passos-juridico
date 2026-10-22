@@ -13,6 +13,7 @@ import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CampoValores } from "./valores";
 import { CorpoPublicacao, useAnalisar } from "./publicacoes";
 import { useCriarAviso } from "./avisos";
+import { AtosDoProcesso } from "./agenda";
 import { useJanelas } from "./janelas";
 import { Avatar, Ic, RostoOuIniciais, SelResp } from "./ui";
 
@@ -115,7 +116,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
   const { pubs, setPubs, evs, setEvs } = useHistorico(numero);
   const [aba, setAba] = useState<Aba>(foco?.aba || "tarefas");
   const [filtro, setFiltro] = useState<"todas" | "abertas" | "feitas">("todas");
-  const [tf, setTf] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" });
+  const [tf, setTf] = useState(false); const [agendar, setAgendar] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" });
   const { analisar, ocupado } = useAnalisar(); const criarAviso = useCriarAviso(); const corpo = useRef<HTMLDivElement>(null); const rolou = useRef(false);
   useEffect(() => { if (p) setEd({ fase: faseCRM(p.fase), notas: p.notas || "" }); }, [p?.numero]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -151,6 +152,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           {icone("Dados do processo", S('<path d="M2.5 6V15a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V8a1.5 1.5 0 0 0-1.5-1.5H10L8.5 4.5H4A1.5 1.5 0 0 0 2.5 6z"/>'), () => setAba("dados"), aba === "dados")}
           {icone("Linha do tempo (andamentos)", S('<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/>'), () => setAba("andamentos"), aba === "andamentos")}
           {icone("Nova tarefa", S('<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M10 6.5v7M6.5 10h7"/>'), () => { setAba("tarefas"); setTf(true); })}
+          {icone("Agendar audiência / coleta", S('<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2.5v3M13 2.5v3M8 12.5l1.5 1.5 3-3"/>'), () => { setAba("tarefas"); setAgendar(true); })}
           {icone("Gerar petição com o Claude", S('<path d="M10 2.5l1.7 5 5.3.1-4.2 3.2 1.5 5.1L10 12.9l-4.3 3 1.5-5.1L3 7.6l5.3-.1z"/>'), () => j.gerarPeca({ numero: p.numero }))}
           {icone("Cumprimento de sentença (cálculo e petição)", S('<path d="M4 16.5h12M6 16.5V9.5M10 16.5V6.5M14 16.5V3.5"/>'), () => j.gerarCumprimento({ numero: p.numero }))}
           {icone("Petição inicial (Word)", S('<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>'), () => j.abrirInicial({ clienteId: p.cliente_id, banco: p.banco, cidade: p.cidade || cidadeDoJuizo(p.orgao), numero: p.numero }))}
@@ -175,6 +177,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           <div className="tools"><select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)}><option value="todas">Todas as atividades</option><option value="abertas">Em aberto</option><option value="feitas">Cumpridas</option></select>
             <button className={tf ? "btn ghost" : "btn primary"} onClick={() => setTf(!tf)}>{tf ? "Cancelar" : <>{Ic.tarefa}Nova tarefa</>}</button></div>
           {tf && <FormTarefa numero={p.numero} resp={p.responsavel || eu.id} onCriada={() => setTf(false)} />}
+          <AtosDoProcesso numero={p.numero} abrirForm={agendar} onFecharForm={() => setAgendar(false)} />
           {tsF.length ? tsF.map((t) => <CartaoTarefa key={t.id} t={t} onAbrir={() => j.abrirTarefa(t.id)} />) : <div className="empty">Nenhuma tarefa {filtro === "abertas" ? "em aberto" : filtro === "feitas" ? "cumprida" : ""} neste processo.</div>}
         </>}
         {aba === "andamentos" && <>
