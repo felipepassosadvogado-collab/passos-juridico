@@ -14,7 +14,7 @@ function WhatsApp() {
   const { lista, semTabela, atualizar } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
   const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
-  const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
+  const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
   const conv = ativa ? lista.find((c) => c.id === ativa) || null : null;
   const { msgs, carregando, juntar } = useWaMensagens(conv?.id || null);
   // abriu a conversa: zera as não lidas
@@ -56,23 +56,27 @@ function WhatsApp() {
         }} /> : <div className="triage">
           <label className="f">WhatsApp (com DDD)<input inputMode="tel" autoFocus value={av.fone} placeholder="(47) 9 9999-9999" onChange={(e) => setAv({ ...av, fone: e.target.value })} /></label>
           <label className="f wide2">Nome<input value={av.nome} placeholder="Nome da pessoa" onChange={(e) => setAv({ ...av, nome: e.target.value })} /></label>
-          <label className="chk" style={{ alignSelf: "center" }}><input type="checkbox" checked={av.cadastrar} onChange={(e) => setAv({ ...av, cadastrar: e.target.checked })} /> Cadastrar como novo cliente</label>
+          <label className="f">Este número é de<select value={av.clienteId ? "existente" : av.cadastrar ? "novo" : "nenhum"} onChange={(e) => setAv({ ...av, cadastrar: e.target.value === "novo", clienteId: e.target.value === "existente" ? av.clienteId || "?" : "" })}>
+            <option value="novo">Um cliente novo (cadastrar)</option><option value="existente">Um cliente que já existe (outro número dele)</option><option value="nenhum">Ninguém (só conversar)</option></select></label>
+          {av.clienteId && <div className="f wide2">Cliente{av.clienteId !== "?" && clientes.get(av.clienteId) ? <span className="chip" style={{ alignSelf: "flex-start" }}>{nomeBonito(clientes.get(av.clienteId)!.nome)} <button className="reflink" onClick={() => setAv({ ...av, clienteId: "?" })}>trocar</button></span>
+            : <BuscaCliente placeholder="Nome ou CPF do cliente" onEscolher={(id) => setAv({ ...av, clienteId: id })} />}</div>}
           <div className="tools" style={{ alignSelf: "flex-end" }}><button className="btn primary" disabled={criando} onClick={async () => {
             const d = av.fone.replace(/\D/g, ""); if (d.length < 10 || d.length > 13) { aviso("Informe o WhatsApp com DDD."); return; }
             if (av.cadastrar && !av.nome.trim()) { aviso("Informe o nome para cadastrar o cliente."); return; }
+            if (av.clienteId === "?") { aviso("Escolha o cliente a quem este número pertence."); return; }
             const fone = d.length <= 11 ? d : d.replace(/^55/, "");
             const tel = fone.length === 11 ? `(${fone.slice(0, 2)}) ${fone.slice(2, 7)}-${fone.slice(7)}` : `(${fone.slice(0, 2)}) ${fone.slice(2, 6)}-${fone.slice(6)}`;
             const ja = lista.find((x) => (x.telefone || "").endsWith(fone.slice(-8)) && (x.telefone || "").includes(fone.slice(0, 2)));
             if (ja) { setAtiva(ja.id); setNova(null); setBuscaNova(false); setAberto(true); aviso("Já existe uma conversa com esse número."); return; }
             setCriando(true);
             try {
-              let clienteId: string | undefined;
-              if (av.cadastrar) {
+              let clienteId: string | undefined = av.clienteId || undefined;
+              if (av.cadastrar && !clienteId) {
                 const { data, error } = await sb.from("clientes").insert({ nome: av.nome.trim().toUpperCase(), telefone: tel }).select().single();
                 if (error) { aviso(msgErro(error)); return; }
                 aplicar("clientes", data); clienteId = data.id; aviso("Cliente cadastrado. Complete a ficha depois.");
               }
-              setAtiva(null); setNova({ clienteId, telefone: tel, nome: av.nome.trim() || undefined }); setBuscaNova(false); setAberto(true); setAv({ fone: "", nome: "", cadastrar: true });
+              setAtiva(null); setNova({ clienteId, telefone: tel, nome: av.nome.trim() || undefined, outroNumero: !!av.clienteId }); setBuscaNova(false); setAberto(true); setAv({ fone: "", nome: "", cadastrar: true, clienteId: "" });
             } finally { setCriando(false); }
           }}>{criando ? "Abrindo…" : "Abrir conversa"}</button></div>
         </div>}
@@ -107,8 +111,8 @@ function WhatsApp() {
               </div>
             </header>
             {conv ? <FioWa msgs={msgs} carregando={carregando} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
-            <CompositorWa conversaId={conv?.id || null} telefone={cli?.telefone || nova?.telefone} nome={nova?.nome} avulso={!cli} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
-              onEnviada={(m, id) => { if (!conv) { setNova(null); setAtiva(id); } else juntar(m); }} />
+            <CompositorWa conversaId={conv?.id || null} telefone={nova?.telefone || cli?.telefone} nome={nova?.nome} avulso={!cli || !!nova?.outroNumero} clienteId={nova?.clienteId} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
+              onEnviada={(m, id) => { if (!conv) { sb.from("wa_conversas").select("*").eq("id", id).single().then(({ data }: { data: WaConversa | null }) => { if (data) atualizar(data); setNova(null); setAtiva(id); }); } else juntar(m); }} />
           </> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Escolha uma conversa.</div></div>}
         </section>
       </div>

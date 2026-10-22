@@ -60,7 +60,7 @@ export function useWaMensagens(conversaId: string | null) {
   return { msgs, carregando, juntar };
 }
 
-export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; texto?: string; anexo?: { caminho: string; nome: string; mime: string } }) {
+export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string } }) {
   const r = await fetch("/api/whatsapp/enviar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.erro || "Não consegui enviar pelo WhatsApp.");
@@ -149,7 +149,7 @@ export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: bo
   );
 }
 
-export function CompositorWa({ conversaId, telefone, nome, avulso, onEnviada, desativado }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string }) {
+export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, onEnviada, desativado }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; clienteId?: string; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string }) {
   const { sb, eu, aviso } = useDados(); const [t, setT] = useState(""); const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
   const envia = async () => {
     const x = t.trim(); if ((!x && !arq) || enviando || desativado) return;
@@ -163,7 +163,7 @@ export function CompositorWa({ conversaId, telefone, nome, avulso, onEnviada, de
         if (up.error) { aviso("Não consegui enviar o arquivo: " + up.error.message); return; }
         anexo = { caminho, nome: arq.name, mime: arq.type || "application/octet-stream" };
       }
-      const r = await enviarWhatsapp(conversaId ? { conversaId, texto: x, anexo } : { telefone: telefone || "", nome, avulso, texto: x, anexo });
+      const r = await enviarWhatsapp(conversaId ? { conversaId, texto: x, anexo } : { telefone: telefone || "", nome, avulso, clienteId, texto: x, anexo });
       setT(""); setArq(null); onEnviada(r.mensagem, r.conversaId);
     } catch (e) { aviso(msgErro(e, (e as Error).message)); }
     finally { setEnviando(false); }
@@ -198,19 +198,20 @@ export function BuscaCliente({ onEscolher, placeholder, soComTelefone }: { onEsc
 export function WhatsappDoCliente({ clienteId, inicioAberto }: { clienteId: string; inicioAberto?: boolean }) {
   const { clientes, config } = useDados(); const { lista } = useWaConversas(); const [aberto, setAberto] = useState(!!inicioAberto);
   const cli = clientes.get(clienteId);
-  const conv = lista.find((c) => c.cliente_id === clienteId) || null;
+  const doCliente = lista.filter((c) => c.cliente_id === clienteId); const [sel, setSel] = useState<string | null>(null);
+  const conv = doCliente.find((c) => c.id === sel) || doCliente[0] || null;
   const { msgs, carregando, juntar } = useWaMensagens(aberto ? conv?.id || null : null);
   const ligado = (config.whatsapp as { estado?: string } | undefined)?.estado === "open";
   if (!cli) return null;
-  const novas = conv?.nao_lidas || 0;
   return (
     <div className="tj-corr wa-cli">
       <div className="tj-corr-h" style={{ cursor: "pointer" }} onClick={() => setAberto(!aberto)}>
         <strong>{aberto ? "▾" : "▸"} WhatsApp do cliente</strong>
         <span className="muted s">{conv ? (conv.ultima_texto ? "última: " + conv.ultima_texto.slice(0, 60) : "conversa aberta") : cli.telefone ? "nenhuma mensagem ainda · " + foneBR(cli.telefone) : "sem telefone na ficha"}</span>
-        {novas > 0 && <span className="count hot">{novas}</span>}
+        {doCliente.reduce((s, c) => s + (c.nao_lidas || 0), 0) > 0 && <span className="count hot">{doCliente.reduce((s, c) => s + (c.nao_lidas || 0), 0)}</span>}
         {conv && <a className="reflink" style={{ marginLeft: "auto" }} href={"/whatsapp?c=" + conv.id} onClick={(e) => e.stopPropagation()}>abrir no WhatsApp ↗</a>}
       </div>
+      {aberto && doCliente.length > 1 && <div className="wa-chips">{doCliente.map((c) => <button key={c.id} className={"pill" + (c.id === conv?.id ? " acc" : "")} onClick={() => setSel(c.id)}>{c.nome || foneBR(c.telefone)}{c.nao_lidas ? ` (${c.nao_lidas})` : ""}</button>)}</div>}
       {aberto && <div className="wa-cli-corpo">
         {conv ? <FioWa msgs={msgs.slice(-8)} carregando={carregando} /> : <div className="muted s" style={{ padding: 8 }}>{cli.telefone ? "Ainda não há conversa com este cliente. A mensagem abaixo abre a conversa." : "Cadastre o telefone na ficha do cliente para conversar."}</div>}
         {(conv || cli.telefone) && <CompositorWa conversaId={conv?.id || null} telefone={cli.telefone} desativado={!ligado ? "WhatsApp do sistema desconectado." : undefined} onEnviada={(m) => { if (conv) juntar(m); }} />}

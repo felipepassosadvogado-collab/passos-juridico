@@ -72,7 +72,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const wa = foneWhatsapp(fone);
   const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
   const ac = useAcompanhamentoAviso();
-  const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false);
+  const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false); const [outro, setOutro] = useState<{ fone: string; nome: string } | null>(null);
   const marcar = async (sim: boolean) => {
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
@@ -126,10 +126,11 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           onClick={async () => {
             if (!wa) { aviso("Informe o WhatsApp do cliente."); return; }
             setEnviandoWa(true);
-            try { await enviarWhatsapp({ telefone: wa, texto }); await marcar(true); }
+            try { await enviarWhatsapp({ telefone: wa, texto, clienteId: cli?.id, avulso: !cli }); await marcar(true); }
             catch (e) { aviso((e as Error).message); }
             finally { setEnviandoWa(false); }
           }}>{enviandoWa ? "Enviando…" : "Enviar pelo WhatsApp do sistema"}</button>}
+        {waSistema && <button className="btn" onClick={() => setOutro(outro ? null : { fone: "", nome: "" })}>{outro ? "Cancelar outro número" : "Enviar para outro WhatsApp"}</button>}
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
@@ -137,6 +138,21 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não enviada</button>
           : <><button className="btn primary" onClick={() => marcar(true)}>✓ Mensagem enviada</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>
+      {outro && waSistema && <div className="triage">
+        <div className="wide" style={{ fontWeight: 600 }}>Enviar para outro WhatsApp{cli ? " de " + nomeBonito(cli.nome).split(" ")[0] : ""}</div>
+        <label className="f">WhatsApp (com DDD)<input inputMode="tel" autoFocus value={outro.fone} placeholder="(47) 9 9999-9999" onChange={(e) => setOutro({ ...outro, fone: e.target.value })} /></label>
+        <label className="f wide2">Quem é<input value={outro.nome} placeholder="Ex.: filha Maria, vizinho, recado" onChange={(e) => setOutro({ ...outro, nome: e.target.value })} /></label>
+        <div className="wide muted" style={{ fontSize: 12.5 }}>A mensagem acima vai para este número, que passa a aparecer na aba WhatsApp ligado {cli ? "à ficha de " + nomeBonito(cli.nome) : "a este contato"}. O telefone da ficha não muda.</div>
+        <div className="wide tools"><button className="btn primary" disabled={enviandoWa} onClick={async () => {
+          const d = outro.fone.replace(/\D/g, ""); if (d.length < 10 || d.length > 13) { aviso("Informe o WhatsApp com DDD."); return; }
+          setEnviandoWa(true);
+          try {
+            await enviarWhatsapp({ telefone: d, texto, clienteId: cli?.id, avulso: true, nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
+            setOutro(null); await marcar(true);
+          } catch (e) { aviso((e as Error).message); }
+          finally { setEnviandoWa(false); }
+        }}>{enviandoWa ? "Enviando…" : "Enviar e marcar como enviada"}</button></div>
+      </div>}
       <ConfirmacaoCliente av={av} />
       {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, clique em “Mensagem enviada”.</div>}
     </div>

@@ -5,7 +5,7 @@ import { ErroWa, INSTANCIA, RESUMO_TIPO, chaveFone, evo, soFone } from "@/lib/wh
 import { conversaDe } from "@/lib/whatsappDb";
 
 export const maxDuration = 30;
-type Pedido = { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; texto?: string; anexo?: { caminho: string; nome: string; mime: string } };
+type Pedido = { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string } };
 
 /** envia uma mensagem pelo WhatsApp do escritório: resposta numa conversa ou mensagem nova para um cliente cadastrado */
 export async function POST(req: Request) {
@@ -22,8 +22,10 @@ export async function POST(req: Request) {
     const { data: cs } = await adm.from("clientes").select("id,telefone").not("telefone", "is", null).limit(5000);
     const ehCliente = (cs || []).some((c: { telefone: string }) => String(c.telefone).split(/[\/,;]| e /).some((t) => chaveFone(t) === chaveFone(fone)));
     // número avulso só quando a pessoa escolheu "novo contato" na tela
-    if (!ehCliente && !pd.avulso) return erro("Esse telefone não está na ficha de nenhum cliente. Use “Número avulso” em Nova conversa para falar com um contato novo.");
+    if (!ehCliente && !pd.avulso && !pd.clienteId) return erro("Esse telefone não está na ficha de nenhum cliente. Use “Número avulso” em Nova conversa para falar com um contato novo.");
     conv = await conversaDe(adm, fone + "@s.whatsapp.net", fone, null);
+    // outro número do cliente (filho, vizinho, recado): a conversa fica ligada à ficha dele
+    if (conv && pd.clienteId && !conv.cliente_id) { const { data } = await adm.from("wa_conversas").update({ cliente_id: pd.clienteId }).eq("id", conv.id).select().single(); if (data) conv = data; }
     if (conv && pd.nome?.trim() && !conv.nome) { const { data } = await adm.from("wa_conversas").update({ nome: pd.nome.trim().slice(0, 120) }).eq("id", conv.id).select().single(); if (data) conv = data; }
   }
   if (!conv) return erro("Conversa não encontrada.", 404);
