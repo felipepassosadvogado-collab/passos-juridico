@@ -756,3 +756,22 @@ html.rail-fechado .rail .count::after{content:attr(data-curto);font-size:9.5px;f
 .bk-linhas{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .bk-l{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;flex-wrap:wrap}.bk-l+.bk-l{border-top:1px solid var(--line)}
 .bk-l>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}
+/* WhatsApp */
+.wa-con{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);margin-bottom:10px}
+.wa-con.ok{flex-direction:row;align-items:center;gap:8px}.wa-con.aviso{border-color:var(--accent);background:var(--accent-soft)}
+.wa-qr{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.wa-qr img{background:#fff;border-radius:10px;padding:8px}.wa-qr ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:46ch}
+.wa-filtros{display:flex;flex-direction:column;gap:8px;padding:10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--sunken);z-index:1}
+.wa-filtros input{width:100%}.wa-chips{display:flex;gap:4px;flex-wrap:wrap}.wa-chips .pill{cursor:pointer;border:0}
+.wa-av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--line);color:var(--fg);flex:none}
+.wa-av.cli{background:var(--accent-soft);color:var(--accent)}
+.wa-dir{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.wa-topo{flex-wrap:wrap}.wa-acoes{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.wa .msg.meu .bolha{background:#1f6b4f;border-color:#1f6b4f;color:#f2fbf6}
+html.claro .wa .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11261b}
+.wa .msg.meu .mhora{color:inherit;opacity:.75}
+.mquem{font-size:11px;font-weight:700;opacity:.8}.mtexto{white-space:pre-wrap;overflow-wrap:anywhere}
+.msinal.erro{color:var(--late);opacity:1}
+.wa-busca{position:relative;min-width:260px}.wa-busca input{width:100%}
+.wa-busca-res{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgb(0 0 0 / .3);display:flex;flex-direction:column;padding:4px;max-height:300px;overflow:auto}
+.wa-busca-res button{all:unset;cursor:pointer;display:flex;flex-direction:column;padding:8px 10px;border-radius:7px}.wa-busca-res button:hover{background:var(--sunken)}
+.wa .msinal.lida{color:#53bdeb}html.claro .wa .msinal.lida{color:#027eb5}

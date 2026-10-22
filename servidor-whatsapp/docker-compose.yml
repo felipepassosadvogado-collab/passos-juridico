@@ -1,0 +1,27 @@
+# Servidor do WhatsApp do escritório (Evolution API + banco + cache).
+# Uso num servidor (VPS) com Docker: copie este arquivo e o .env, e rode:  docker compose up -d
+services:
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.2.3
+    restart: always
+    ports: ["8080:8080"]
+    env_file: .env
+    volumes: ["evolution_instances:/evolution/instances"]
+    depends_on: [evolution-postgres, evolution-redis]
+    logging: { driver: json-file, options: { max-size: "50m", max-file: "3" } }
+  evolution-postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: evolution
+    volumes: ["evolution_pg:/var/lib/postgresql/data"]
+  evolution-redis:
+    image: redis:7
+    restart: always
+    volumes: ["evolution_redis:/data"]
+volumes:
+  evolution_instances:
+  evolution_pg:
+  evolution_redis:

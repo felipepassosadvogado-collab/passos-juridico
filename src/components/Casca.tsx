@@ -1,5 +1,6 @@
 "use client";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
+import { useWaConversas } from "@/components/whatsapp";
 import { Inatividade, limparUso } from "@/components/inatividade";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,6 +15,7 @@ import { useChat, ChatFlutuante } from "./chat";
 
 const I = (d: string) => <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 const ICONES: Record<string, string> = {
+  "/whatsapp": '<path d="M3.2 16.8l1-3.3A7 7 0 1 1 7 16.1z"/><path d="M7.6 6.9c.2-.4.5-.4.8-.4h.4c.2 0 .4.1.5.4l.6 1.4c.1.2 0 .5-.1.6l-.5.6c.5 1 1.3 1.8 2.3 2.3l.6-.5c.2-.1.4-.2.6-.1l1.4.6c.3.1.4.3.4.5v.4c0 .3 0 .6-.4.8-.6.4-1.4.5-2.1.2a8 8 0 0 1-4.7-4.7c-.3-.7-.2-1.5.2-2.1z"/>',
   "/": '<rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/>',
   "/agenda": '<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2.5v3M13 2.5v3"/><path d="M6.5 11h2M11.5 11h2M6.5 14h2"/>',
   "/meus": '<circle cx="8" cy="7" r="3"/><path d="M2.5 16.5c.8-2.8 3-4.2 5.5-4.2 1.3 0 2.5.4 3.4 1.1"/><path d="M12.5 15l2 2 3.5-4"/>',
@@ -30,7 +32,7 @@ const ICONES: Record<string, string> = {
 };
 
 function Menu() {
-  const p = usePathname(); const { tarefas, caixa, processos, clientes, notificacoes, avisos, eu, titular, v } = useDados(); const { total } = useChat();
+  const p = usePathname(); const { tarefas, caixa, processos, clientes, notificacoes, avisos, eu, titular, v } = useDados(); const { total } = useChat(); const wa = useWaConversas();
   const c = useMemo(() => {
     const hoje = hojeBR(); const abertas = [...tarefas.values()].filter((t) => t.status !== "feito");
     const minhas = abertas.filter((t) => t.responsavel === eu.id || (t.status === "revisao" && t.revisor === eu.id));
@@ -41,6 +43,7 @@ function Menu() {
     };
   }, [tarefas, caixa, notificacoes, avisos, eu.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const itens: [string, string, number?, boolean?][] = [
+    ["/whatsapp", "WhatsApp", wa.naoLidas, true],
     ["/", "Painel", c.meus, c.meusHot], ["/agenda", "Agenda", c.abertas, c.vencidas], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
     ...(titular ? [["/gestao", "Gestão"] as [string, string]] : []),
     ["/chat", "Chat", total, true], ["/crm", "CRM"], ["/processos", "Processos", processos.size], ["/clientes", "Clientes", clientes.size],
@@ -192,7 +195,7 @@ function InfoDjen() {
 
 export function Casca({ children }: { children: React.ReactNode }) {
   const { eu, pronto, erroCarga } = useDados(); const p = usePathname();
-  const cheio = p.startsWith("/crm") || p.startsWith("/chat");
+  const cheio = p.startsWith("/crm") || p.startsWith("/chat") || p.startsWith("/whatsapp");
   return (
     <>
       <Menu />

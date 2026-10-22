@@ -205,7 +205,7 @@ export function Fio({ conversa, vazio }: { conversa: string; vazio: string }) {
 export function ChatFlutuante() {
   const pathname = usePathname(); const { convs, naoLidas, total, daConversa } = useChat(); const { eu } = useDados(); const resumo = useResumoMsg();
   const [aberto, setAberto] = useState(false); const [conv, setConv] = useState<string | null>(null);
-  if (pathname.startsWith("/chat")) return null;
+  if (pathname.startsWith("/chat") || pathname.startsWith("/whatsapp")) return null;
   const c = conv ? convs.find((x) => x.id === conv) : undefined;
   return (
     <div className="chat-flut">

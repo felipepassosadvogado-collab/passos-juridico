@@ -1,5 +1,6 @@
 "use client";
 // Avisar o cliente de perícia, audiência ou coleta de assinatura, pelo WhatsApp.
+import { enviarWhatsapp } from "./whatsapp";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
@@ -71,6 +72,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const wa = foneWhatsapp(fone);
   const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
   const ac = useAcompanhamentoAviso();
+  const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false);
   const marcar = async (sim: boolean) => {
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
@@ -120,6 +122,14 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         }}>Salvar na ficha</button>}
       </div>
       <div className="tools">
+        {waSistema && <button className="btn primary" disabled={enviandoWa || feito} title="Envia agora pelo WhatsApp do escritório conectado ao sistema e marca como enviada"
+          onClick={async () => {
+            if (!wa) { aviso("Informe o WhatsApp do cliente."); return; }
+            setEnviandoWa(true);
+            try { await enviarWhatsapp({ telefone: wa, texto }); await marcar(true); }
+            catch (e) { aviso((e as Error).message); }
+            finally { setEnviandoWa(false); }
+          }}>{enviandoWa ? "Enviando…" : "Enviar pelo WhatsApp do sistema"}</button>}
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
