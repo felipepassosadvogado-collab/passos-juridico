@@ -37,3 +37,22 @@ export async function clientePorFone(adm: Adm, tel: string): Promise<string | nu
   return achados.length === 1 ? achados[0].id : null; // dois clientes com o mesmo telefone: deixa para a equipe escolher
 }
 
+
+/** envia um texto numa conversa e grava a mensagem (usado pelo agente) */
+export async function enviarTextoNaConversa(adm: Adm, conv: { id: string; jid: string; telefone: string | null }, texto: string, op: { agente?: boolean; por?: string | null } = {}) {
+  const { INSTANCIA, evo, soFone } = await import("./whatsapp");
+  const numero = conv.telefone || (/@s\.whatsapp\.net$/.test(conv.jid) ? soFone(conv.jid) : "");
+  if (!numero) throw new Error("Contato sem telefone conhecido.");
+  const r = await evo<{ key?: { id?: string } }>(`/message/sendText/${INSTANCIA()}`, "POST", { number: numero, text: texto });
+  const em = new Date().toISOString();
+  const { data } = await adm.from("wa_mensagens").upsert({ conversa_id: conv.id, wa_id: r?.key?.id || null, de_mim: true, texto, tipo: "texto", status: "enviada", enviado_por: op.por || null, agente: !!op.agente, bruto: { key: r?.key || null }, em }, { onConflict: "wa_id" }).select().single();
+  await adm.from("wa_conversas").update({ ultima_em: em, ultima_texto: texto.slice(0, 200) }).eq("id", conv.id);
+  return data;
+}
+
+/** fones da ficha (pode haver mais de um no campo) batem com o da conversa? */
+export function foneBate(telefoneFicha: string | null | undefined, telefoneConversa: string | null | undefined) {
+  if (!telefoneFicha || !telefoneConversa) return false;
+  const k = chaveFone(telefoneConversa);
+  return String(telefoneFicha).split(/[\/,;]| e /).some((t) => chaveFone(t) === k);
+}

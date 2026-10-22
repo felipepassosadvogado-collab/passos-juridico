@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { RESUMO_TIPO, lerMensagem, telefoneDaChave } from "@/lib/whatsapp";
 import { conversaDe, guardarEstado } from "@/lib/whatsappDb";
+import { rodarAgente } from "@/lib/agente";
 
-export const maxDuration = 30;
+export const maxDuration = 120;
 type Adm = Awaited<ReturnType<typeof supabaseAdmin>>;
 const STATUS: Record<string, string> = { PENDING: "enviando", SERVER_ACK: "enviada", DELIVERY_ACK: "entregue", READ: "lida", PLAYED: "lida", ERROR: "erro" };
 
@@ -40,6 +41,14 @@ async function mensagem(adm: Adm, d: Record<string, any>) { // eslint-disable-li
   if (!ins?.length) return; // já recebida (o sistema mesmo enviou)
   await adm.from("wa_conversas").update({ ultima_em: em, ultima_texto: (m.texto || RESUMO_TIPO[m.tipo] || "").slice(0, 200), arquivada: false,
     ...(deMim ? {} : { nao_lidas: (conv.nao_lidas || 0) + 1 }) }).eq("id", conv.id);
+  const msgId = ins[0].id as string; const waId = key.id as string | undefined;
+  if (!deMim) after(() => rodarAgente(adm, conv.id, msgId));
+  else if (waId) after(async () => {
+    // mensagem enviada pelo celular / WhatsApp Web (não pelo sistema): a equipe assumiu, o agente fica quieto por 12 horas
+    await new Promise((ok) => setTimeout(ok, 5000)); // dá tempo do sistema registrar o que ele mesmo enviou
+    const { data: r } = await adm.from("wa_mensagens").select("enviado_por,agente").eq("wa_id", waId).maybeSingle();
+    if (r && !r.enviado_por && !r.agente) await adm.from("wa_conversas").update({ atendimento: "equipe", equipe_ate: new Date(Date.now() + 12 * 3600e3).toISOString(), aguardando_equipe: false, rascunho: null }).eq("id", conv.id);
+  });
 }
 
 async function atualizacao(adm: Adm, d: Record<string, unknown>) {

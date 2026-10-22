@@ -126,7 +126,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           onClick={async () => {
             if (!wa) { aviso("Informe o WhatsApp do cliente."); return; }
             setEnviandoWa(true);
-            try { await enviarWhatsapp({ telefone: wa, texto, clienteId: cli?.id, avulso: !cli }); await marcar(true); }
+            try { await enviarWhatsapp({ telefone: wa, texto, clienteId: cli?.id, avulso: !cli, origem: "aviso" }); await marcar(true); }
             catch (e) { aviso((e as Error).message); }
             finally { setEnviandoWa(false); }
           }}>{enviandoWa ? "Enviando…" : "Enviar pelo WhatsApp do sistema"}</button>}
@@ -147,7 +147,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           const d = outro.fone.replace(/\D/g, ""); if (d.length < 10 || d.length > 13) { aviso("Informe o WhatsApp com DDD."); return; }
           setEnviandoWa(true);
           try {
-            await enviarWhatsapp({ telefone: d, texto, clienteId: cli?.id, avulso: true, nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
+            await enviarWhatsapp({ telefone: d, texto, clienteId: cli?.id, avulso: true, origem: "aviso", nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
             setOutro(null); await marcar(true);
           } catch (e) { aviso((e as Error).message); }
           finally { setEnviandoWa(false); }

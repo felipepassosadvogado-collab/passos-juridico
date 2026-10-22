@@ -5,9 +5,10 @@ import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataHoraBR, iniciais, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
 import { useJanelas } from "@/components/janelas";
+import { AgenteNaConversa } from "@/components/agente";
 import { BuscaCliente, CompositorWa, FioWa, PainelConexao, foneBR, useConexaoWa, useNomeConversa, useWaConversas, useWaMensagens, type WaConversa } from "@/components/whatsapp";
 
-type Filtro = "todas" | "naolidas" | "clientes" | "sem";
+type Filtro = "todas" | "naolidas" | "equipe" | "clientes" | "sem";
 
 function WhatsApp() {
   const sp = useSearchParams(); const { sb, clientes, processos, aviso, aplicar } = useDados(); const j = useJanelas();
@@ -25,7 +26,7 @@ function WhatsApp() {
   const vis = useMemo(() => {
     const n = semAcento(q.trim()); const d = q.replace(/\D/g, "");
     return lista.filter((c) => !c.arquivada || filtro !== "todas").filter((c) =>
-      (filtro === "naolidas" ? c.nao_lidas > 0 : filtro === "clientes" ? !!c.cliente_id : filtro === "sem" ? !c.cliente_id : true)
+      (filtro === "naolidas" ? c.nao_lidas > 0 : filtro === "equipe" ? !!c.aguardando_equipe : filtro === "clientes" ? !!c.cliente_id : filtro === "sem" ? !c.cliente_id : true)
       && (!n || semAcento(nomeDe(c)).includes(n) || semAcento(c.nome || "").includes(n) || (d.length >= 4 && (c.telefone || "").includes(d))));
   }, [lista, q, filtro]); // eslint-disable-line react-hooks/exhaustive-deps
   const cli = conv?.cliente_id ? clientes.get(conv.cliente_id) : nova?.clienteId ? clientes.get(nova.clienteId) : undefined;
@@ -85,14 +86,14 @@ function WhatsApp() {
         <aside className="chat-lista">
           <div className="wa-filtros">
             <input value={q} placeholder="Buscar nome ou telefone" onChange={(e) => setQ(e.target.value)} />
-            <div className="wa-chips">{([["todas", "Todas"], ["naolidas", "Não lidas"], ["clientes", "Clientes"], ["sem", "Sem cliente"]] as [Filtro, string][]).map(([k, t]) =>
+            <div className="wa-chips">{([["todas", "Todas"], ["naolidas", "Não lidas"], ["equipe", "Pediu atendente"], ["clientes", "Clientes"], ["sem", "Sem cliente"]] as [Filtro, string][]).map(([k, t]) =>
               <button key={k} className={"pill" + (filtro === k ? " acc" : "")} onClick={() => setFiltro(k)}>{t}</button>)}</div>
           </div>
           {vis.map((c) => { const d = new Date(c.ultima_em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
             return <button key={c.id} className={"chat-conv" + (c.id === ativa ? " ativa" : "")} onClick={() => { setAtiva(c.id); setNova(null); setAberto(true); }}>
               <span className={"avr wa-av" + (c.cliente_id ? " cli" : "")}>{iniciais(nomeDe(c)) || "?"}</span>
               <span className="cc"><span className="cn">{nomeDe(c)}</span><span className="cs">{c.ultima_texto || foneBR(c.telefone)}</span></span>
-              <span className="wa-dir"><span className="muted s">{d === hoje ? dataHoraBR(c.ultima_em).slice(11) : dataHoraBR(c.ultima_em).slice(0, 5)}</span>{c.nao_lidas ? <span className="count hot">{c.nao_lidas}</span> : null}</span></button>; })}
+              <span className="wa-dir"><span className="muted s">{d === hoje ? dataHoraBR(c.ultima_em).slice(11) : dataHoraBR(c.ultima_em).slice(0, 5)}</span>{c.aguardando_equipe ? <span title="Pediu atendimento da equipe">🙋</span> : null}{c.nao_lidas ? <span className="count hot">{c.nao_lidas}</span> : null}</span></button>; })}
           {!vis.length && <div className="muted chat-dica">{lista.length ? "Nenhuma conversa com esse filtro." : conectado ? "Nenhuma mensagem ainda. As novas aparecem aqui assim que chegarem." : "Conecte o WhatsApp para as conversas aparecerem aqui."}</div>}
         </aside>
         <section className="chat-thread">
@@ -110,6 +111,7 @@ function WhatsApp() {
                 {conv && <button className="btn ghost" onClick={arquivar}>{conv.arquivada ? "Desarquivar" : "Arquivar"}</button>}
               </div>
             </header>
+            {conv && <AgenteNaConversa conv={conv} onAtualizar={atualizar} onEnviada={juntar} />}
             {conv ? <FioWa msgs={msgs} carregando={carregando} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
             <CompositorWa conversaId={conv?.id || null} telefone={nova?.telefone || cli?.telefone} nome={nova?.nome} avulso={!cli || !!nova?.outroNumero} clienteId={nova?.clienteId} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
               onEnviada={(m, id) => { if (!conv) { sb.from("wa_conversas").select("*").eq("id", id).single().then(({ data }: { data: WaConversa | null }) => { if (data) atualizar(data); setNova(null); setAtiva(id); }); } else juntar(m); }} />

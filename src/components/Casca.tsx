@@ -164,7 +164,7 @@ function Sino() {
         {avs.slice(0, 15).map((n) => (
           <button key={n.id} className={n.lida ? "lida" : ""} onClick={() => {
             setAberto(false); if (!n.lida) lida([n.id]);
-            if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id);
+            if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); else if (n.tipo === "whatsapp") router.push("/whatsapp");
           }}><span className="nt">{!n.lida && <span className="dot" />}{n.texto}</span>
             <span className="ns">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</span></button>))}
         {!avs.length && !caixa.size && !corrigir.length && <div className="muted" style={{ padding: "10px 12px" }}>Nenhum aviso.</div>}

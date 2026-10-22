@@ -7,6 +7,7 @@ import { hojeBR } from "@/lib/prazos";
 import { BotaoDjen } from "@/components/djen";
 import { CopiaSeguranca } from "@/components/backup";
 import { PainelConexao } from "@/components/whatsapp";
+import { ConfigAgente } from "@/components/agente";
 import { baixar } from "@/components/ui";
 
 export default function Configuracoes() {
@@ -47,6 +48,7 @@ export default function Configuracoes() {
         </div></section>
       <section className="panel"><div className="ph"><h3>WhatsApp do escritório</h3><span className="muted" style={{ fontSize: 12.5 }}>conexão pelo QR-code (aparelhos conectados)</span></div>
         <div className="pb"><PainelConexao /></div></section>
+      <ConfigAgente />
       <CopiaSeguranca />
       <section className="panel"><div className="ph"><h3>Como o prazo é calculado</h3></div>
         <div className="pb" style={{ maxWidth: "70ch", display: "flex", flexDirection: "column", gap: 6 }}>

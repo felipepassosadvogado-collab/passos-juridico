@@ -6,8 +6,9 @@ import { dataHoraBR, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
 import { useVisor } from "./visor";
 
-export type WaConversa = { id: string; jid: string; telefone: string | null; nome: string | null; cliente_id: string | null; ultima_em: string; ultima_texto: string | null; nao_lidas: number; arquivada: boolean };
-export type WaMensagem = { id: string; conversa_id: string; wa_id: string | null; de_mim: boolean; texto: string | null; tipo: string; anexo: string | null; anexo_nome: string | null; anexo_mime: string | null; status: string | null; enviado_por: string | null; em: string };
+export type WaConversa = { id: string; jid: string; telefone: string | null; nome: string | null; cliente_id: string | null; ultima_em: string; ultima_texto: string | null; nao_lidas: number; arquivada: boolean;
+  atendimento?: "agente" | "equipe"; equipe_ate?: string | null; aguardando_equipe?: boolean; resumo?: string | null; rascunho?: string | null; rascunho_em?: string | null; saudado_em?: string | null };
+export type WaMensagem = { id: string; conversa_id: string; wa_id: string | null; de_mim: boolean; texto: string | null; tipo: string; anexo: string | null; anexo_nome: string | null; anexo_mime: string | null; status: string | null; enviado_por: string | null; agente?: boolean; em: string };
 
 // ───── conversas: uma só cópia para o menu e para a tela ─────
 type SB = ReturnType<typeof useDados>["sb"];
@@ -60,7 +61,7 @@ export function useWaMensagens(conversaId: string | null) {
   return { msgs, carregando, juntar };
 }
 
-export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string } }) {
+export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string }; origem?: "equipe" | "rascunho" | "aviso" }) {
   const r = await fetch("/api/whatsapp/enviar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.erro || "Não consegui enviar pelo WhatsApp.");
@@ -139,7 +140,7 @@ export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: bo
         const s = m.de_mim ? SINAL[m.status || "enviada"] : null;
         return [sep && <div key={"d" + m.id} className="chat-dia">{d === hoje ? "Hoje" : dataHoraBR(m.em).slice(0, 10)}</div>,
           <div key={m.id} className={"msg" + (m.de_mim ? " meu" : "")}><div className="bolha">
-            {m.de_mim && <div className="mquem">{m.enviado_por ? nome(m.enviado_por).split(" ")[0] : "Celular / Atende Direito"}</div>}
+            {m.de_mim && <div className="mquem">{m.agente ? "🤖 Assistente" + (m.enviado_por ? " · enviado por " + nome(m.enviado_por).split(" ")[0] : "") : m.enviado_por ? nome(m.enviado_por).split(" ")[0] : "Celular / Atende Direito"}</div>}
             {m.tipo !== "texto" && <button className="reflink" disabled={abrindo === m.id} onClick={() => abrir(m)}>{abrindo === m.id ? "Abrindo…" : (m.anexo_nome && m.tipo === "documento" ? "📄 " + m.anexo_nome : ROT_TIPO[m.tipo] || "Ver")}</button>}
             {m.texto && <div className="mtexto">{m.texto}</div>}
             <div className="mhora">{dataHoraBR(m.em).slice(11)}{s && <span className={"msinal " + s[1]} title={s[2]}>{s[0]}</span>}</div>

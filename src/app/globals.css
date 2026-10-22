@@ -779,3 +779,12 @@ html.claro .wa .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11
 .wa-cli-corpo{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
 .wa-cli-corpo .chat-fio{max-height:300px;min-height:80px}
 .wa-cli .msg.meu .bolha{background:#1f6b4f;border-color:#1f6b4f;color:#f2fbf6}html.claro .wa-cli .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11261b}
+/* assistente virtual no WhatsApp */
+.wa-agente{display:flex;flex-direction:column;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
+.wa-ag-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wa-agente .chip.hot{background:var(--accent-soft);border-color:var(--accent)}
+.wa-ag-resumo{font-size:13px;line-height:1.45;background:var(--accent-soft);border-radius:10px;padding:8px 10px;white-space:pre-wrap}
+.wa-ag-rasc{display:flex;flex-direction:column;gap:6px;border:1px dashed var(--accent);border-radius:10px;padding:8px 10px}
+.wa-ag-rasc textarea{width:100%;font:inherit}
+.wa-ag-partes{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+.wa-ag-partes .bolha{white-space:pre-wrap;font-size:13.5px;line-height:1.45;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;max-width:none}
