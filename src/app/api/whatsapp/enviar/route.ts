@@ -5,7 +5,7 @@ import { ErroWa, INSTANCIA, RESUMO_TIPO, chaveFone, evo, soFone } from "@/lib/wh
 import { conversaDe } from "@/lib/whatsappDb";
 
 export const maxDuration = 30;
-type Pedido = { conversaId?: string; telefone?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string } };
+type Pedido = { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; texto?: string; anexo?: { caminho: string; nome: string; mime: string } };
 
 /** envia uma mensagem pelo WhatsApp do escritório: resposta numa conversa ou mensagem nova para um cliente cadastrado */
 export async function POST(req: Request) {
@@ -20,8 +20,11 @@ export async function POST(req: Request) {
     // mensagem nova: só para quem é cliente do escritório
     const fone = soFone(pd.telefone); if (fone.length < 12) return erro("Telefone inválido.");
     const { data: cs } = await adm.from("clientes").select("id,telefone").not("telefone", "is", null).limit(5000);
-    if (!(cs || []).some((c: { telefone: string }) => String(c.telefone).split(/[\/,;]| e /).some((t) => chaveFone(t) === chaveFone(fone)))) return erro("Esse telefone não está na ficha de nenhum cliente. Por segurança, o sistema só inicia conversa com clientes cadastrados.");
+    const ehCliente = (cs || []).some((c: { telefone: string }) => String(c.telefone).split(/[\/,;]| e /).some((t) => chaveFone(t) === chaveFone(fone)));
+    // número avulso só quando a pessoa escolheu "novo contato" na tela
+    if (!ehCliente && !pd.avulso) return erro("Esse telefone não está na ficha de nenhum cliente. Use “Número avulso” em Nova conversa para falar com um contato novo.");
     conv = await conversaDe(adm, fone + "@s.whatsapp.net", fone, null);
+    if (conv && pd.nome?.trim() && !conv.nome) { const { data } = await adm.from("wa_conversas").update({ nome: pd.nome.trim().slice(0, 120) }).eq("id", conv.id).select().single(); if (data) conv = data; }
   }
   if (!conv) return erro("Conversa não encontrada.", 404);
   const numero = conv.telefone || (/@s\.whatsapp\.net$/.test(conv.jid) ? soFone(conv.jid) : "");

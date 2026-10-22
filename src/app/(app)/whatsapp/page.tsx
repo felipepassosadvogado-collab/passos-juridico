@@ -10,11 +10,11 @@ import { BuscaCliente, CompositorWa, FioWa, PainelConexao, foneBR, useConexaoWa,
 type Filtro = "todas" | "naolidas" | "clientes" | "sem";
 
 function WhatsApp() {
-  const sp = useSearchParams(); const { sb, clientes, processos, aviso } = useDados(); const j = useJanelas();
+  const sp = useSearchParams(); const { sb, clientes, processos, aviso, aplicar } = useDados(); const j = useJanelas();
   const { lista, semTabela, atualizar } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
   const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
-  const [nova, setNova] = useState<{ clienteId: string } | null>(null); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
+  const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
   const conv = ativa ? lista.find((c) => c.id === ativa) || null : null;
   const { msgs, carregando, juntar } = useWaMensagens(conv?.id || null);
   // abriu a conversa: zera as não lidas
@@ -28,7 +28,7 @@ function WhatsApp() {
       (filtro === "naolidas" ? c.nao_lidas > 0 : filtro === "clientes" ? !!c.cliente_id : filtro === "sem" ? !c.cliente_id : true)
       && (!n || semAcento(nomeDe(c)).includes(n) || semAcento(c.nome || "").includes(n) || (d.length >= 4 && (c.telefone || "").includes(d))));
   }, [lista, q, filtro]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cli = conv?.cliente_id ? clientes.get(conv.cliente_id) : nova ? clientes.get(nova.clienteId) : undefined;
+  const cli = conv?.cliente_id ? clientes.get(conv.cliente_id) : nova?.clienteId ? clientes.get(nova.clienteId) : undefined;
   const procs = cli ? [...processos.values()].filter((p) => p.cliente_id === cli.id) : [];
   const ligar = async (clienteId: string | null) => {
     if (!conv) return; setLigando(false);
@@ -38,17 +38,45 @@ function WhatsApp() {
   const arquivar = async () => { if (!conv) return; const { data } = await sb.from("wa_conversas").update({ arquivada: !conv.arquivada }).eq("id", conv.id).select().single(); if (data) { atualizar(data); if (data.arquivada) { setAtiva(null); setAberto(false); } } };
   const hoje = hojeBR();
   if (semTabela) return <><div className="pg-title"><h2>WhatsApp</h2></div><div className="banner erro">Falta instalar a etapa 0020 (0020_whatsapp.sql) no Supabase.</div></>;
-  const titulo = conv ? nomeDe(conv) : cli ? nomeBonito(cli.nome) : "";
+  const titulo = conv ? nomeDe(conv) : cli ? nomeBonito(cli.nome) : nova?.nome || foneBR(nova?.telefone) || "";
   return (
     <>
       <div className="pg-title"><h2>WhatsApp</h2><span className="muted">Mensagens do WhatsApp do escritório</span>
         <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { setBuscaNova(!buscaNova); }}>{buscaNova ? "Cancelar" : "+ Nova conversa"}</button></div>
       <PainelConexao compacto />
-      {buscaNova && <div className="panel" style={{ padding: 12, marginBottom: 10 }}><BuscaCliente soComTelefone placeholder="Nova conversa com um cliente: digite o nome ou o CPF" onEscolher={(id) => {
-        const c = clientes.get(id); const ja = lista.find((x) => x.cliente_id === id);
-        setBuscaNova(false);
-        if (ja) { setAtiva(ja.id); setNova(null); } else if (c?.telefone) { setAtiva(null); setNova({ clienteId: id }); } setAberto(true);
-      }} /></div>}
+      {buscaNova && <div className="panel" style={{ padding: 12, marginBottom: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="seg" role="tablist" style={{ alignSelf: "flex-start" }}>
+          <button role="tab" aria-selected={modoNova === "cliente"} onClick={() => setModoNova("cliente")}>Cliente cadastrado</button>
+          <button role="tab" aria-selected={modoNova === "avulso"} onClick={() => setModoNova("avulso")}>Número avulso (novo contato)</button>
+        </div>
+        {modoNova === "cliente" ? <BuscaCliente soComTelefone placeholder="Nova conversa com um cliente: digite o nome ou o CPF" onEscolher={(id) => {
+          const c = clientes.get(id); const ja = lista.find((x) => x.cliente_id === id);
+          setBuscaNova(false);
+          if (ja) { setAtiva(ja.id); setNova(null); } else if (c?.telefone) { setAtiva(null); setNova({ clienteId: id }); } setAberto(true);
+        }} /> : <div className="triage">
+          <label className="f">WhatsApp (com DDD)<input inputMode="tel" autoFocus value={av.fone} placeholder="(47) 9 9999-9999" onChange={(e) => setAv({ ...av, fone: e.target.value })} /></label>
+          <label className="f wide2">Nome<input value={av.nome} placeholder="Nome da pessoa" onChange={(e) => setAv({ ...av, nome: e.target.value })} /></label>
+          <label className="chk" style={{ alignSelf: "center" }}><input type="checkbox" checked={av.cadastrar} onChange={(e) => setAv({ ...av, cadastrar: e.target.checked })} /> Cadastrar como novo cliente</label>
+          <div className="tools" style={{ alignSelf: "flex-end" }}><button className="btn primary" disabled={criando} onClick={async () => {
+            const d = av.fone.replace(/\D/g, ""); if (d.length < 10 || d.length > 13) { aviso("Informe o WhatsApp com DDD."); return; }
+            if (av.cadastrar && !av.nome.trim()) { aviso("Informe o nome para cadastrar o cliente."); return; }
+            const fone = d.length <= 11 ? d : d.replace(/^55/, "");
+            const tel = fone.length === 11 ? `(${fone.slice(0, 2)}) ${fone.slice(2, 7)}-${fone.slice(7)}` : `(${fone.slice(0, 2)}) ${fone.slice(2, 6)}-${fone.slice(6)}`;
+            const ja = lista.find((x) => (x.telefone || "").endsWith(fone.slice(-8)) && (x.telefone || "").includes(fone.slice(0, 2)));
+            if (ja) { setAtiva(ja.id); setNova(null); setBuscaNova(false); setAberto(true); aviso("Já existe uma conversa com esse número."); return; }
+            setCriando(true);
+            try {
+              let clienteId: string | undefined;
+              if (av.cadastrar) {
+                const { data, error } = await sb.from("clientes").insert({ nome: av.nome.trim().toUpperCase(), telefone: tel }).select().single();
+                if (error) { aviso(msgErro(error)); return; }
+                aplicar("clientes", data); clienteId = data.id; aviso("Cliente cadastrado. Complete a ficha depois.");
+              }
+              setAtiva(null); setNova({ clienteId, telefone: tel, nome: av.nome.trim() || undefined }); setBuscaNova(false); setAberto(true); setAv({ fone: "", nome: "", cadastrar: true });
+            } finally { setCriando(false); }
+          }}>{criando ? "Abrindo…" : "Abrir conversa"}</button></div>
+        </div>}
+      </div>}
       <div className={"chat wa" + (aberto ? " aberto" : "")}>
         <aside className="chat-lista">
           <div className="wa-filtros">
@@ -68,7 +96,7 @@ function WhatsApp() {
             <header className="chat-topo wa-topo"><button className="btn ghost voltar" onClick={() => setAberto(false)}>‹</button>
               <span className={"avr wa-av" + (cli ? " cli" : "")}>{iniciais(titulo) || "?"}</span>
               <div style={{ minWidth: 0 }}><div style={{ fontWeight: 700 }}>{titulo}</div>
-                <div className="muted s">{foneBR(conv?.telefone || cli?.telefone)}{conv?.nome && cli && semAcento(conv.nome) !== semAcento(cli.nome) ? ` · no WhatsApp: ${conv.nome}` : ""}</div></div>
+                <div className="muted s">{foneBR(conv?.telefone || cli?.telefone || nova?.telefone)}{conv?.nome && cli && semAcento(conv.nome) !== semAcento(cli.nome) ? ` · no WhatsApp: ${conv.nome}` : ""}</div></div>
               <div className="wa-acoes">
                 {cli ? <>
                   <button className="btn ghost" onClick={() => j.abrirCliente(cli.id)}>Ficha do cliente</button>
@@ -79,7 +107,7 @@ function WhatsApp() {
               </div>
             </header>
             {conv ? <FioWa msgs={msgs} carregando={carregando} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
-            <CompositorWa conversaId={conv?.id || null} telefone={cli?.telefone} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
+            <CompositorWa conversaId={conv?.id || null} telefone={cli?.telefone || nova?.telefone} nome={nova?.nome} avulso={!cli} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
               onEnviada={(m, id) => { if (!conv) { setNova(null); setAtiva(id); } else juntar(m); }} />
           </> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Escolha uma conversa.</div></div>}
         </section>

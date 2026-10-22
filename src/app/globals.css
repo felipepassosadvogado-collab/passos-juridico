@@ -775,3 +775,7 @@ html.claro .wa .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11
 .wa-busca-res{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgb(0 0 0 / .3);display:flex;flex-direction:column;padding:4px;max-height:300px;overflow:auto}
 .wa-busca-res button{all:unset;cursor:pointer;display:flex;flex-direction:column;padding:8px 10px;border-radius:7px}.wa-busca-res button:hover{background:var(--sunken)}
 .wa .msinal.lida{color:#53bdeb}html.claro .wa .msinal.lida{color:#027eb5}
+.wa-cli{background:var(--surface);border-color:var(--line)}.wa-cli .tj-corr-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wa-cli-corpo{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.wa-cli-corpo .chat-fio{max-height:300px;min-height:80px}
+.wa-cli .msg.meu .bolha{background:#1f6b4f;border-color:#1f6b4f;color:#f2fbf6}html.claro .wa-cli .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11261b}

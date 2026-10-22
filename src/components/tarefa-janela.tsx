@@ -1,6 +1,7 @@
 "use client";
 // Tarefa aberta numa caixa (no estilo do ADVBOX): à esquerda a tarefa, as ações e a conversa;
 // à direita o processo, as partes com WhatsApp e e-mail, e a publicação que gerou o prazo.
+import { WhatsappDoCliente } from "./whatsapp";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
@@ -97,6 +98,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 {t.protocolo_numero && <span>nº <strong className="mono">{t.protocolo_numero}</strong> <button className="icb-q mini" title="Copiar o nº do protocolo" onClick={async () => { try { await navigator.clipboard.writeText(t.protocolo_numero!); aviso("Nº do protocolo copiado."); } catch { aviso(t.protocolo_numero!); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button></span>}
                 {t.protocolo_obs && <span className="muted" style={{ flexBasis: "100%" }}>“{t.protocolo_obs}”</span>}</dd></>}
             </dl>
+            {cli && <WhatsappDoCliente key={cli.id} clienteId={cli.id} inicioAberto={!!t.aviso_id || /contato|retorno|avisar/i.test((t.tipo || "") + " " + t.descricao)} />}
             {t.aviso_id && avisos.get(t.aviso_id) && (() => { const av = avisos.get(t.aviso_id!)!; return <div className="tj-corr">
               <div className="tj-corr-h"><strong>Aviso ao cliente</strong><span className="muted s">{av.tipo_evento || "Ato"}{av.data_evento ? " · " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : ""}{av.local ? " · " + av.local : ""}</span></div>
               <div className="muted s">Registre aqui o retorno do cliente; ao confirmar, esta conferência é concluída sozinha.</div>
