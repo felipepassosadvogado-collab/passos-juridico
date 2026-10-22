@@ -12,10 +12,20 @@ type Filtro = "todas" | "naolidas" | "equipe" | "clientes" | "sem";
 
 function WhatsApp() {
   const sp = useSearchParams(); const { sb, clientes, processos, aviso, aplicar } = useDados(); const j = useJanelas();
-  const { lista, semTabela, atualizar } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
+  const { lista, semTabela, atualizar, carregado: loaded } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
   const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
   const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
+  // veio de um link do cliente (?cliente=ID): abre a conversa que já existe ou começa uma nova com ele
+  const pedidoCli = sp.get("cliente"); const [feito, setFeito] = useState("");
+  useEffect(() => {
+    if (!pedidoCli || feito === pedidoCli || !clientes.size) return;
+    const c = clientes.get(pedidoCli); if (!c) return;
+    const ja = lista.filter((x) => x.cliente_id === pedidoCli).sort((a, b) => b.ultima_em.localeCompare(a.ultima_em))[0];
+    if (!ja && !loaded) return; // espera a lista de conversas carregar
+    setFeito(pedidoCli); setBuscaNova(false); setAberto(true);
+    if (ja) { setAtiva(ja.id); setNova(null); } else if (c.telefone) { setAtiva(null); setNova({ clienteId: pedidoCli }); } else aviso("Este cliente não tem telefone na ficha.");
+  }, [pedidoCli, clientes.size, lista.length, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const conv = ativa ? lista.find((c) => c.id === ativa) || null : null;
   const { msgs, carregando, juntar } = useWaMensagens(conv?.id || null);
   // abriu a conversa: zera as não lidas

@@ -12,13 +12,13 @@ export type WaMensagem = { id: string; conversa_id: string; wa_id: string | null
 
 // ───── conversas: uma só cópia para o menu e para a tela ─────
 type SB = ReturnType<typeof useDados>["sb"];
-const loja = { lista: new Map<string, WaConversa>(), v: 0, ouvintes: new Set<() => void>(), iniciado: false, falhou: false };
+const loja = { lista: new Map<string, WaConversa>(), v: 0, ouvintes: new Set<() => void>(), iniciado: false, falhou: false, carregado: false };
 const avisar = () => { loja.v++; loja.ouvintes.forEach((f) => f()); };
 function iniciar(sb: SB) {
   if (loja.iniciado) return; loja.iniciado = true;
   sb.from("wa_conversas").select("*").order("ultima_em", { ascending: false }).limit(800).then(({ data, error }: { data: WaConversa[] | null; error: unknown }) => {
     if (error) { loja.falhou = true; avisar(); return; }
-    for (const c of data || []) loja.lista.set(c.id, c); avisar();
+    for (const c of data || []) loja.lista.set(c.id, c); loja.carregado = true; avisar();
   });
   sb.channel("wa-conversas").on("postgres_changes", { event: "*", schema: "public", table: "wa_conversas" }, (p: { eventType: string; new: WaConversa; old: { id: string } }) => {
     if (p.eventType === "DELETE") loja.lista.delete(p.old.id); else loja.lista.set(p.new.id, p.new); avisar();
@@ -30,7 +30,7 @@ export function useWaConversas() {
   const v = useSyncExternalStore((f) => { loja.ouvintes.add(f); return () => { loja.ouvintes.delete(f); }; }, () => loja.v, () => 0);
   const lista = useMemo(() => [...loja.lista.values()].sort((a, b) => b.ultima_em.localeCompare(a.ultima_em)), [v]); // eslint-disable-line react-hooks/exhaustive-deps
   const naoLidas = useMemo(() => lista.reduce((s, c) => s + (c.arquivada ? 0 : c.nao_lidas || 0), 0), [lista]);
-  return { lista, naoLidas, semTabela: loja.falhou, atualizar: (c: WaConversa) => { loja.lista.set(c.id, c); avisar(); } };
+  return { lista, naoLidas, semTabela: loja.falhou, carregado: loja.carregado, atualizar: (c: WaConversa) => { loja.lista.set(c.id, c); avisar(); } };
 }
 
 /** nome para mostrar: o do cliente; senão o do WhatsApp; senão o telefone */

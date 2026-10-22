@@ -165,7 +165,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "tarefas", alvo: "tar-" + t.id })}>Visualizar processo</button></div>
               <div className="tj-bloco"><div className="tj-rot">Partes envolvidas</div>
                 <div style={{ fontWeight: 600 }}>{nomeBonito(cli?.nome || p.cliente_nome || "—")}</div>
-                {wa && <a className="tj-wa" href={"https://wa.me/" + wa} target="_blank" rel="noopener noreferrer">{S('<path d="M4 16l1-3.2A6.5 6.5 0 1 1 7.3 15z"/>')}{cli?.telefone}</a>}
+                {wa && cli && <Link className="tj-wa" title="Abrir a conversa no WhatsApp do escritório" href={"/whatsapp?cliente=" + cli.id} onClick={onFechar}>{S('<path d="M4 16l1-3.2A6.5 6.5 0 1 1 7.3 15z"/>')}{cli.telefone}</Link>}
                 {cli?.email && <div className="s">{cli.email} <button className="icb-q mini" title="Copiar e-mail" onClick={async () => { try { await navigator.clipboard.writeText(cli.email!); aviso("E-mail copiado."); } catch { aviso(cli.email!); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button></div>}
                 {cli && <Link className="reflink" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente</Link>}
                 {(p.reus || []).map((r, i) => <div key={i} className="s" style={{ color: "var(--fg)" }}>{i === 0 ? "vs " : ""}{nomeBonito(r)}</div>)}</div>
@@ -179,7 +179,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             </> : caso ? <>
               <div className="tj-bloco"><div className="tj-rot">Atendimento pré-processual</div><div style={{ fontWeight: 600 }}>{nomeBonito(caso.nome)}</div><div className="s">x {caso.banco || "banco a definir"}</div><div className="s">Etapa: {caso.etapa}</div>
                 <button className="reflink" onClick={() => j.abrirCaso(caso.id)}>Abrir atendimento</button></div>
-              {cli && <div className="tj-bloco"><div className="tj-rot">Cliente</div>{wa && <a className="tj-wa" href={"https://wa.me/" + wa} target="_blank" rel="noopener noreferrer">{cli.telefone}</a>}{cli.email && <div className="s">{cli.email}</div>}</div>}
+              {cli && <div className="tj-bloco"><div className="tj-rot">Cliente</div>{wa && <Link className="tj-wa" title="Abrir a conversa no WhatsApp do escritório" href={"/whatsapp?cliente=" + cli.id} onClick={onFechar}>{cli.telefone}</Link>}{cli.email && <div className="s">{cli.email}</div>}</div>}
             </> : <div className="muted">Tarefa sem processo.</div>}
           </aside>
         </div>
