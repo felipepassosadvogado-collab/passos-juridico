@@ -255,22 +255,25 @@ export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "d
 }
 
 export function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
-  const { aviso } = useDados(); const acoes = useAcoesTarefa();
+  const { aviso, eu, titular } = useDados(); const acoes = useAcoesTarefa();
+  const podeTrocar = (t.criado_por === eu.id || titular) && t.status !== "revisao";
   const detalhe = t.tipo && t.descricao.startsWith(t.tipo + ": ") ? t.descricao.slice(t.tipo.length + 2) : t.tipo === t.descricao ? "" : t.descricao;
-  const [f, setF] = useState({ tipo: t.tipo || "", desc: detalhe, venc: t.vencimento || "", imp: t.importante, urg: t.urgente });
+  const [f, setF] = useState({ tipo: t.tipo || "", desc: detalhe, venc: t.vencimento || "", imp: t.importante, urg: t.urgente, resp: t.responsavel || "" });
   const salvar = async () => {
     if (!f.tipo && !f.desc.trim()) { aviso("A tarefa precisa de tipo ou detalhe."); return; }
     if (!dataValida(f.venc)) { aviso("Informe uma data de vencimento válida."); return; }
     const descricao = f.tipo && f.tipo !== "Outra" ? (f.desc.trim() ? f.tipo + ": " + f.desc.trim() : f.tipo) : f.desc.trim();
-    if (descricao === t.descricao && f.venc === t.vencimento && f.imp === t.importante && f.urg === t.urgente) { onFim(); return; }
-    if (await acoes.editar(t, { tipo: f.tipo && f.tipo !== "Outra" ? f.tipo : null, descricao, vencimento: f.venc, importante: f.imp, urgente: f.urg })) onFim();
+    const trocou = podeTrocar && !!f.resp && f.resp !== t.responsavel;
+    if (descricao === t.descricao && f.venc === t.vencimento && f.imp === t.importante && f.urg === t.urgente && !trocou) { onFim(); return; }
+    if (await acoes.editar(t, { tipo: f.tipo && f.tipo !== "Outra" ? f.tipo : null, descricao, vencimento: f.venc, importante: f.imp, urgente: f.urg, ...(trocou ? { responsavel: f.resp } : {}) })) onFim();
   };
   return (
     <div className="triage edit-t" onClick={(e) => e.stopPropagation()}>
       <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— sem tipo —</option>{TAREFAS_GRUPOS.map(([g, l]) => <optgroup key={g} label={g}>{l.map((x) => <option key={x}>{x}</option>)}</optgroup>)}</select></label>
       <label className="f wide2">Detalhe<input value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} /></label>
       <label className="f">Prazo fatal<input type="date" value={f.venc} onChange={(e) => setF({ ...f, venc: e.target.value })} /></label>
-      <label className="f">Responsável<div style={{ padding: "7px 0" }}><ChipResp id={t.responsavel} /></div></label>
+      {podeTrocar ? <label className="f">Responsável<SelResp valor={f.resp} vazio={null} onChange={(v) => setF({ ...f, resp: v || f.resp })} /></label>
+        : <label className="f">Responsável<div style={{ padding: "7px 0" }}><ChipResp id={t.responsavel} /></div></label>}
       <div className="flags">
         <label className="chk imp"><input type="checkbox" checked={f.imp} onChange={(e) => setF({ ...f, imp: e.target.checked })} />Importante</label>
         <label className="chk urg"><input type="checkbox" checked={f.urg} onChange={(e) => setF({ ...f, urg: e.target.checked })} />Urgente</label>
