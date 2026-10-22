@@ -181,6 +181,7 @@ function Adicionar() {
       <button className="btn primary" aria-haspopup="true" aria-label="Adicionar" onClick={() => setAberto(!aberto)}><span className="rot">Adicionar <span aria-hidden="true">▾</span></span><span className="mais-ic" aria-hidden="true">+</span></button>
       {aberto && <div className="addmenu">
         <button onClick={() => { setAberto(false); j.novaTarefa(); }}>Nova tarefa</button>
+        <button onClick={() => { setAberto(false); j.agendarAto(); }}>Agendar audiência / coleta</button>
         <button onClick={() => { setAberto(false); j.novoProcesso(); }}>Novo processo</button>
         <button onClick={() => { setAberto(false); j.novoCliente(); }}>Novo cliente</button>
       </div>}

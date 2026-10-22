@@ -212,6 +212,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
         </div>
       </div>
       <div className="acts"><button className="btn primary" disabled={ocupado} onClick={criar}>{Ic.tarefa}{ocupado ? "Criando…" : "Criar tarefa"}</button>
+        {numero && !pub && <button className="btn" title="Agendar audiência ou coleta neste processo" onClick={() => j.agendarAto(numero)}>📅 Agendar audiência / coleta</button>}
         {numero && <button className="btn" title="O Claude redige a peça em Word, no papel timbrado do escritório" onClick={() => j.gerarPeca({ numero, publicacaoId: pub?.id ?? null, tipo: f.tipo || null, orientacoes: f.desc })}>{Ic.claude}Gerar petição</button>}
         {botoes}</div>
     </div>
