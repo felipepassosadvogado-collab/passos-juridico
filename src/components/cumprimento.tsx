@@ -23,7 +23,7 @@ const mesOk = (s: unknown) => (typeof s === "string" && /^\d{4}-\d\d/.test(s) ? 
 const n2 = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : typeof v === "string" ? numeroBR(v) : 0);
 
 export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }: { ctx: CtxCumprimento; onFechar: () => void; onInicial?: () => void; onIntermediaria?: (n: string) => void }) {
-  const { processos, clientes, tarefas, sb, eu, aviso, equipe, nome, aplicar } = useDados(); const acoes = useAcoesTarefa(); const visor = useVisor();
+  const { processos, clientes, tarefas, sb, eu, aviso, equipe, nome, aplicar, registrar } = useDados(); const acoes = useAcoesTarefa(); const visor = useVisor();
   const p = processos.get(ctx.numero); const cli = p?.cliente_id ? clientes.get(p.cliente_id) : undefined;
   const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
   const banco = (p?.reus || []).find((r) => !/INSS|Instituto Nacional/i.test(r)) || p?.banco || "";
@@ -96,13 +96,24 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
     compensacao: prm.temComp && numeroBR(prm.comp) > 0 && prm.compMes ? { valor: numeroBR(prm.comp), mes: prm.compMes } : null,
     honorarios: { tipo: prm.hTipo, pct: numeroBR(prm.hPct), minimo: numeroBR(prm.hMin), minimoDesde: prm.hMinDesde, valor: numeroBR(prm.hValor), valorDesde: prm.hValorDesde },
   });
+  // o cálculo vira o novo valor da causa do processo (total da condenação; os honorários de sucumbência ficam de fora,
+  // porque são do advogado e não entram na base dos honorários contratuais). Reflete no CRM, na ficha e nos relatórios.
+  const [valorNovo, setValorNovo] = useState<{ de: number | null; para: number } | null>(null);
+  const atualizarValorCausa = async (r: ResultadoCs) => {
+    const proc = processos.get(ctx.numero); const v = Math.round(r.condenacao * 100) / 100;
+    if (!proc || !(v > 0) || Math.abs((proc.valor_causa || 0) - v) < 0.01) return;
+    const { data, error } = await sb.from("processos").update({ valor_causa: v }).eq("numero", proc.numero).select().single();
+    if (error) { aviso(msgErro(error)); return; }
+    aplicar("processos", data); setValorNovo({ de: proc.valor_causa ?? null, para: v });
+    registrar({ processo_numero: proc.numero, tipo: "comentario", dados: { texto: `Valor da causa atualizado pelo cálculo de cumprimento de sentença (data-base ${mesBR(prm.base)}): ${proc.valor_causa ? "de R$ " + moeda(proc.valor_causa) + " " : ""}para R$ ${moeda(v)}.` } });
+  };
   const calcular = async (): Promise<{ r: ResultadoCs; ps: ParamsCs; ix: Indices & { fonte: string } } | null> => {
     const ps = params();
     if (!ps.base) { aviso("Informe a data-base do cálculo."); return null; }
     if (ps.restituicao !== "nenhuma" && !ps.contratos.length) { aviso("Informe, em cada contrato, a parcela e a competência do 1º desconto."); return null; }
     if (ps.moral && !ps.moral.jurosDesde) { aviso("Informe desde quando correm os juros dos danos morais."); return null; }
     setCalculando(true);
-    try { const i = await indices(); const r = liquidar(ps, i); setRes(r); return { r, ps, ix: i }; }
+    try { const i = await indices(); const r = liquidar(ps, i); setRes(r); await atualizarValorCausa(r); return { r, ps, ix: i }; }
     catch (e) { aviso((e as Error).message); return null; }
     finally { setCalculando(false); }
   };
@@ -244,6 +255,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
               {totalPrevio.honorarios && <tr><td>Honorários sucumbenciais{totalPrevio.honorarios.prevaleceMinimo ? " (piso)" : ""}</td><td className="num">{moeda(totalPrevio.honorarios.valor)}</td></tr>}
               <tr><td><strong>Total líquido exequendo</strong></td><td className="num"><strong>R$ {moeda(totalPrevio.total)}</strong></td></tr>
             </tbody></table>
+            {valorNovo && <div className="banner ok" style={{ marginTop: 8 }}>Valor da causa do processo atualizado {valorNovo.de ? `de R$ ${moeda(valorNovo.de)} ` : ""}para <b>R$ {moeda(valorNovo.para)}</b> (total da condenação, sem os honorários de sucumbência). Já aparece no CRM, na ficha e nos relatórios.</div>}
             <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>Data-base {mesBR(prm.base)}.{totalPrevio.faltam.length ? " Índices ainda não divulgados (contados como zero): " + totalPrevio.faltam.slice(0, 4).join(", ") + "." : ""}</div>
           </div>}
         </div></section>

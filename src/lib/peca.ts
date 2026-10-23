@@ -25,13 +25,25 @@ function runs(texto: string, base = "", tudoNegrito = false): string {
 const par = (ppr: string, conteudo: string) => `<w:p><w:pPr>${ppr}</w:pPr>${conteudo}</w:p>`;
 const recuo = `<w:ind w:firstLine="1417"/><w:jc w:val="both"/>`;
 
+/** o preâmbulo começa no nome do autor: tira o que o Claude às vezes repete do cabeçalho (endereçamento, nº dos autos, prioridade) */
+export function limparPreambulo(pre: string, enderecamento = ""): string {
+  let t = String(pre || "").replace(/\s+/g, " ").trim(); let antes = "";
+  const end = enderecamento.replace(/\s+/g, " ").trim().toUpperCase();
+  while (t !== antes) {
+    antes = t;
+    if (end && t.toUpperCase().startsWith(end)) t = t.slice(end.length);
+    t = t.replace(/^\s*\**\s*(autos\s*(do\s*processo\s*)?n?[ºo°.]*\s*:?\s*[\d.\-\/]{15,}(\/[A-Z]{2})?|processo\s*n?[ºo°.]*\s*:?\s*[\d.\-\/]{15,}|tramita[çc][ãa]o\s+priorit[áa]ria\s*[–-]?\s*(idoso|pessoa idosa)?)\s*(\*\*(?=\s))?[\s,.;:–-]*/i, "");
+  }
+  return t.trim();
+}
+
 export function corpoXml(p: Peca, autos: string, prioridade: boolean, assinatura: { cidade: string; nome: string; oab: string }): string {
   const out: string[] = [];
   out.push(par(SP(), runs(p.enderecamento.toUpperCase(), "", true)));
   out.push(par(SP(), ""));
   out.push(par(SP(), runs(autos, "", true)));
   if (prioridade) out.push(par(SP(), runs("TRAMITAÇÃO PRIORITÁRIA – IDOSO", "", true)));
-  out.push(par(SP() + recuo, runs(p.preambulo)));
+  out.push(par(SP() + recuo, runs(limparPreambulo(p.preambulo, p.enderecamento))));
   out.push(par(SP() + `<w:jc w:val="center"/>`, runs(p.titulo.toUpperCase(), "", true)));
   if (p.abertura) out.push(par(SP() + recuo, runs(p.abertura)));
   for (const b of p.blocos || []) {
@@ -72,6 +84,8 @@ Regras do escritório:
 - Inclua a tempestividade quando houver prazo, usando o prazo informado; se não souber as datas, use marcadores.
 - Linguagem formal, clara, sem floreios; parágrafos de tamanho médio; use **negrito** só em nomes das partes e em expressões decisivas.
 - Use aspas tipográficas “ ” dentro do texto (nunca aspas retas), para não quebrar o JSON.
+- O sistema já escreve o endereçamento, o número dos autos e a “TRAMITAÇÃO PRIORITÁRIA – IDOSO” no topo: o "preambulo" começa direto no nome do autor em negrito (ex.: "**MARIA DA SILVA**, já devidamente qualificada nos autos em epígrafe, ..."), sem repetir nada disso.
+- Marcador entre colchetes só no dado que falta, dentro da frase normal (ex.: "em atenção à intimação do evento [nº do evento]"); se a frase inteira depender do que você não sabe, deixe a frase de fora.
 Responda só com JSON, sem comentários:
 {"enderecamento": string (ex.: "AO JUÍZO DA 6ª VARA FEDERAL DE JOINVILLE/SC – JUIZADO ESPECIAL FEDERAL CÍVEL"), "preambulo": string (do nome do autor até o verbo "apresentar"/"interpor"/"opor"), "titulo": string (nome da peça), "abertura": string ou "" (continuação logo após o título, ex.: "juntado no evento 69, pelos fundamentos de fato e de direito a seguir expostos."), "blocos": [{"tipo": "secao"|"paragrafo"|"citacao"|"marcador"|"alinea", "texto": string, "rotulo": string só para alinea, ex. "a)"}], "fecho": "Nestes termos, pede deferimento.", "pendencias": [string], "nomeArquivo": string curto sem extensão, ex. "Manifestacao_Laudo_-_Joao_Zacarias_x_C6"}
 

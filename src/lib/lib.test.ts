@@ -74,3 +74,12 @@ describe("DJEN e regras do escritório", () => {
     expect(chaveBanco("Banco C6 Consignado S.A.")).toBe("c6");
   });
 });
+
+import { limparPreambulo } from "./peca";
+describe("preâmbulo da petição intermediária", () => {
+  it("tira nº dos autos e prioridade repetidos no começo", () => {
+    expect(limparPreambulo("Autos nº 5015722-57.2026.4.04.7201 TRAMITAÇÃO PRIORITÁRIA – IDOSO **DORIVAL CORREA DA COSTA**, já devidamente qualificado")).toBe("**DORIVAL CORREA DA COSTA**, já devidamente qualificado");
+    expect(limparPreambulo("AO JUÍZO DA 2ª VARA FEDERAL DE JOINVILLE/SC **JOSÉ**, vem", "AO JUÍZO DA 2ª VARA FEDERAL DE JOINVILLE/SC")).toBe("**JOSÉ**, vem");
+    expect(limparPreambulo("**MARIA**, já qualificada")).toBe("**MARIA**, já qualificada");
+  });
+});
