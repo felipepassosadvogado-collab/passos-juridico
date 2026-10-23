@@ -161,6 +161,7 @@ export default function Gestao() {
       const concEm = (a: string, b: string) => ts.filter((t) => t.status === "feito" && ((x) => x >= a && x <= b)(diaLocal(t.feito_em))).length;
       // acessos ao sistema no período (só quando o relatório é de uma pessoa)
       let ac: { dias: number; tempo: string; entradaMedia: string; saidaMedia: string } | null = null;
+      let prod: import("@/lib/produtividade").Produtividade | null = null;
       if (pessoa) {
         const { data } = await sb.from("acessos").select("*").eq("usuario", pessoa).gte("dia", per[0]).lte("dia", per[1]).limit(2000);
         const l = (data || []) as Acesso[];
@@ -169,6 +170,20 @@ export default function Gestao() {
           const hm = (x: number) => String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(Math.round(x % 60)).padStart(2, "0");
           ac = { dias: l.length, tempo: tempo(l.reduce((s2, a) => s2 + (a.segundos || 0), 0)), entradaMedia: hm(l.reduce((s2, a) => s2 + min(a.primeiro), 0) / l.length), saidaMedia: hm(l.reduce((s2, a) => s2 + min(a.ultimo), 0) / l.length) };
         }
+        // produtividade estimada: tarefas, intimações tratadas e mensagens enviadas por ela no período
+        const { calcularProdutividade, refTarefa, MIN_PUBLICACAO, MIN_MENSAGEM } = await import("@/lib/produtividade");
+        const ini = new Date(per[0] + "T00:00:00-03:00").toISOString(), fim = new Date(per[1] + "T23:59:59-03:00").toISOString();
+        const [{ data: pubs }, { data: msgs }] = await Promise.all([
+          sb.from("publicacoes").select("concluida_em").eq("concluida_por", pessoa).gte("concluida_em", ini).lte("concluida_em", fim).limit(5000),
+          sb.from("wa_mensagens").select("em").eq("enviado_por", pessoa).eq("de_mim", true).gte("em", ini).lte("em", fim).limit(5000),
+        ]);
+        const ativ = [
+          ...todas.filter((t) => t.status === "feito" && t.feito_em && (t.feito_por ? t.feito_por === pessoa : t.responsavel === pessoa) && t.feito_em >= ini && t.feito_em <= fim)
+            .map((t) => ({ em: t.feito_em!, tipo: "tarefa" as const, ref: refTarefa(t.tipo, t.descricao) })),
+          ...((pubs || []) as { concluida_em: string }[]).filter((x) => x.concluida_em).map((x) => ({ em: x.concluida_em, tipo: "publicacao" as const, ref: MIN_PUBLICACAO })),
+          ...((msgs || []) as { em: string }[]).map((x) => ({ em: x.em, tipo: "mensagem" as const, ref: MIN_MENSAGEM })),
+        ];
+        prod = calcularProdutividade(ativ, l, 480);
       }
       // série para o gráfico: dia a dia (até 2 meses) ou mês a mês
       const dias = diferencaDias(per[1], per[0]); const porDia = dias <= 62;
@@ -185,7 +200,7 @@ export default function Gestao() {
         pessoa: pp ? { nome: pp.nome, funcao: pp.funcao, foto: pp.foto } : null,
         hoje: { rot: dataBR(hoje).slice(0, 5), n: concEm(hoje, hoje) }, mes: { rot: MESES[d0.getUTCMonth()] + "/" + d0.getUTCFullYear(), n: concEm(m0, m1) },
         conc: G.conc.length, emDia: G.emDia.length, emAtraso: G.emAtraso.length, pend: G.pend.length, atrasadas: G.atrasadas.length, taxa: G.taxa,
-        mediaCumpr: duracao(mediaCumpr), mediaAtraso: duracao(mediaAtraso), acessos: ac,
+        mediaCumpr: duracao(mediaCumpr), mediaAtraso: duracao(mediaAtraso), acessos: ac, prod,
         serie: chaves.map((c) => ({ rot: porDia ? c.slice(8, 10) : MESES[+c.slice(5, 7) - 1].slice(0, 3), n: cont[c].n, venc: cont[c].venc })), serieTitulo: porDia ? "Concluídas dia a dia" : "Concluídas mês a mês",
         porTipo: [...tipos.entries()].map(([tipo, x]) => ({ tipo, ...x })).sort((a, b) => b.conc - a.conc).slice(0, 20),
         porPessoa: pessoa ? [] : linhas.map(({ p: pe, n }) => ({ nome: pe.nome, emDia: n.emDia.length, emAtraso: n.emAtraso.length, pend: n.pend.length, atrasadas: n.atrasadas.length, taxa: n.taxa })),

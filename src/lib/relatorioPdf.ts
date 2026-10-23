@@ -1,5 +1,6 @@
 "use client";
 // Relatório de produtividade da Gestão em PDF, no papel do escritório (pdf-lib, no navegador).
+import { FAIXAS, type Produtividade } from "./produtividade";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 
 const limpa = (s: string) => String(s ?? "").replace(/[−–—]/g, "-").replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, "...").replace(/[^\x20-\x7E\xA0-\xFF§º°ª•]/g, "");
@@ -16,6 +17,7 @@ export type DadosRelatorio = {
   porTipo: { tipo: string; conc: number; atraso: number }[];
   porPessoa: { nome: string; emDia: number; emAtraso: number; pend: number; atrasadas: number; taxa: number | null }[];
   concluidas: LinhaTarefa[]; atrasadasLista: LinhaTarefa[];
+  prod?: Produtividade | null;
 };
 
 /** imagem (qualquer formato) → PNG, recortada em círculo quando pedido */
@@ -87,7 +89,8 @@ export async function pdfRelatorio(d: DadosRelatorio): Promise<Uint8Array> {
       pg.drawRectangle({ x, y: y - h, width: w, height: h, borderColor: linha, borderWidth: 0.7, color: rgb(1, 1, 1) });
       pg.drawRectangle({ x, y: y - h, width: 3, height: h, color: it.cor || ouro });
       txt(corta(it.rot, w - 16, 8), x + 10, y - 14, 8, f, cinza);
-      txt(it.v, x + 10, y - 36, 20, fb, it.cor || preto);
+      let tv = 20; while (tv > 10 && larg(it.v, tv, fb) > w - 16) tv -= 1;
+      txt(it.v, x + 10, y - 36, tv, fb, it.cor || preto);
       if (it.sub) txt(corta(it.sub, w - 16, 7), x + 10, y - 49, 7, f, cinza);
     });
     y -= h + 10;
@@ -138,11 +141,41 @@ export async function pdfRelatorio(d: DadosRelatorio): Promise<Uint8Array> {
     linhas.forEach((l, li) => {
       if (y - 15 < M + 24) { cabecalho(); cab(); }
       const cor = destaque?.(li) || preto; let x = M;
-      l.forEach((v, i) => { const t = corta(v, ws[i] - 10, 8); if (cols[i].dir) dir(t, x + ws[i] - 5, y - 9, 8, f, cor); else txt(t, x + 5, y - 9, 8, f, i === l.length - 1 ? cor : preto); x += ws[i]; });
+      l.forEach((v, i) => { const t = corta(v, ws[i] - 10, 8); if (cols[i].dir) dir(t, x + ws[i] - 5, y - 9, 8, f, i === l.length - 1 ? cor : preto); else txt(t, x + 5, y - 9, 8, f, i === l.length - 1 ? cor : preto); x += ws[i]; });
       y -= 13; pg.drawLine({ start: { x: M, y: y + 1 }, end: { x: W - M, y: y + 1 }, thickness: 0.3, color: linha });
     });
     y -= 10;
   };
+  // ───── produtividade estimada (só no relatório individual) ─────
+  if (d.prod && d.pessoa) {
+    const pr = d.prod; const hm = (m: number) => { const x = Math.round(m); return x < 60 ? x + " min" : Math.floor(x / 60) + "h" + String(x % 60).padStart(2, "0"); };
+    const corNota = pr.nota === "Ótima" ? verde : pr.nota === "Boa" ? ouro : pr.nota === "Regular" ? laranja : vermelho;
+    precisa(190);
+    secao(`Produtividade estimada · jornada de ${hm(pr.jornadaMin)} por dia`);
+    tiles([
+      { rot: "Tempo produtivo por dia", v: hm(pr.mediaMin), sub: `média de ${pr.diasTrabalhados} dia(s) trabalhado(s)` },
+      { rot: "Aproveitamento da jornada", v: Math.round(pr.aproveitamento * 100) + "%", sub: pr.nota.toUpperCase(), cor: corNota },
+      { rot: "Sistema aberto por dia", v: pr.mediaSistemaMin == null ? "-" : hm(pr.mediaSistemaMin), sub: "aba do sistema visível" },
+      { rot: "Ritmo por tarefa", v: pr.minPorTarefa == null ? "-" : hm(pr.minPorTarefa), sub: pr.emLote ? `${pr.emLote} fechadas em sequência rápida` : "tempo real médio por tarefa" },
+    ], 58);
+    // régua da jornada: faixas e a posição do colaborador
+    y -= 10; precisa(46); const rx = M, rw = W - 2 * M, ry = y - 14, rh = 10;
+    const faixas: [number, number, ReturnType<typeof rgb>, string][] = [[0, FAIXAS.regular, rgb(0.93, 0.8, 0.78), "abaixo do esperado"], [FAIXAS.regular, FAIXAS.boa, rgb(0.97, 0.88, 0.75), "regular"], [FAIXAS.boa, FAIXAS.otima, rgb(0.93, 0.89, 0.78), "boa"], [FAIXAS.otima, 1, rgb(0.8, 0.9, 0.82), "ótima"]];
+    for (const [a, b, c, nm] of faixas) { pg.drawRectangle({ x: rx + a * rw, y: ry, width: (b - a) * rw, height: rh, color: c }); meio(nm, rx + ((a + b) / 2) * rw, ry - 10, 6.5, f, cinza); }
+    const px = rx + pr.aproveitamento * rw; pg.drawRectangle({ x: rx, y: ry + 3, width: Math.max(1, px - rx), height: rh - 6, color: corNota });
+    pg.drawCircle({ x: px, y: ry + rh / 2, size: 5, color: corNota, borderColor: rgb(1, 1, 1), borderWidth: 1.2 });
+    txt("0h", rx, ry + rh + 4, 6.5, f, cinza); dir(hm(pr.jornadaMin), rx + rw, ry + rh + 4, 6.5, f, cinza);
+    y = ry - 22;
+    const expl = "Como é calculado: cada atividade concluída pela pessoa no sistema (tarefas, intimações tratadas e mensagens enviadas aos clientes) tem um tempo de referência, considerando o apoio do Claude na redação (ex.: réplica ou manifestação ao laudo 60 min, petição simples 20 min, contato com cliente 10 min, leitura de intimação 3 min). Vale o MENOR entre essa referência e o tempo real decorrido desde a atividade anterior do dia, para que baixas em lote ou tarefas fechadas em sequência não inflem o resultado. Atividades fora do sistema (telefone, atendimento presencial, organização de documentos) não entram: trate o número como um piso, não como medida exata. Régua realista para 8 horas: 6h ou mais de trabalho efetivo é ótima, de 4h30 a 6h é boa, de 2h45 a 4h30 é regular.";
+    for (const l of (() => { const out: string[] = []; let ln = ""; for (const w0 of limpa(expl).split(/\s+/)) { const t = ln ? ln + " " + w0 : w0; if (larg(t, 7.5) > W - 2 * M && ln) { out.push(ln); ln = w0; } else ln = t; } if (ln) out.push(ln); return out; })()) { precisa(11); txt(l, M, y, 7.5, f, cinza); y -= 10; }
+    y -= 8;
+    if (pr.porCategoria.length) tabela([{ t: "Atividade", w: 46 }, { t: "Quantidade", w: 18, dir: true }, { t: "Tempo de referência", w: 18, dir: true }, { t: "Tempo considerado", w: 18, dir: true }],
+      pr.porCategoria.map((c) => [c.nome, String(c.n), hm(c.refMin), hm(c.realMin)]));
+    if (pr.dias.length > 1) tabela([{ t: "Dia", w: 16 }, { t: "Entrada", w: 10, dir: true }, { t: "Tarefas", w: 10, dir: true }, { t: "Intimações", w: 11, dir: true }, { t: "Mensagens", w: 11, dir: true }, { t: "Tempo produtivo", w: 15, dir: true }, { t: "Sistema aberto", w: 14, dir: true }, { t: "Jornada", w: 13, dir: true }],
+      pr.dias.map((x) => [x.dia.split("-").reverse().join("/"), x.entrada ? new Date(x.entrada).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }) : "-", String(x.tarefas), String(x.publicacoes), String(x.mensagens), hm(x.minutos), x.sistemaMin == null ? "-" : hm(x.sistemaMin), Math.round(Math.min(1, x.minutos / pr.jornadaMin) * 100) + "%"]),
+      (i) => { const a = pr.dias[i].minutos / pr.jornadaMin; return a >= FAIXAS.otima ? verde : a >= FAIXAS.boa ? ouro : a >= FAIXAS.regular ? laranja : vermelho; });
+  }
+
   if (!d.pessoa && d.porPessoa.length) {
     secao("Por colaborador");
     tabela([{ t: "Colaborador", w: 34 }, { t: "Em dia", w: 12, dir: true }, { t: "Em atraso", w: 12, dir: true }, { t: "Pendentes", w: 12, dir: true }, { t: "Atrasadas", w: 12, dir: true }, { t: "No prazo", w: 12, dir: true }],
