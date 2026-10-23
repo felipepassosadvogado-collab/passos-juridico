@@ -1,4 +1,5 @@
 "use client";
+import { obterIndices } from "@/lib/indicesBcb";
 // Cumprimento de sentença: o Claude lê a cópia integral do processo e extrai o título executivo; o sistema calcula a liquidação
 // com os índices do Banco Central (critérios do título), gera a memória de cálculo em PDF e a petição no modelo do escritório,
 // e manda as duas para correção.
@@ -41,8 +42,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
 
   const indices = async () => {
     if (ix) return ix;
-    const r = await fetch("/api/calculo/indices"); const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.erro || "Não consegui buscar os índices no Banco Central.");
+    const j = await obterIndices();
     setIx(j); setPrm((x) => (x.base ? x : { ...x, base: ultimoMesComIndice(j) })); return j as Indices & { fonte: string };
   };
   useEffect(() => { indices().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps

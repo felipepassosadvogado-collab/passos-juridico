@@ -1,4 +1,5 @@
 "use client";
+import { obterIndices } from "@/lib/indicesBcb";
 // Petição inicial em Word a partir do modelo do escritório, com leitura do extrato do INSS pelo Claude.
 import { AbasPeticao } from "./peca";
 import { useEffect, useState } from "react";
@@ -93,7 +94,7 @@ export function JanelaInicial({ ctx, onFechar, onIntermediaria, onCumprimento }:
     setCalculando(true);
     try {
       let indices = ix;
-      if (!indices) { const r = await fetch("/api/calculo/indices"); const j = await r.json().catch(() => ({})); if (!r.ok) { aviso(j.erro || "Não consegui buscar os índices."); return; } indices = j; setIx(j); }
+      if (!indices) { try { indices = await obterIndices(); } catch (e) { aviso((e as Error).message); return; } setIx(indices); }
       const r = calcular(cs, indices!, calc); setRes(r);
       if (pdf) {
         const { pdfCalculo } = await import("@/lib/calculoPdf");
