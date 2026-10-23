@@ -100,6 +100,21 @@ export function PainelConexao({ compacto }: { compacto?: boolean }) {
   if (conectado) return compacto ? null : (
     <div className="wa-con ok"><span className="ponto-on" style={{ position: "static" }} /> <strong>WhatsApp conectado</strong> <span className="muted s">· as mensagens chegam aqui em tempo real</span>
       {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} disabled={ocupado} onClick={() => acao("desconectar")}>Desconectar</button>}</div>);
+  // o servidor da Evolution (Hostinger) não responde: não adianta QR-code, primeiro é preciso religar o servidor
+  if (st.erro && /falar com o servidor|recusou a chave/i.test(st.erro)) return (
+    <div className="wa-con aviso">
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <strong>{/chave/i.test(st.erro) ? "O servidor do WhatsApp recusou a chave" : "O servidor do WhatsApp não está respondendo"}</strong>
+        <button className="btn" style={{ marginLeft: "auto" }} onClick={consultar}>Verificar de novo</button>
+      </div>
+      {/chave/i.test(st.erro) ? <div className="muted s">A chave EVOLUTION_API_KEY da Vercel não é a mesma do servidor. Confira as duas e faça um Redeploy na Vercel.</div>
+        : <ol className="s" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+          <li>Entre na Hostinger (hPanel) → <b>VPS</b> e veja se o servidor está <b>Em execução</b>. Se estiver parado, clique em <b>Iniciar</b>; se estiver ligado, clique em <b>Reiniciar</b>.</li>
+          <li>Espere 2 a 3 minutos e clique em <b>Verificar de novo</b>. Normalmente o WhatsApp volta sozinho, sem ler o QR-code.</li>
+          <li>Se voltar como “desconectado”, aí sim aparece o botão para ler o QR-code de novo.</li>
+          <li>Confira também se o plano/teste do VPS não venceu (Hostinger → Cobrança).</li>
+        </ol>}
+    </div>);
   return (
     <div className="wa-con aviso">
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
