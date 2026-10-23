@@ -10,7 +10,7 @@ function q(tab: string) {
   const val = (v: string) => (v === "null" ? null : v);
   const api: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
     select: () => api, eq: (c: string, v: unknown) => (f.push((r) => r[c] === v), api), neq: (c: string, v: unknown) => (f.push((r) => r[c] !== v), api),
-    is: (c: string, v: unknown) => (f.push((r) => (r[c] ?? null) === v), api), not: (c: string) => (f.push((r) => r[c] != null), api),
+    is: (c: string, v: unknown) => (f.push((r) => (r[c] ?? null) === v), api), in: (c: string, v: unknown[]) => (f.push((r) => v.includes(r[c])), api), not: (c: string) => (f.push((r) => r[c] != null), api),
     gte: (c: string, v: string) => (f.push((r) => String(r[c]) >= v), api), limit: (n: number) => ((lim = n), api), order: (c: string, o?: { ascending?: boolean }) => ((ord = [c, o?.ascending !== false]), api),
     or: (s: string) => { const cs = s.split(",").map((x) => x.split(".")); f.push((r) => cs.some(([c, op, ...v]) => (op === "is" ? (r[c] ?? null) === val(v.join(".")) : op === "lt" ? String(r[c]) < v.join(".") : false))); return api; },
     update: (d: Linha) => ((acao = "update"), (dados = d), api), insert: (d: Linha) => ((acao = "insert"), (dados = d), api), upsert: (d: Linha) => ((acao = "upsert"), (dados = d), api),
@@ -30,7 +30,7 @@ function q(tab: string) {
 const adm = { from: q } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const P = "50157251220264047201";
-let roteiro: ((corpo: any) => any)[]; let pedidos: any[]; let enviadas: string[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+let roteiro: ((corpo: any) => any)[]; let pedidos: any[]; let enviadas: string[]; let evoOutros: string[]; // eslint-disable-line @typescript-eslint/no-explicit-any
 const texto = (t: string) => ({ stop_reason: "end_turn", content: [{ type: "text", text: t }] });
 const usar = (name: string, input: unknown) => ({ stop_reason: "tool_use", content: [{ type: "tool_use", id: "tu" + ++seq, name, input }] });
 const resultado = (corpo: any) => JSON.parse(corpo.messages.at(-1).content[0].content); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -49,11 +49,12 @@ beforeEach(() => {
     wa_conversas: [{ id: "w1", jid: "5547999991111@s.whatsapp.net", telefone: "5547999991111", nome: "Maria", cliente_id: null, atendimento: "agente", equipe_ate: null, aguardando_equipe: false, agente_estado: {}, saudado_em: null, agente_lock: null }],
     wa_mensagens: [],
   };
-  roteiro = []; pedidos = []; enviadas = [];
+  roteiro = []; pedidos = []; enviadas = []; evoOutros = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: { body: string }) => {
     const corpo = JSON.parse(init.body);
     if (url.includes("anthropic")) { pedidos.push(corpo); return new Response(JSON.stringify(roteiro.shift()!(corpo))); }
-    enviadas.push(corpo.text); return new Response(JSON.stringify({ key: { id: "wa" + ++seq } }));
+    if (url.includes("/message/sendText")) enviadas.push(corpo.text); else evoOutros.push(url);
+    return new Response(JSON.stringify({ key: { id: "wa" + ++seq } }));
   }));
 });
 const chega = (t: string, conv = "w1") => { const m = { id: "m" + ++seq, conversa_id: conv, de_mim: false, texto: t, tipo: "texto", em: new Date(Date.now() + seq).toISOString(), agente: false }; db.wa_mensagens.push(m); return m.id; };
@@ -62,20 +63,18 @@ describe("assistente do WhatsApp", () => {
   it("primeira mensagem: boas-vindas e aviso do golpe, em mensagens separadas", async () => {
     roteiro.push(() => texto("Olá, Maria! Seja bem-vinda à Passos Advocacia.\n---\nAtenção ao golpe do falso advogado..."));
     await rodarAgente(adm, "w1", chega("Oi"));
-    expect(pedidos[0].system).toContain("PRIMEIRA MENSAGEM"); expect(pedidos[0].system).toContain("golpe do falso advogado");
+    expect(pedidos[0].system).toContain("PRIMEIRO CONTATO"); expect(pedidos[0].system).toContain("Maria"); expect(pedidos[0].system).toContain("golpe do falso advogado");
     expect(enviadas).toHaveLength(2); expect(db.wa_conversas[0].saudado_em).toBeTruthy(); expect(db.wa_conversas[0].agente_lock).toBeNull();
     expect(db.wa_mensagens.filter((m) => m.de_mim && m.agente)).toHaveLength(2);
     roteiro.push(() => texto("Claro!")); await rodarAgente(adm, "w1", chega("tudo bem?"));
-    expect(pedidos[1].system).not.toContain("PRIMEIRA MENSAGEM"); expect(pedidos[1].messages.at(-2).role).toBe("assistant");
+    expect(pedidos[1].system).not.toContain("PRIMEIRO CONTATO"); expect(evoOutros.some((u) => u.includes("sendPresence"))).toBe(true); expect(pedidos[1].messages.at(-2).role).toBe("assistant");
   });
 
-  it("identifica pelo CPF + telefone da ficha e lê os andamentos em ordem", async () => {
+  it("telefone da ficha já identifica (sem pedir CPF) e lê os andamentos em ordem", async () => {
     db.wa_conversas[0].saudado_em = "2026-10-01";
-    roteiro.push(() => usar("consultar_processo", { numero: P }));
-    roteiro.push((c) => { expect(resultado(c).erro).toMatch(/Identifique/); return usar("identificar_cliente", { cpf: "52998224725" }); });
-    roteiro.push((c) => { const r = resultado(c); expect(r.confirmado).toBe(true); expect(r.processos[0].contra).toContain("C6"); return usar("consultar_processo", { numero: "5015725-12.2026.4.04.7201" }); });
-    roteiro.push((c) => { const r = resultado(c); expect(r.andamentos.map((a: { data: string }) => a.data)).toEqual(["01/09/2026", "14/10/2026"]); expect(r.proximos_compromissos[0].hora).toBe("14:00"); return texto("Sua perícia está marcada."); });
-    await rodarAgente(adm, "w1", chega("quero saber do meu processo, cpf 529.982.247-25"));
+    roteiro.push((c) => { expect(c.system).toContain("JÁ ESTÁ IDENTIFICADO"); expect(c.system).toContain("C6"); return usar("consultar_processo", { numero: "5015725-12.2026.4.04.7201" }); });
+    roteiro.push((c) => { const r = resultado(c); expect(r.andamentos.map((a: { data: string }) => a.data)).toEqual(["01/09/2026", "14/10/2026"]); expect(r.proximos_compromissos[0].hora).toBe("14:00"); return texto("<analise>quer saber da perícia</analise><resposta>Sua perícia está marcada.</resposta>"); });
+    await rodarAgente(adm, "w1", chega("quero saber do meu processo"));
     expect(enviadas).toEqual(["Sua perícia está marcada."]); expect(db.wa_conversas[0].cliente_id).toBe("c1");
   });
 
@@ -87,6 +86,19 @@ describe("assistente do WhatsApp", () => {
     roteiro.push((c) => { expect(resultado(c).confirmado).toBe(true); return texto("ok"); });
     await rodarAgente(adm, "w1", chega("cpf 52998224725"));
     expect(db.wa_conversas[0].agente_estado.identificado).toBe("c1");
+  });
+
+  it("aviso da equipe + 👍 do cliente: não repete a saudação, confirma o aviso e pode ficar quieto", async () => {
+    db.avisos_cliente[0] = { ...db.avisos_cliente[0], id: "a1", status: "avisado", avisado_em: new Date().toISOString(), confirmado_em: null };
+    db.wa_mensagens.push({ id: "e1", conversa_id: "w1", de_mim: true, texto: "Olá, Maria! Sua ação foi protocolada.", tipo: "texto", em: new Date(Date.now() - 60000).toISOString(), agente: false, enviado_por: "u2" });
+    roteiro.push((c) => {
+      expect(c.system).not.toContain("PRIMEIRO CONTATO"); expect(c.system).toContain('"aviso_id":"a1"');
+      expect(c.messages[0].role).toBe("user"); expect(JSON.stringify(c.messages[0].content)).toContain("já tínhamos enviado");
+      return usar("confirmar_aviso", { aviso_id: "a1" });
+    });
+    roteiro.push(() => texto("<analise>só confirmou</analise><resposta>[SEM_RESPOSTA]</resposta>"));
+    await rodarAgente(adm, "w1", chega("👍"));
+    expect(enviadas).toHaveLength(0); expect(db.avisos_cliente[0].confirmado_em).toBeTruthy(); expect(db.wa_conversas[0].saudado_em).toBeTruthy();
   });
 
   it("caso novo vai para o CRM e avisa a equipe; depois fica quieto", async () => {
