@@ -1,9 +1,36 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "crons": [
-    { "path": "/api/djen/cron", "schedule": "0 10 * * 1-5" },
-    { "path": "/api/djen/cron", "schedule": "0 15 * * 1-5" },
-    { "path": "/api/djen/cron", "schedule": "0 20 * * 1-5" }
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 10 * * 1-5"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 16 * * 1-5"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 19 * * 1-5"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 12 * * 6"
+    },
+    {
+      "path": "/api/djen/cron",
+      "schedule": "0 12 * * 0"
+    }
   ]
 }

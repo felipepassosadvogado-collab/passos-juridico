@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
-import { BotaoDjen } from "@/components/djen";
+import { BotaoDjen, PainelDjen, PainelFeriados } from "@/components/djen";
 import { CopiaSeguranca } from "@/components/backup";
 import { PainelConexao } from "@/components/whatsapp";
 import { ConfigAgente } from "@/components/agente";
@@ -24,9 +24,10 @@ export default function Configuracoes() {
       <div className="head"><div><h2>Configurações</h2><div className="sub">DJEN, Claude, Atende Direito e cópia de segurança</div></div></div>
       <section className="panel"><div className="ph"><h3>Busca no DJEN</h3><BotaoDjen rotulo="Buscar agora" /></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: "72ch" }}>
-          <div>OAB/SC 58.547 · busca automática às 7h, 12h e 17h dos dias úteis, feita pelo servidor em São Paulo.</div>
+          <div>OAB/SC 58.547 e as variações abaixo · busca automática às 7h, 10h, 13h, 16h e 19h dos dias úteis, sábado às 9h e domingo às 9h (varredura dos últimos 30 dias), feita pelo servidor em São Paulo.</div>
           <div className="muted">Última busca: {dj.ultimaBusca ? dataHoraBR(dj.ultimaBusca) + (dj.origem === "manual" ? " (manual)" : " (automática)") : "ainda não houve"}{dj.ultimaQtd != null ? ` · ${dj.ultimaQtd} para a caixa` : ""}{dj.ultimaData ? ` · publicações até ${dj.ultimaData.split("-").reverse().join("/")}` : ""}</div>
           {dj.ultimoErro && <div className="banner erro">A última tentativa falhou em {dataHoraBR(dj.ultimoErroEm)}: {dj.ultimoErro}.</div>}
+          <PainelDjen />
         </div></section>
       <section className="panel"><div className="ph"><h3>Análise com Claude</h3></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: "72ch" }}>
@@ -51,10 +52,10 @@ export default function Configuracoes() {
       <ConfigAgente />
       <CopiaSeguranca />
       <section className="panel"><div className="ph"><h3>Como o prazo é calculado</h3></div>
-        <div className="pb" style={{ maxWidth: "70ch", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={{ margin: 0 }}>Intimação pelo eproc: ciência tácita no 10º dia corrido após a disponibilização (prorrogada para o dia útil seguinte), e o prazo começa no dia útil seguinte.</p>
-          <p style={{ margin: 0 }}>Publicação no DJEN: considera-se publicada no primeiro dia útil após a disponibilização, e o prazo começa no dia útil seguinte.</p>
-          <p style={{ margin: 0 }} className="muted">Conta só dias úteis, pula os feriados nacionais e da Justiça Federal (Lei 5.010/66) de 2026 a 2028 e a suspensão de 20/12 a 20/01. Feriados locais e suspensões por portaria não entram: confira sempre a data sugerida.</p>
+        <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ margin: 0, maxWidth: "75ch" }}>Intimação pelo eproc: ciência tácita no 10º dia corrido após a disponibilização (prorrogada para o dia útil seguinte), e o prazo começa no dia útil seguinte. Publicação no DJEN: considera-se publicada no primeiro dia útil após a disponibilização, e o prazo começa no dia útil seguinte. Só dias úteis contam, com o calendário da justiça do processo (Justiça Federal ou TJSC, pelo número CNJ).</p>
+          <PainelFeriados />
+          <p style={{ margin: 0 }} className="muted s">A data sugerida é um apoio: confira sempre no eproc, principalmente perto de feriados locais e portarias.</p>
         </div></section>
     </>
   );

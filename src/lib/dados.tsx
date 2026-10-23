@@ -1,4 +1,5 @@
 "use client";
+import { definirSuspensoes } from "./prazos";
 // Dados de trabalho do escritório carregados uma vez no navegador e mantidos em dia
 // pelo tempo real do Supabase: qualquer alteração de um colega aparece na hora.
 // As permissões continuam no banco (RLS e gatilhos); aqui só se lê e se grava.
@@ -74,6 +75,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
   const [erroCarga, setErroCarga] = useState("");
   const [equipe, setEquipe] = useState<Perfil[]>(equipeInicial);
   const [config, setConfig] = useState<Record<string, any>>({});
+  useEffect(() => { definirSuspensoes(config.suspensoes?.lista); }, [config.suspensoes]); // feriados municipais e portarias entram na contagem dos prazos
   const [lidas, setLidas] = useState<Record<string, string>>({});
   const [lidasOutros, setLidasOutros] = useState<Record<string, Record<string, string>>>({});
   const [online, setOnline] = useState<Set<string>>(new Set());

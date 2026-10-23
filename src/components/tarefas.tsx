@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
-import { calcularVencimento, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
+import { calcularVencimento, cidadeDoProcesso, diasPulados, foroDe, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { TAREFAS, TAREFAS_GRUPOS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
@@ -175,10 +175,12 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
   tipo?: string | null; desc?: string; dias?: number | null; resp?: string | null; extra?: React.ReactNode;
   onCriada?: (t: Tarefa) => void; aoCriar?: () => Promise<void> | void; botoes?: React.ReactNode;
 }) {
-  const { sb, eu, aplicar, aviso, nome } = useDados(); const j = useJanelas();
+  const { sb, eu, aplicar, aviso, nome, processos } = useDados(); const j = useJanelas();
+  const proc = numero ? processos.get(numero) : undefined; const foro = foroDe(numero, proc?.tribunal); const cidade = proc ? cidadeDoProcesso(proc) : null;
   const [f, setF] = useState({ tipo: tipo && TAREFAS.includes(tipo) ? tipo : "", desc: desc || "", dias: dias ? String(dias) : "", venc: "", vencMan: false, resp: resp !== undefined ? resp : eu.id, imp: false, urg: false });
   const [ocupado, setOcupado] = useState(false);
-  const auto = pub && +f.dias ? calcularVencimento(pub.data, +f.dias, pub.eproc) : "";
+  const auto = pub && +f.dias ? calcularVencimento(pub.data, +f.dias, pub.eproc, foro, cidade) : "";
+  const pulados = auto && pub ? diasPulados(pub.data, auto, foro, cidade) : [];
   const venc = f.vencMan ? f.venc : auto || f.venc;
   const criar = async () => {
     const det = f.desc.trim();
@@ -203,7 +205,8 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
         <label className="f">Tarefa<select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}><option value="">— escolher —</option>{TAREFAS_GRUPOS.map(([g, l]) => <optgroup key={g} label={g}>{l.map((t) => <option key={t}>{t}</option>)}</optgroup>)}</select></label>
         <label className="f wide2">Detalhe<input value={f.desc} placeholder="Ex.: juntar comprovante de residência" onChange={(e) => setF({ ...f, desc: e.target.value })} /></label>
         {pub && <label className="f">Dias úteis<input type="number" min={1} value={f.dias} onChange={(e) => setF({ ...f, dias: e.target.value, vencMan: false })} /></label>}
-        <label className="f">Prazo fatal<input type="date" value={venc} onChange={(e) => setF({ ...f, venc: e.target.value, vencMan: true })} /></label>
+        <label className="f">Prazo fatal<input type="date" value={venc} onChange={(e) => setF({ ...f, venc: e.target.value, vencMan: true })} />
+          {auto && !f.vencMan && <span className="muted s" title={pulados.map((x) => dataBR(x.data) + ": " + x.motivo).join("\n")}>{foro === "tjsc" ? "calendário do TJSC" : "calendário da Justiça Federal"}{pulados.length ? ` · pulou ${pulados.length} dia(s) sem expediente` : ""}</span>}</label>
         <label className="f">Responsável<SelResp valor={f.resp} onChange={(v) => setF({ ...f, resp: v })} /></label>
         {extra}
         <div className="flags">

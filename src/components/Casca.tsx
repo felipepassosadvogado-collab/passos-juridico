@@ -1,4 +1,5 @@
 "use client";
+import { AlertaDjen } from "./djen";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
 import { useWaConversas } from "@/components/whatsapp";
 import { Inatividade, limparUso } from "@/components/inatividade";
@@ -164,7 +165,7 @@ function Sino() {
         {avs.slice(0, 15).map((n) => (
           <button key={n.id} className={n.lida ? "lida" : ""} onClick={() => {
             setAberto(false); if (!n.lida) lida([n.id]);
-            if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); else if (n.tipo === "whatsapp") router.push("/whatsapp");
+            if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); else if (n.tipo === "whatsapp") router.push("/whatsapp"); else if (n.tipo === "djen") router.push("/processos");
           }}><span className="nt">{!n.lida && <span className="dot" />}{n.texto}</span>
             <span className="ns">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</span></button>))}
         {!avs.length && !caixa.size && !corrigir.length && <div className="muted" style={{ padding: "10px 12px" }}>Nenhum aviso.</div>}
@@ -217,7 +218,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
             <form action="/auth/sair" method="post" onSubmit={limparUso}><button className="btn ghost" title="Sair do sistema">Sair</button></form>
           </div>
         </header>
-        <main><div className={"wrap" + (cheio ? " cheio" : "")}>
+        <main><div className={"wrap" + (cheio ? " cheio" : "")}><AlertaDjen />
           {erroCarga && <div className="banner erro">{erroCarga}</div>}
           {pronto ? children : <div className="empty"><strong>Carregando os dados do escritório…</strong>Leva poucos segundos.</div>}
         </div></main>

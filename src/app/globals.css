@@ -788,3 +788,11 @@ html.claro .wa .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11
 .wa-ag-rasc textarea{width:100%;font:inherit}
 .wa-ag-partes{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
 .wa-ag-partes .bolha{white-space:pre-wrap;font-size:13.5px;line-height:1.45;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;max-width:none}
+/* DJEN: alerta de busca falhando e cobertura por dia */
+.djen-alerta{margin:0 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.djen-dias{display:flex;flex-wrap:wrap;gap:5px}
+.djd{display:flex;flex-direction:column;align-items:center;min-width:46px;padding:4px 6px;border-radius:8px;border:1px solid var(--line);font-size:11px;line-height:1.3}
+.djd b{font-weight:600}.djd span{font-size:12px;font-weight:700}
+.djd.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.djd.warn{background:color-mix(in srgb,var(--soon) 18%,transparent);border-color:var(--soon)}
+.djd.red{background:color-mix(in srgb,var(--late) 18%,transparent);border-color:var(--late)}

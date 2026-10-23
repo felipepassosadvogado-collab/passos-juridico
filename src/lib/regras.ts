@@ -1,7 +1,7 @@
 // Listas e regras do escritório usadas em várias telas (as mesmas do painel antigo).
 import { FASES, type Tarefa, type Publicacao, type Analise, type Aviso, type Processo, type Modalidade } from "./tipos";
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "./formato";
-import { calcularVencimento, paraData } from "./prazos";
+import { calcularVencimento, foroDe, paraData } from "./prazos";
 
 /** tipos de tarefa, agrupados como aparecem na escolha (inclui os que vieram do ADVBOX) */
 export const TAREFAS_GRUPOS: [string, string[]][] = [
@@ -135,6 +135,6 @@ export function prazoDaPublicacao(pub: Publicacao, tarefasDela: Pick<Tarefa, "ve
   const v = tarefasDela.filter((t) => t.vencimento && t.status !== "feito").map((t) => t.vencimento!).sort()[0];
   if (v) return { venc: v, origem: "tarefa" };
   const dias = Number((pub.analise as Analise | null)?.prazoDias);
-  if (dias > 0) return { venc: calcularVencimento(pub.data, dias, pub.eproc), origem: "analise" };
+  if (dias > 0) return { venc: calcularVencimento(pub.data, dias, pub.eproc, foroDe(pub.processo_numero)), origem: "analise" };
   return { venc: null, origem: null };
 }
