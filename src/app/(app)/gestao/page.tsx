@@ -104,7 +104,7 @@ function Rosca({ fatias, centro, sub }: { fatias: { v: number; cor: string; nome
 }
 
 export default function Gestao() {
-  const { tarefas, equipe, titular, nome, processos, v, sb, online } = useDados(); const partes = usePartes(); const j = useJanelas();
+  const { tarefas, equipe, titular, nome, processos, v, sb, online, eu, aviso } = useDados(); const [gerandoPdf, setGerandoPdf] = useState(false); const partes = usePartes(); const j = useJanelas();
   const [per, setPer] = useState<[string, string]>(PRESETS[2][1]()); const [rascunho, setRascunho] = useState<[string, string]>(per);
   const [pessoa, setPessoa] = useState(""); const [visao, setVisao] = useState<Visao>("prod"); const [q, setQ] = useState("");
   const [ord, setOrd] = useState<"conclusao" | "prazo" | "cliente">("conclusao"); const [filtro, setFiltro] = useState(false); const [busca, setBusca] = useState(false);
@@ -150,6 +150,52 @@ export default function Gestao() {
     for (const t of lista) { const pt = partes(t); const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
       out.push([nome(t.responsavel), pt.cli, pt.reus.join(" / "), p?.mascara || "", t.descricao, dataBR(t.vencimento), t.feito_em ? dataHoraBR(t.feito_em) : "", situacao(t).txt].map(esc).join(";")); }
     baixar(`gestao-${per[0]}-a-${per[1]}.csv`, "\ufeff" + out.join("\r\n"), "text/csv;charset=utf-8");
+  };
+  const relatorioPdf = async () => {
+    setGerandoPdf(true);
+    try {
+      const { pdfRelatorio } = await import("@/lib/relatorioPdf");
+      const pp = pessoa ? equipe.find((x) => x.id === pessoa) : null;
+      const hoje = t0; const m0 = hoje.slice(0, 7) + "-01"; const d0 = paraData(hoje);
+      const m1 = isoData(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 0)));
+      const concEm = (a: string, b: string) => ts.filter((t) => t.status === "feito" && ((x) => x >= a && x <= b)(diaLocal(t.feito_em))).length;
+      // acessos ao sistema no período (só quando o relatório é de uma pessoa)
+      let ac: { dias: number; tempo: string; entradaMedia: string; saidaMedia: string } | null = null;
+      if (pessoa) {
+        const { data } = await sb.from("acessos").select("*").eq("usuario", pessoa).gte("dia", per[0]).lte("dia", per[1]).limit(2000);
+        const l = (data || []) as Acesso[];
+        if (l.length) {
+          const min = (iso: string) => { const [h, m] = hora(iso).split(":").map(Number); return h * 60 + m; };
+          const hm = (x: number) => String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(Math.round(x % 60)).padStart(2, "0");
+          ac = { dias: l.length, tempo: tempo(l.reduce((s2, a) => s2 + (a.segundos || 0), 0)), entradaMedia: hm(l.reduce((s2, a) => s2 + min(a.primeiro), 0) / l.length), saidaMedia: hm(l.reduce((s2, a) => s2 + min(a.ultimo), 0) / l.length) };
+        }
+      }
+      // série para o gráfico: dia a dia (até 2 meses) ou mês a mês
+      const dias = diferencaDias(per[1], per[0]); const porDia = dias <= 62;
+      const chaves: string[] = [];
+      if (dias <= 400) { if (porDia) { let d = paraData(per[0]); while (isoData(d) <= per[1]) { chaves.push(isoData(d)); d = somaDias(d, 1); } } else { let d = paraData(per[0].slice(0, 7) + "-01"); while (isoData(d) <= per[1]) { chaves.push(isoData(d).slice(0, 7)); d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)); } } }
+      const k = (x: string) => (porDia ? x : x.slice(0, 7));
+      const cont: Record<string, { n: number; venc: number }> = Object.fromEntries(chaves.map((c) => [c, { n: 0, venc: 0 }]));
+      for (const t of ts) { if (t.status === "feito") { const c = k(diaLocal(t.feito_em)); if (cont[c]) cont[c].n++; } else if (t.vencimento && t.vencimento < t0) { const c = k(t.vencimento); if (cont[c]) cont[c].venc++; } }
+      const tipos = new Map<string, { conc: number; atraso: number }>();
+      for (const t of G.conc) { const tp = t.tipo || "Outras"; const x = tipos.get(tp) || { conc: 0, atraso: 0 }; x.conc++; if (t.vencimento && diaLocal(t.feito_em) > t.vencimento) x.atraso++; tipos.set(tp, x); }
+      const linha = (t: Tarefa) => { const pt = partes(t); const st = situacao(t); return { cliente: pt.cli || "—", tarefa: t.descricao, prazo: dataBR(t.vencimento), conclusao: t.feito_em ? dataHoraBR(t.feito_em).slice(0, 16) : "", situacao: st.txt, atraso: st.cls === "late", responsavel: nome(t.responsavel).split(" ")[0] }; };
+      const bytes = await pdfRelatorio({
+        periodo: rotPer, emitidoPor: nome(eu.id),
+        pessoa: pp ? { nome: pp.nome, funcao: pp.funcao, foto: pp.foto } : null,
+        hoje: { rot: dataBR(hoje).slice(0, 5), n: concEm(hoje, hoje) }, mes: { rot: MESES[d0.getUTCMonth()] + "/" + d0.getUTCFullYear(), n: concEm(m0, m1) },
+        conc: G.conc.length, emDia: G.emDia.length, emAtraso: G.emAtraso.length, pend: G.pend.length, atrasadas: G.atrasadas.length, taxa: G.taxa,
+        mediaCumpr: duracao(mediaCumpr), mediaAtraso: duracao(mediaAtraso), acessos: ac,
+        serie: chaves.map((c) => ({ rot: porDia ? c.slice(8, 10) : MESES[+c.slice(5, 7) - 1].slice(0, 3), n: cont[c].n, venc: cont[c].venc })), serieTitulo: porDia ? "Concluídas dia a dia" : "Concluídas mês a mês",
+        porTipo: [...tipos.entries()].map(([tipo, x]) => ({ tipo, ...x })).sort((a, b) => b.conc - a.conc).slice(0, 20),
+        porPessoa: pessoa ? [] : linhas.map(({ p: pe, n }) => ({ nome: pe.nome, emDia: n.emDia.length, emAtraso: n.emAtraso.length, pend: n.pend.length, atrasadas: n.atrasadas.length, taxa: n.taxa })),
+        concluidas: [...G.conc].sort((a, b) => (b.feito_em || "").localeCompare(a.feito_em || "")).map(linha),
+        atrasadasLista: [...G.atrasadas].sort((a, b) => (a.vencimento || "").localeCompare(b.vencimento || "")).map(linha),
+      });
+      const quem = (pp?.nome || "equipe").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_");
+      baixar(`Relatorio_${quem}_${per[0]}_a_${per[1]}.pdf`, new Blob([bytes as BlobPart], { type: "application/pdf" }));
+    } catch (e) { aviso("Não consegui gerar o relatório: " + (e as Error).message); }
+    finally { setGerandoPdf(false); }
   };
   function situacao(t: Tarefa): { cls: string; txt: string } {
     if (t.status === "feito") { const fd = diaLocal(t.feito_em); return t.vencimento && fd > t.vencimento ? { cls: "late", txt: `${diferencaDias(fd, t.vencimento)} dia(s) de atraso` } : { cls: "ok", txt: "no prazo" }; }
@@ -201,7 +247,8 @@ export default function Gestao() {
         </div>
         <label className="gs-b gs-ord">Ordenar<select value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}>{visao === "acessos" ? <><option value="conclusao">por dia</option><option value="prazo">por horário de entrada</option><option value="cliente">por colaborador</option></>
           : <><option value="conclusao">{visao === "pend" || visao === "atrasadas" ? "por prazo" : "por conclusão"}</option><option value="prazo">por prazo</option><option value="cliente">por cliente</option></>}</select></label>
-        <button className="gs-b" onClick={exportar}>{Ic.exportar} Exportar</button>
+        <button className="gs-b" onClick={exportar}>{Ic.exportar} Exportar planilha</button>
+        <button className="btn primary" disabled={gerandoPdf} onClick={relatorioPdf}>{gerandoPdf ? "Gerando…" : "📄 Relatório em PDF"}</button>
       </div>
       {visao === "acessos" ? <section className="panel tscroll">
         {acessos == null ? <div className="empty">Carregando acessos…</div> : listaAc.length ? <table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Colaborador</th><th>Dia</th><th>Primeiro acesso</th><th>Último uso <span className="muted">(provável saída)</span></th><th>Tempo ativo</th></tr></thead>
