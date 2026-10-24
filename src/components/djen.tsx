@@ -48,16 +48,17 @@ export function AlertaDjen() {
 type Exec = { id: number; em: string; origem: string; ok: boolean; completa: boolean; desde: string | null; ate: string | null; consultas: { termo: string; count: number; baixadas: number; validas: number; ok: boolean; erro?: string; critica?: boolean }[]; novas: number; caixa: number; processos_novos: number; erro: string | null; avisos: string[] };
 type Variacao = { tipo: "oab"; numero: string; uf?: string | null } | { tipo: "advogado" | "parte"; nome: string };
 const PADRAO: Variacao[] = [
-  { tipo: "oab", numero: "58547", uf: "SC" }, { tipo: "oab", numero: "58547", uf: null },
+  { tipo: "oab", numero: "58547", uf: "SC" },
   { tipo: "advogado", nome: "FELIPE DOS PASSOS SILVA" }, { tipo: "advogado", nome: "FELIPE PASSOS SILVA" }, { tipo: "advogado", nome: "FELIPE D. PASSOS SILVA" },
-  { tipo: "parte", nome: "PASSOS SOCIEDADE INDIVIDUAL DE ADVOCACIA" }, { tipo: "advogado", nome: "PASSOS SOCIEDADE INDIVIDUAL DE ADVOCACIA" }, { tipo: "parte", nome: "PASSOS SOCIEDADE DE ADVOGADOS" },
 ];
+const permitida = (v: Variacao) => v.tipo === "oab" ? v.numero === "58547" && (v.uf || "").toUpperCase() === "SC" : v.tipo === "advogado" && /FELIPE/i.test(v.nome) && !/SOCIEDADE|ADVOCACIA|ADVOGADOS/i.test(v.nome);
 const rot = (v: Variacao) => v.tipo === "oab" ? `OAB ${v.numero}${v.uf ? "/" + v.uf : " (qualquer UF)"}` : `${v.tipo === "advogado" ? "Advogado(a)" : "Parte"}: ${v.nome}`;
 
 /** Configurações → DJEN: variações buscadas, histórico de cada busca e cobertura dia a dia */
 export function PainelDjen() {
   const { config, sb, aviso } = useDados(); const dj = config.djen || {};
-  const variacoes: Variacao[] = Array.isArray(dj.variacoes) && dj.variacoes.length ? dj.variacoes : PADRAO;
+  const salvas: Variacao[] = Array.isArray(dj.variacoes) ? dj.variacoes.filter(permitida) : [];
+  const variacoes: Variacao[] = salvas.length ? salvas : PADRAO;
   const [novo, setNovo] = useState<{ tipo: Variacao["tipo"]; valor: string; uf: string }>({ tipo: "advogado", valor: "", uf: "SC" });
   const [execs, setExecs] = useState<Exec[] | null>(null); const [porDia, setPorDia] = useState<Record<string, number>>({}); const [semTabela, setSemTabela] = useState(false);
   const [aberta, setAberta] = useState<number | null>(null);
@@ -87,16 +88,17 @@ export function PainelDjen() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div><div style={{ fontWeight: 600, marginBottom: 6 }}>O que a busca procura</div>
-        <div className="muted s" style={{ marginBottom: 6 }}>Cada variação é consultada separadamente no DJEN e os resultados são somados sem repetir. As buscas por nome conferem a OAB do advogado na comunicação, para não trazer homônimos.</div>
+        <div className="muted s" style={{ marginBottom: 6 }}>Cada variação é consultada separadamente no DJEN e os resultados são somados sem repetir. Só o seu nome e a OAB/SC 58.547 (sem a sociedade, que trazia outros escritórios). As buscas por nome conferem a OAB do advogado na comunicação, para não trazer homônimos.</div>
         <div className="anexos">{variacoes.map((v, i) => <span key={i} className="anexo"><span className="an">{rot(v)}</span>
           {!(v.tipo === "oab" && v.uf === "SC" && v.numero === "58547") && <button className="btn ghost" onClick={() => salvarVar(variacoes.filter((_, j) => j !== i))}>Tirar</button>}</span>)}</div>
         <div className="tools" style={{ marginTop: 8 }}>
-          <select value={novo.tipo} onChange={(e) => setNovo({ ...novo, tipo: e.target.value as Variacao["tipo"] })}><option value="advogado">Nome do advogado</option><option value="parte">Nome da parte (sociedade)</option><option value="oab">Número da OAB</option></select>
-          <input style={{ flex: 1, minWidth: 200 }} value={novo.valor} placeholder={novo.tipo === "oab" ? "Ex.: 58547" : "Ex.: FELIPE D P SILVA"} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} />
-          {novo.tipo === "oab" && <input style={{ width: 70 }} value={novo.uf} placeholder="UF" onChange={(e) => setNovo({ ...novo, uf: e.target.value.toUpperCase().slice(0, 2) })} />}
+          <span className="muted s">Outra grafia do seu nome:</span>
+          <input style={{ flex: 1, minWidth: 200 }} value={novo.valor} placeholder="Ex.: FELIPE D P SILVA" onChange={(e) => setNovo({ ...novo, valor: e.target.value })} />
+          
           <button className="btn" onClick={() => {
-            const v = novo.valor.trim(); if (!v) return;
-            const x: Variacao = novo.tipo === "oab" ? { tipo: "oab", numero: v.replace(/\D/g, ""), uf: novo.uf.trim() || null } : { tipo: novo.tipo, nome: v.toUpperCase() };
+            const v = novo.valor.trim().toUpperCase(); if (!v) return;
+            const x: Variacao = { tipo: "advogado", nome: v };
+            if (!permitida(x)) { aviso("Só variações do seu nome (com FELIPE), sem o nome da sociedade: o nome “Passos” traz publicações de outros escritórios."); return; }
             salvarVar([...variacoes, x]); setNovo({ ...novo, valor: "" });
           }}>Acrescentar</button>
           <button className="reflink" onClick={() => salvarVar(PADRAO)}>Voltar ao padrão</button>

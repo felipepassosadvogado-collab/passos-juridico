@@ -71,14 +71,12 @@ export type ResultadoSync = { novas: number; caixa: number; processosNovos: numb
 export type Variacao = { tipo: "oab"; numero: string; uf?: string | null } | { tipo: "advogado" | "parte"; nome: string };
 export const VARIACOES_PADRAO: Variacao[] = [
   { tipo: "oab", numero: OAB.numero, uf: OAB.uf },
-  { tipo: "oab", numero: OAB.numero, uf: null }, // a mesma OAB sem a UF (cadastros com UF errada ou em branco)
   { tipo: "advogado", nome: "FELIPE DOS PASSOS SILVA" },
   { tipo: "advogado", nome: "FELIPE PASSOS SILVA" },
   { tipo: "advogado", nome: "FELIPE D. PASSOS SILVA" },
-  { tipo: "parte", nome: "PASSOS SOCIEDADE INDIVIDUAL DE ADVOCACIA" },
-  { tipo: "advogado", nome: "PASSOS SOCIEDADE INDIVIDUAL DE ADVOCACIA" },
-  { tipo: "parte", nome: "PASSOS SOCIEDADE DE ADVOGADOS" },
 ];
+/** só o advogado: nada de sociedade/escritório (o nome "Passos" traz outros escritórios) nem OAB de outra UF (é outro advogado) */
+const permitida = (v: Variacao) => v.tipo === "oab" ? v.numero === OAB.numero && (v.uf || "").toUpperCase() === OAB.uf : v.tipo === "advogado" && /FELIPE/i.test(v.nome) && !/SOCIEDADE|ADVOCACIA|ADVOGADOS/i.test(v.nome);
 export const rotuloVariacao = (v: Variacao) => v.tipo === "oab" ? `OAB ${v.numero}${v.uf ? "/" + v.uf : " (qualquer UF)"}` : `${v.tipo === "advogado" ? "advogado(a)" : "parte"}: ${v.nome}`;
 const chaveNome = (s?: string | null) => semAcento(s || "").toUpperCase().replace(/[^A-Z ]/g, " ").split(/\s+/).filter((w) => w && !["DE", "DA", "DO", "DAS", "DOS", "E", "D"].includes(w)).join(" ");
 
@@ -168,7 +166,8 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
     if (error && !/djen_execucoes/.test(error.message)) console.warn("djen_execucoes", error.message);
   };
   try {
-    const variacoes: Variacao[] = Array.isArray(meta.variacoes) && meta.variacoes.length ? meta.variacoes : VARIACOES_PADRAO;
+    const salvas: Variacao[] = Array.isArray(meta.variacoes) ? meta.variacoes.filter(permitida) : [];
+    const variacoes: Variacao[] = salvas.length ? salvas : [...VARIACOES_PADRAO];
     if (!variacoes.some((v) => v.tipo === "oab" && v.uf)) variacoes.unshift(VARIACOES_PADRAO[0]); // a OAB com UF nunca sai da busca
     const mapa = new Map<number, ItemDjen>();
     for (const v of variacoes) { const c = await consultar(v, desde, hoje, mapa); consultas.push(c); res.paginas += Math.ceil(Math.max(c.baixadas, 1) / 100); }

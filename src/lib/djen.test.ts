@@ -88,6 +88,6 @@ describe("sincronização: falha nunca parece dia sem publicação", () => {
     expect(r.erro).toBeUndefined(); expect(r.completa).toBe(true);
     expect(db.publicacoes.length).toBe(1); expect(db.processos[0]).toMatchObject({ cliente_id: "c1" });
     expect(db.config.find((c) => c.chave === "djen").valor.coberturaAte).toBeTruthy();
-    expect(db.djen_execucoes[0].consultas.length).toBeGreaterThan(5);
+    expect(db.djen_execucoes[0].consultas.length).toBe(4);
   }, 60000);
 });
