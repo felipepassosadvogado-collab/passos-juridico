@@ -13,7 +13,7 @@ import { BotaoDjen } from "@/components/djen";
 import { Ic } from "@/components/ui";
 
 function Caixa() {
-  const { caixa, processos, tarefas, avisos, config } = useDados(); const j = useJanelas(); const { analisar, ocupado } = useAnalisar();
+  const { caixa, processos, tarefas, avisos } = useDados(); const j = useJanelas(); const { analisar, ocupado } = useAnalisar();
   const sp = useSearchParams();
   useEffect(() => { const a = Number(sp.get("abrir")); if (a && caixa.has(a)) j.abrirPub(a); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [filtro, setFiltro] = useState<"" | "vencidos" | "hoje" | "semana" | "sem">("");
@@ -31,18 +31,27 @@ function Caixa() {
     .sort((a, b) => a.grupo - b.grupo || (a.grupo <= 1 ? (a.pr.venc || "").localeCompare(b.pr.venc || "") : 0) || a.c.data.localeCompare(b.c.data) || a.c.id - b.c.id);
   const itens = lista.map((x) => x.c);
   const sem = itens.filter((c) => !c.analise);
-  const erroDjen = config.djen?.ultimoErro as string | undefined;
+  const [prog, setProg] = useState<{ feito: number; total: number } | null>(null);
+  // sem análise primeiro; se todas já têm, reanalisa (útil depois de mudar algo no processo)
+  const alvo = sem.length ? sem : itens; const re = !sem.length;
+  const analisarTodas = async (l: typeof itens) => {
+    setProg({ feito: 0, total: l.length });
+    try { for (let i = 0; i < l.length; i += 10) { const r = await analisar(l.slice(i, i + 10)); if (!r) break; setProg({ feito: Math.min(l.length, i + 10), total: l.length }); } }
+    finally { setProg(null); }
+  };
   return (
     <>
       <div className="head"><div><h2>Publicações</h2><div className="sub">{todos.length ? `${todos.length} para triar · prazos vencidos primeiro, depois as mais antigas` : "Nenhuma publicação pendente"}</div></div>
         <div className="tools"><BotaoDjen />
-          {sem.length > 0 && <button className="btn" disabled={ocupado.size > 0} onClick={() => analisar(sem.slice(0, 10))}>{Ic.claude}{ocupado.size ? "Analisando…" : `Analisar ${Math.min(sem.length, 10)} com Claude`}</button>}</div></div>
+          {itens.length > 0 && <>
+            <button className="btn" disabled={ocupado.size > 0} title={re ? "Todas já têm análise: analisa de novo as 10 primeiras da lista" : "Analisa as próximas 10 sem análise"} onClick={() => analisar(alvo.slice(0, 10))}>{Ic.claude}{ocupado.size && !prog ? "Analisando…" : `${re ? "Reanalisar" : "Analisar"} ${Math.min(alvo.length, 10)} com Claude`}</button>
+            <button className="btn" disabled={ocupado.size > 0} title={re ? "Analisa de novo todas as publicações da lista" : "Analisa todas as que ainda não têm análise, de 10 em 10"} onClick={() => analisarTodas(alvo)}>{Ic.claude}{prog ? `Analisando ${prog.feito} de ${prog.total}…` : `${re ? "Reanalisar" : "Analisar"} todas (${alvo.length})`}</button>
+          </>}</div></div>
       {todos.length > 0 && <div className="pub-res">
         {([["", "Todas", todos.length, ""], ["vencidos", "Prazo vencido", cont.vencidos, "late"], ["hoje", "Vence hoje", cont.hoje, "late"], ["semana", "Vence em até 5 dias", cont.semana, "soon"], ["sem", "Sem análise", cont.sem, ""]] as const)
           .map(([k, rot, n, cor]) => (k === "" || n > 0) && <button key={k} className={"pub-chip " + cor + (filtro === k ? " on" : "")} onClick={() => setFiltro(k)}><b>{n}</b>{rot}</button>)}
       </div>}
-      {erroDjen && <div className="banner erro">A última busca automática no DJEN falhou ({erroDjen}). Clique em “Buscar no DJEN” para tentar de novo.</div>}
-      {!todos.length ? <div className="panel"><div className="empty"><strong>Tudo triado.</strong>A busca no DJEN pela OAB/SC 58.547 roda sozinha às 7h, 12h e 17h dos dias úteis e coloca aqui cada publicação nova. Para cada uma, crie as tarefas e conclua a análise.</div></div> :
+      {!todos.length ? <div className="panel"><div className="empty"><strong>Tudo triado.</strong>A busca no DJEN pela OAB/SC 58.547 e pelo seu nome roda sozinha às 7h, 10h, 13h, 16h e 19h dos dias úteis (e no fim de semana) e coloca aqui cada publicação nova. Para cada uma, crie as tarefas e conclua a análise.</div></div> :
         <div className="panel tscroll"><table className="grid pubs"><thead><tr><th>Data</th><th>Prazo</th><th>Cliente</th><th>Ato</th><th>Juízo · processo</th><th /></tr></thead>
           <tbody>{lista.map(({ c, ts, pr, grupo }, i) => {
             const p = processos.get(c.processo_numero); const a = c.analise as Analise | null;
