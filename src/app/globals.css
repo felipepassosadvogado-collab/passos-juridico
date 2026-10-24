@@ -796,3 +796,16 @@ html.claro .wa .msg.meu .bolha{background:#d9fdd3;border-color:#c5efbe;color:#11
 .djd.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
 .djd.warn{background:color-mix(in srgb,var(--soon) 18%,transparent);border-color:var(--soon)}
 .djd.red{background:color-mix(in srgb,var(--late) 18%,transparent);border-color:var(--late)}
+/* WhatsApp em tela cheia: menos margem, lista mais larga e conversa ocupando a altura toda */
+main:has(.chat.wa){padding:10px max(12px,env(safe-area-inset-right,0px)) 12px max(12px,env(safe-area-inset-left,0px))}
+main:has(.chat.wa) .wrap{gap:10px}
+main:has(.chat.wa) .pg-title{margin:0;align-items:center}
+main:has(.chat.wa) .pg-title h2{font-size:22px}
+.chat.wa{grid-template-columns:clamp(280px,24vw,380px) minmax(0,1fr);height:max(480px,calc(100dvh - 118px));border-radius:10px}
+.chat.wa .chat-conv{padding:10px 12px}
+.chat.wa .cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat.wa .chat-fio{padding:14px clamp(14px,3vw,48px)}
+.chat.wa .msg{max-width:min(72%,760px)}
+.chat.wa .mtexto{line-height:1.5}
+.chat.wa .chat-comp-w{padding-left:clamp(8px,2vw,36px);padding-right:clamp(8px,2vw,36px)}
+@media (max-width:820px){.chat.wa{grid-template-columns:1fr;height:calc(100dvh - 110px)}.chat.wa .msg{max-width:88%}}
