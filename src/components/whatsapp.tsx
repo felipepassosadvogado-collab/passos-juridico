@@ -132,6 +132,57 @@ export function PainelConexao({ compacto }: { compacto?: boolean }) {
 const SINAL: Record<string, [string, string, string]> = { enviando: ["◷", "", "Enviando"], enviada: ["✓", "", "Enviada"], entregue: ["✓✓", "", "Entregue"], lida: ["✓✓", "lida", "Lida"], erro: ["⚠", "erro", "Não enviada"] };
 const ROT_TIPO: Record<string, string> = { imagem: "📷 Ver foto", video: "🎥 Ver vídeo", audio: "🎤 Ouvir áudio", documento: "📄 Abrir documento", figurinha: "Ver figurinha", outro: "Ver" };
 
+/** tocador de áudio na própria conversa: play/pausa, barra para ir a qualquer ponto, tempo e velocidade */
+function PlayerAudio({ msgId }: { msgId: string }) {
+  const { aviso } = useDados(); const ref = useRef<HTMLAudioElement>(null);
+  const [src, setSrc] = useState<string | null>(null); const [carregando, setCarregando] = useState(false);
+  const [tocando, setTocando] = useState(false); const [t, setT] = useState(0); const [dur, setDur] = useState(0); const [vel, setVel] = useState(1);
+  const fmt = (x: number) => (isFinite(x) && x > 0 ? Math.floor(x / 60) + ":" + String(Math.floor(x % 60)).padStart(2, "0") : "0:00");
+  const carregar = async (mp4: boolean) => {
+    const r = await fetch("/api/whatsapp/midia", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: msgId, mp4 }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || !j.url) throw new Error(j.erro || "Não consegui abrir o áudio.");
+    return j.url as string;
+  };
+  // já busca o link ao aparecer na tela, para o "play" tocar na hora (o Safari só deixa tocar direto no clique)
+  const preparar = async (forcarMp4 = false) => {
+    const el = ref.current; if (!el) return null;
+    const tocaOgg = !!el.canPlayType('audio/ogg; codecs="opus"');
+    const u = await carregar(forcarMp4 || !tocaOgg); setSrc(u); el.src = u; el.load(); return u;
+  };
+  const caixa = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let vivo = true; const el = caixa.current; if (!el) return;
+    // só baixa quando o áudio aparece na tela (conversas longas não puxam todos de uma vez)
+    const ob = new IntersectionObserver((es) => { if (!es.some((x) => x.isIntersecting)) return; ob.disconnect(); setCarregando(true); preparar().catch(() => {}).finally(() => vivo && setCarregando(false)); });
+    ob.observe(el); return () => { vivo = false; ob.disconnect(); };
+  }, [msgId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tocar = async () => {
+    const el = ref.current; if (!el) return;
+    if (!el.paused) { el.pause(); return; }
+    el.playbackRate = vel;
+    try { if (!src) await preparar(); await el.play(); }
+    catch {
+      // não tocou nesse formato: pede convertido e tenta de novo
+      try { setCarregando(true); await preparar(true); el.playbackRate = vel; await el.play(); }
+      catch (e) { aviso((e as Error)?.message && !/play\(\)|NotSupported|NotAllowed/i.test((e as Error).message) ? (e as Error).message : "Não consegui tocar este áudio aqui. Ouça pelo celular."); }
+      finally { setCarregando(false); }
+    }
+  };
+  const trocaVel = () => { const v = vel === 1 ? 1.5 : vel === 1.5 ? 2 : 1; setVel(v); if (ref.current) ref.current.playbackRate = v; };
+  return (
+    <div className="wa-audio" ref={caixa} onClick={(e) => e.stopPropagation()}>
+      <button className="wa-play" aria-label={tocando ? "Pausar" : "Ouvir"} disabled={carregando} onClick={tocar}>{carregando ? "…" : tocando ? "❚❚" : "▶"}</button>
+      <input type="range" min={0} max={dur || 0} step={0.1} value={t} disabled={!src || !dur} aria-label="Posição do áudio"
+        onChange={(e) => { const v = +e.target.value; setT(v); if (ref.current) ref.current.currentTime = v; }}
+        style={{ background: `linear-gradient(to right, currentColor ${dur ? (t / dur) * 100 : 0}%, rgba(128,128,128,.4) 0)` }} />
+      <span className="wa-tempo">{src ? fmt(t) + " / " + fmt(dur) : "🎤 áudio"}</span>
+      <button className="wa-vel" onClick={trocaVel} title="Velocidade">{vel}×</button>
+      <audio ref={ref} preload="metadata" onPlay={() => setTocando(true)} onPause={() => setTocando(false)} onEnded={() => { setTocando(false); setT(0); }}
+        onTimeUpdate={(e) => { const c = e.currentTarget.currentTime; if (c < 1e6) setT(c); }} onLoadedMetadata={(e) => { const el = e.currentTarget; if (isFinite(el.duration)) setDur(el.duration); else { el.currentTime = 1e7; const fim = () => { el.removeEventListener("timeupdate", fim); if (isFinite(el.duration)) setDur(el.duration); el.currentTime = 0; setT(0); }; el.addEventListener("timeupdate", fim); } }} onDurationChange={(e) => isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)} />
+    </div>
+  );
+}
+
 export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: boolean }) {
   const { nome, aviso } = useDados(); const visor = useVisor(); const ref = useRef<HTMLDivElement>(null); const [abrindo, setAbrindo] = useState("");
   useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length]);
@@ -156,7 +207,8 @@ export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: bo
         return [sep && <div key={"d" + m.id} className="chat-dia">{d === hoje ? "Hoje" : dataHoraBR(m.em).slice(0, 10)}</div>,
           <div key={m.id} className={"msg" + (m.de_mim ? " meu" : "")}><div className="bolha">
             {m.de_mim && <div className="mquem">{m.agente ? "🤖 Assistente" + (m.enviado_por ? " · enviado por " + nome(m.enviado_por).split(" ")[0] : "") : m.enviado_por ? nome(m.enviado_por).split(" ")[0] : "Celular / Atende Direito"}</div>}
-            {m.tipo !== "texto" && <button className="reflink" disabled={abrindo === m.id} onClick={() => abrir(m)}>{abrindo === m.id ? "Abrindo…" : (m.anexo_nome && m.tipo === "documento" ? "📄 " + m.anexo_nome : ROT_TIPO[m.tipo] || "Ver")}</button>}
+            {m.tipo === "audio" && <PlayerAudio msgId={m.id} />}
+            {m.tipo !== "texto" && m.tipo !== "audio" && <button className="reflink" disabled={abrindo === m.id} onClick={() => abrir(m)}>{abrindo === m.id ? "Abrindo…" : (m.anexo_nome && m.tipo === "documento" ? "📄 " + m.anexo_nome : ROT_TIPO[m.tipo] || "Ver")}</button>}
             {m.texto && <div className="mtexto">{m.texto}</div>}
             <div className="mhora">{dataHoraBR(m.em).slice(11)}{s && <span className={"msinal " + s[1]} title={s[2]}>{s[0]}</span>}</div>
           </div></div>];
