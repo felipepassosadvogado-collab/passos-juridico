@@ -820,3 +820,31 @@ main:has(.chat.wa) .pg-title h2{font-size:22px}
 .wa-vel{all:unset;cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;border-radius:8px;border:1px solid currentColor;opacity:.75}
 .wa .msg.meu .wa-play{background:#f2fbf6;color:#1f6b4f}.wa .msg.meu .wa-audio input[type=range]{color:#f2fbf6}
 html.claro .wa .msg.meu .wa-play{background:#1f6b4f;color:#fff}html.claro .wa .msg.meu .wa-audio input[type=range]{color:#1f6b4f}
+/* tela de entrada: formulário à esquerda, notícias jurídicas e do Congresso à direita */
+.login2{min-height:100dvh;display:grid;grid-template-columns:minmax(340px,440px) minmax(0,1fr);background:var(--bg)}
+.lg-form{display:flex;flex-direction:column;justify-content:space-between;padding:36px clamp(24px,3vw,48px);background:var(--surface);border-right:1px solid var(--line);gap:24px}
+.lg-meio{display:flex;flex-direction:column;gap:14px;width:100%;max-width:360px;margin:0 auto}
+.lg-meio h1{font-size:30px;margin:0}
+.lg-rodape{font-size:12px;text-align:center}
+.lg-news{position:relative;overflow:hidden;padding:clamp(24px,3vw,48px);display:flex;flex-direction:column;gap:18px;
+  background:radial-gradient(1200px 600px at 85% -10%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 60%),radial-gradient(900px 500px at -10% 110%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),var(--bg)}
+.lg-news-cab{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+.lg-sobre{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.lg-dia{font-size:22px;font-weight:700;margin-top:4px}
+.lg-fontes{font-size:12px;color:var(--muted)}
+.lg-dest{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface);color:inherit;text-decoration:none;min-height:220px;max-height:340px;transition:transform .15s,border-color .15s}
+.lg-dest:not(:has(img)){grid-template-columns:1fr}
+.lg-dest:hover{transform:translateY(-2px);border-color:var(--accent)}
+.lg-dest img{width:100%;height:100%;object-fit:cover;min-height:220px;max-height:340px;background:var(--sunken)}
+.lg-dest-txt{padding:22px;display:flex;flex-direction:column;gap:10px}
+.lg-dest h2{font-size:clamp(19px,1.6vw,26px);line-height:1.25;margin:0}
+.lg-dest p{margin:0;color:var(--muted);line-height:1.5;font-size:14px}
+.lg-fonte{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.lg-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.lg-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--surface) 85%,transparent);color:inherit;text-decoration:none;transition:border-color .15s,background .15s}
+.lg-item:hover{border-color:var(--accent);background:var(--surface)}
+.lg-tit{font-weight:600;line-height:1.35;font-size:14.5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.lg-frase{margin:auto;max-width:640px;text-align:center}
+.lg-frase p{font-size:clamp(22px,2.4vw,34px);line-height:1.35;font-weight:600;margin:0 0 14px}
+.lg-frase cite{color:var(--accent);font-style:normal;font-weight:600}
+@media (max-width:900px){.login2{grid-template-columns:1fr}.lg-form{min-height:100dvh;border-right:0}.lg-news{display:none}}
