@@ -1,6 +1,7 @@
 "use client";
 // Audiências e coletas de padrão grafotécnico: agendar a partir da publicação e acompanhar em Meus expedientes.
 // O ato fica no próprio aviso ao cliente (avisos_cliente), então o aviso pelo WhatsApp é o mesmo de sempre.
+import { linkSeguro } from "@/lib/link";
 import { useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
@@ -88,7 +89,7 @@ function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean;
     <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
     <div className="main">{comCliente ? <div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
         : <div className="t">{a.tipo_evento || "Ato"}</div>}
-      <div className="s">{comCliente ? resumoAto(a) : [a.modalidade ? MODALIDADES[a.modalidade].curto : "", balcao ? (a.data_evento ? "até " + dataBR(a.data_evento) : "") : [a.data_evento ? dataBR(a.data_evento) : "", (a.hora || "").slice(0, 5)].filter(Boolean).join(" às ")].filter(Boolean).join(" · ")}{a.modalidade === "video" && (a.link ? <> · <a href={a.link} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
+      <div className="s">{comCliente ? resumoAto(a) : [a.modalidade ? MODALIDADES[a.modalidade].curto : "", balcao ? (a.data_evento ? "até " + dataBR(a.data_evento) : "") : [a.data_evento ? dataBR(a.data_evento) : "", (a.hora || "").slice(0, 5)].filter(Boolean).join(" às ")].filter(Boolean).join(" · ")}{a.modalidade === "video" && (linkSeguro(a.link) ? <> · <a href={linkSeguro(a.link)} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
       <div className="ag-tags">{a.realizado_em ? <span className="pill ok">✓ REALIZADO · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
         : <span className={"pill " + (dias != null && dias < 0 ? "late" : dias != null && dias <= 3 ? "late" : dias != null && dias <= 7 ? "soon" : "acc")}>{rel}</span>}
         {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}

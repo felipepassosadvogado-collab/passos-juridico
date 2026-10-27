@@ -1,10 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+/** cookies de sessão só por HTTPS em produção e sem envio em requisições de outros sites (SameSite=Lax) */
+export const COOKIE = { sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/" };
+
 /** Cliente do Supabase para Server Components e Server Actions (age como o usuário logado). */
 export async function supabaseServidor() {
   const loja = await cookies();
   return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookieOptions: COOKIE,
     cookies: {
       getAll: () => loja.getAll(),
       setAll: (lista) => {

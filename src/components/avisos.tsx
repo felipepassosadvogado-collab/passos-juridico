@@ -1,5 +1,6 @@
 "use client";
 // Avisar o cliente de perícia, audiência ou coleta de assinatura, pelo WhatsApp.
+import { linkSeguro } from "@/lib/link";
 import { enviarWhatsapp } from "./whatsapp";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
@@ -134,7 +135,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
-        {atende && <a className="btn" href={atende} target="_blank" rel="noopener noreferrer">Abrir no Atende Direito ↗</a>}
+        {linkSeguro(atende) && <a className="btn" href={linkSeguro(atende)} target="_blank" rel="noopener noreferrer">Abrir no Atende Direito ↗</a>}
         {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não enviada</button>
           : <><button className="btn primary" onClick={() => marcar(true)}>✓ Mensagem enviada</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>

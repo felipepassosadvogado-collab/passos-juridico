@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { RESUMO_TIPO, lerMensagem, telefoneDaChave } from "@/lib/whatsapp";
@@ -11,7 +12,7 @@ const STATUS: Record<string, string> = { PENDING: "enviando", SERVER_ACK: "envia
 /** recebe os eventos do servidor do WhatsApp (Evolution API): mensagens, confirmações de leitura, conexão e QR-code */
 export async function POST(req: Request) {
   const segredo = process.env.WHATSAPP_WEBHOOK_SECRET;
-  if (!segredo || new URL(req.url).searchParams.get("s") !== segredo) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!segredo || !igual(new URL(req.url).searchParams.get("s") || "", segredo)) return NextResponse.json({ ok: false }, { status: 401 });
   const ev = await req.json().catch(() => null) as { event?: string; data?: unknown } | null;
   if (!ev?.event) return NextResponse.json({ ok: true });
   const nome = ev.event.toLowerCase().replace(/_/g, ".");
@@ -60,3 +61,5 @@ async function atualizacao(adm: Adm, d: Record<string, unknown>) {
   if (st !== "erro" && ordem.indexOf(atual.status || "") >= ordem.indexOf(st)) return; // não volta de "lida" para "entregue"
   await adm.from("wa_mensagens").update({ status: st }).eq("id", atual.id);
 }
+
+function igual(a: string, b: string) { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); }

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { supabaseServidor } from "./supabase/server";
 import type { Perfil } from "./tipos";
 
 /** usuário logado e ativo, para as rotas da API (sem redirecionar) */
 export async function membroDaRota() {
+  // proteção contra CSRF: pedido vindo de outro site (Origin diferente do nosso) não passa
+  const h = await headers(); const origem = h.get("origin"); const host = h.get("x-forwarded-host") || h.get("host");
+  if (origem && host) { try { if (new URL(origem).host !== host) return null; } catch { return null; } }
+  if ((h.get("sec-fetch-site") || "") === "cross-site") return null;
   const sb = await supabaseServidor();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;

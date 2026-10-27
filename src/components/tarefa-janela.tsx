@@ -1,6 +1,7 @@
 "use client";
 // Tarefa aberta numa caixa (no estilo do ADVBOX): à esquerda a tarefa, as ações e a conversa;
 // à direita o processo, as partes com WhatsApp e e-mail, e a publicação que gerou o prazo.
+import { linkSeguro } from "@/lib/link";
 import { WhatsappDoCliente } from "./whatsapp";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -170,7 +171,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
                 {cli && <Link className="reflink" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente</Link>}
                 {(p.reus || []).map((r, i) => <div key={i} className="s" style={{ color: "var(--fg)" }}>{i === 0 ? "vs " : ""}{nomeBonito(r)}</div>)}</div>
               <div className="tj-bloco"><div className="tj-rot">Juízo</div><div>{p.orgao || "—"}</div>{p.classe && <div className="s">{nomeBonito(p.classe)}</div>}
-                {pub?.link && <a className="reflink" href={pub.link} target="_blank" rel="noopener noreferrer">Visualizar no tribunal ↗</a>}</div>
+                {linkSeguro(pub?.link) && <a className="reflink" href={linkSeguro(pub?.link)} target="_blank" rel="noopener noreferrer">Visualizar no tribunal ↗</a>}</div>
               {faseCRM(p.fase) && <div className="tj-bloco"><div className="tj-rot">Fase</div><div>{faseCRM(p.fase)}</div></div>}
               {pub && <div className="tj-bloco"><div className="tj-rot">Publicação que gerou o prazo</div><div>{atoPub(pub)} · {dataBR(pub.data)}</div>
                 <button className="reflink" onClick={() => j.abrirProcesso(p.numero, { aba: "intimacoes", alvo: "pub-" + pub.id })}>Ver a publicação</button></div>}

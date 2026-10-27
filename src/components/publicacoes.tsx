@@ -47,7 +47,7 @@ export function useAnalisar() {
 }
 
 export function linksEproc(link: string | null | undefined, aviso: (m: string) => void) {
-  if (!link) return null;
+  if (!link || !/^https?:\/\//i.test(link)) return null; // nada de javascript: ou outros esquemas vindos de fora
   return <>
     <a className="btn ghost" href={link} target="_blank" rel="noopener noreferrer" title="Abre numa aba separada">Abrir no eproc ↗</a>
     <button className="btn ghost" onClick={async () => { try { await navigator.clipboard.writeText(link); aviso("Link copiado. Cole no seu navegador."); } catch { aviso("Copie o link: " + link); } }}>Copiar link</button>
