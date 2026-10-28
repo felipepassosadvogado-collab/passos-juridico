@@ -42,7 +42,7 @@ type Ctx = Mapas & {
 const C = createContext<Ctx | null>(null);
 export function useDados() { const c = useContext(C); if (!c) throw new Error("useDados fora do provedor"); return c; }
 
-async function todas(q: () => any): Promise<Linha[]> {
+export async function todas(q: () => any): Promise<Linha[]> {
   const out: Linha[] = [];
   for (let de = 0; ; de += 1000) {
     const { data, error } = await q().range(de, de + 999);

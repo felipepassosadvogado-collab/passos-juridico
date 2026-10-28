@@ -8,14 +8,15 @@ import { DICAS_ETAPA, DICAS_FASE, ETAPAS, FASES, faseCRM, sugerirFase } from "@/
 import type { Tarefa } from "@/lib/tipos";
 import { Coluna, ProxTarefa, useArrasto } from "@/components/crm";
 import { useJanelas } from "@/components/janelas";
-import { Avatar, Ic, baixar } from "@/components/ui";
+import { ExportarCrm } from "@/components/exportarCrm";
+import { Avatar, Ic } from "@/components/ui";
 import { honorarios, pctPadrao } from "@/lib/valores";
 
 function CRM() {
   const d = useDados(); const { processos, casos, tarefas, sb, aplicar, registrar, aviso, titular, nome, v } = d;
   const j = useJanelas(); const router = useRouter(); const sp = useSearchParams(); const ops = useOpcoesEquipe();
   const [q, setQ] = useState({ quadro: sp.get("caso") ? "pre" : "judicial", busca: "", banco: "", resp: "" });
-  const [msg, setMsg] = useState(""); const [conf, setConf] = useState(false); const [ocupado, setOcupado] = useState(false);
+  const [msg, setMsg] = useState(""); const [exp, setExp] = useState(false); const [conf, setConf] = useState(false); const [ocupado, setOcupado] = useState(false);
   useEffect(() => { const c = sp.get("caso"); if (c) j.abrirCaso(c); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const proxima = useMemo(() => {
     const m = new Map<string, Tarefa>();
@@ -53,7 +54,7 @@ function CRM() {
   const linhaValor = (x: { valor_causa?: number | null; honorarios_pct?: number | null }) => { const a = vh(x); return a.v ? <div className="kc-val"><span>R$ {moeda(a.v)}</span><span className="muted">hon. {String(a.pct).replace(".", ",")}%: <b>R$ {moeda(a.h)}</b></span></div> : null; };
   const soma = (l: { valor_causa?: number | null; honorarios_pct?: number | null }[]) => l.reduce((s, x) => { const a = vh(x); return { v: s.v + a.v, h: s.h + a.h, n: s.n + (a.v ? 1 : 0) }; }, { v: 0, h: 0, n: 0 });
   const curto = (n: number) => n >= 1e6 ? (n / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi" : n >= 1e3 ? Math.round(n / 1e3).toLocaleString("pt-BR") + " mil" : moeda(n);
-  let visiveis: { valor_causa?: number | null; honorarios_pct?: number | null }[] = []; let relatorio: string[][] = [];
+  let visiveis: { valor_causa?: number | null; honorarios_pct?: number | null }[] = [];
   const mover = (atual: string, opcoes: [string, string][], onMover: (v: string) => void) =>
     <select className="kmove" aria-label="Mover para" value="" onClick={(e) => e.stopPropagation()} onChange={(e) => onMover(e.target.value)}><option value="">Mover para…</option>{opcoes.map(([k, t]) => <option key={k} value={k} disabled={k === atual}>{t}</option>)}</select>;
   let quadro;
@@ -62,7 +63,7 @@ function CRM() {
     const cols: [string, string][] = [["", "A classificar"], ...FASES.filter((f) => f !== "Encerrado" || q.busca).map((f) => [f, f] as [string, string])];
     const grupos = new Map(cols.map(([k]) => [k, [] as typeof procs]));
     for (const p of procs) { const f = faseCRM(p.fase); (grupos.get(grupos.has(f) ? f : "") || []).push(p); }
-    visiveis = procs; relatorio = procs.map((p) => { const a = vh(p); return [nomeBonito(p.cliente_nome || ""), p.mascara, (p.reus || []).map(nomeBonito).join(" / "), faseCRM(p.fase) || "A classificar", nome(p.responsavel), a.v ? moeda(a.v) : "", a.v ? String(a.pct).replace(".", ",") : "", a.v ? moeda(a.h) : ""]; });
+    visiveis = procs;
     quadro = <div className="kanban">{cols.map(([k, t]) => <Coluna key={k} chave={"j:" + k} titulo={t} extra={(() => { const s = soma(grupos.get(k) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_FASE[k]} cartoes={(grupos.get(k) || []).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")).map((p) => (
       <article key={p.numero} className="kcard" data-id={p.numero} tabIndex={0} onClick={() => { if (!arrastou.current) j.abrirProcesso(p.numero); }}>
         <div className="kc1">{nomeBonito(p.cliente_nome || "—")}</div><div className="kc2">x {bancoCurto(p.banco)}{p.orgao ? " · " + p.orgao : ""}</div>
@@ -71,7 +72,7 @@ function CRM() {
   } else {
     const cs = filtra([...casos.values()], (c) => c.nome, (c) => c.banco, (c) => c.responsavel, (c) => c.processo_numero || "");
     const grupos = new Map(ETAPAS.map((e) => [e, [] as typeof cs])); for (const c of cs) (grupos.get(c.etapa) || grupos.get(ETAPAS[0])!).push(c);
-    visiveis = cs; relatorio = cs.map((c) => { const a = vh(c); return [nomeBonito(c.nome || ""), c.processo_numero ? mascaraCnj(c.processo_numero) : "pré-processual", c.banco || "", c.etapa, nome(c.responsavel), a.v ? moeda(a.v) : "", a.v ? String(a.pct).replace(".", ",") : "", a.v ? moeda(a.h) : ""]; });
+    visiveis = cs;
     quadro = <>{!casos.size && <div className="banner">Nenhum atendimento ainda. Clique em “Novo atendimento” para cadastrar o primeiro caso, antes de virar processo.</div>}
       <div className="kanban">{ETAPAS.map((e) => <Coluna key={e} chave={"p:" + e} titulo={e} extra={(() => { const s = soma(grupos.get(e) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_ETAPA[e]} cartoes={(grupos.get(e) || []).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map((c) => (
         <article key={c.id} className="kcard" data-id={c.id} tabIndex={0} onClick={() => { if (!arrastou.current) j.abrirCaso(c.id); }}>
@@ -91,18 +92,14 @@ function CRM() {
         {q.quadro === "judicial" && titular && semFase.length > 0 && <button className="btn ghost" disabled={ocupado} onClick={sugerir}>{ocupado ? "Classificando…" : "Sugerir fases automaticamente"}</button>}
       </div>
       {msg && <div className="banner">{msg}</div>}
-      {(() => { const s = soma(visiveis); const exportar = () => {
-        const esc = (x: unknown) => '"' + String(x ?? "").replace(/"/g, '""') + '"';
-        const cab = ["Cliente", q.quadro === "pre" ? "Processo" : "Processo", q.quadro === "pre" ? "Banco réu" : "Réus", q.quadro === "pre" ? "Etapa" : "Fase", "Responsável", "Valor da causa (R$)", "Honorários (%)", "Honorários (R$)"];
-        const linhas = [cab, ...relatorio, [], ["TOTAL", "", "", "", "", moeda(s.v), "", moeda(s.h)]].map((l) => l.map(esc).join(";"));
-        baixar(`crm-${q.quadro === "pre" ? "pre-processual" : "judicial"}-honorarios.csv`, "\ufeff" + linhas.join("\r\n"), "text/csv;charset=utf-8");
-      };
+      {(() => { const s = soma(visiveis);
         return <div className="crm-tot">
           <div><span className="muted">Valor das causas</span><strong>R$ {moeda(s.v)}</strong><span className="muted s">{s.n} de {visiveis.length} com valor</span></div>
           <div><span className="muted">Honorários contratuais possíveis</span><strong className="acc">R$ {moeda(s.h)}</strong><span className="muted s">percentual de cada caso, ou {String(padrao).replace(".", ",")}% (padrão)</span></div>
-          <button className="btn" onClick={exportar}>{Ic.exportar}Exportar relatório</button>
+          <button className="btn" onClick={() => setExp(true)}>{Ic.exportar}Exportar relatório</button>
         </div>; })()}
       {quadro}
+      {exp && <ExportarCrm onFechar={() => setExp(false)} banco={q.banco} resp={q.resp} />}
     </>
   );
 }

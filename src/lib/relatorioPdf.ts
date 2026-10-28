@@ -21,7 +21,7 @@ export type DadosRelatorio = {
 };
 
 /** imagem (qualquer formato) → PNG, recortada em círculo quando pedido */
-async function paraPng(url: string, circulo: boolean, lado = 240): Promise<Uint8Array | null> {
+export async function paraPng(url: string, circulo: boolean, lado = 240): Promise<Uint8Array | null> {
   try {
     const blob = await (await fetch(url, { cache: "force-cache" })).blob();
     const bmp = await createImageBitmap(blob);
