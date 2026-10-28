@@ -9,7 +9,7 @@ import { moeda, nomeBonito, numeroBR } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { LIMITE_VISUAL, contarPaginas, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
 import { mesBR, type Indices } from "@/lib/calculo";
-import { REGIMES_CS, SALARIO_MINIMO, liquidar, ultimoMesComIndice, type ParamsCs, type RegimeCs, type ResultadoCs } from "@/lib/cumprimento";
+import { REGIMES_CS, SALARIO_MINIMO, liquidar, ultimoMesComIndice, type AtualizacaoComp, type ParamsCs, type RegimeCs, type ResultadoCs } from "@/lib/cumprimento";
 import { hojeBR, isoData, paraData, proximoDiaUtil } from "@/lib/prazos";
 import { Janela, SelResp, baixar } from "./ui";
 import { useAcoesTarefa } from "./tarefas";
@@ -30,7 +30,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
   const [files, setFiles] = useState<File[]>([]); const [orient, setOrient] = useState(""); const [etapa, setEtapa] = useState(""); const [lendo, setLendo] = useState(false); const [erroMsg, setErroMsg] = useState("");
   const [lido, setLido] = useState<Lido>({ enderecamento: p?.orgao ? "Ao Juízo da " + p.orgao : "", jef: /juizado|JEF/i.test((p?.orgao || "") + (p?.classe || "")), executado: nomeBonito(banco), inss: "subsidiaria", titulo: "", custas: "", fonteExtrato: "", nb: cli?.nb || "", oficiarInss: true, pisoTexto: "", criterioTexto: "", alertas: [] });
   const [prm, setPrm] = useState({ base: "", regime: "ipcae_selic" as RegimeCs, restituicao: "simples" as ParamsCs["restituicao"], jurosMateriais: "desconto" as ParamsCs["jurosMateriais"], citacao: "",
-    temMoral: true, moral: "", moralJuros: "", moralCorr: "", temComp: false, comp: "", compMes: "",
+    temMoral: true, moral: "", moralJuros: "", moralCorr: "", temComp: false, comp: "", compMes: "", compAtual: "completa" as AtualizacaoComp,
     hTipo: "percentual" as ParamsCs["honorarios"]["tipo"], hPct: "10", hMin: "", hMinDesde: "", hValor: "", hValorDesde: "" });
   const [cts, setCts] = useState<Ct[]>([{ numero: "", parcela: "", inicio: "", fim: "" }]);
   const [ix, setIx] = useState<(Indices & { fonte: string }) | null>(null); const [res, setRes] = useState<ResultadoCs | null>(null); const [calculando, setCalculando] = useState(false);
@@ -80,7 +80,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
         regime: (d.regime in REGIMES_CS ? d.regime : x.regime) as RegimeCs, restituicao: ["simples", "dobro", "dobro_modulado", "nenhuma"].includes(d.restituicao) ? d.restituicao : x.restituicao,
         jurosMateriais: d.jurosMateriais === "citacao" ? "citacao" : "desconto", citacao: mesOk(d.citacao),
         temMoral: !!(mo && n2(mo.valor)), moral: mo && n2(mo.valor) ? moeda(n2(mo.valor)) : "", moralJuros: mesOk(mo?.jurosDesde), moralCorr: mesOk(mo?.correcaoDesde),
-        temComp: !!(co && n2(co.valor)), comp: co && n2(co.valor) ? moeda(n2(co.valor)) : "", compMes: mesOk(co?.mes),
+        temComp: !!(co && n2(co.valor)), comp: co && n2(co.valor) ? moeda(n2(co.valor)) : "", compMes: mesOk(co?.mes), compAtual: (["completa", "correcao", "historico"].includes(co?.atualizacao) ? co.atualizacao : "completa") as AtualizacaoComp,
         hTipo: ["nenhum", "percentual", "fixo"].includes(h.tipo) ? h.tipo : x.hTipo, hPct: h.pct != null ? String(h.pct).replace(".", ",") : x.hPct, hMin: n2(h.minimo) ? moeda(n2(h.minimo)) : "",
         hMinDesde: mesOk(h.minimoDesde), hValor: n2(h.valor) ? moeda(n2(h.valor)) : "", hValorDesde: mesOk(h.valorDesde) }));
       setRes(null); setDocx(null); setPdf(null);
@@ -93,7 +93,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
     base: prm.base, regime: prm.regime, restituicao: prm.restituicao, jurosMateriais: prm.jurosMateriais, citacao: prm.citacao || undefined,
     contratos: cts.map((c) => ({ numero: c.numero.trim(), parcela: numeroBR(c.parcela), inicio: c.inicio, fim: c.fim })).filter((c) => c.parcela > 0 && c.inicio),
     moral: prm.temMoral && numeroBR(prm.moral) > 0 ? { valor: numeroBR(prm.moral), jurosDesde: prm.moralJuros, correcaoDesde: prm.moralCorr || prm.moralJuros } : null,
-    compensacao: prm.temComp && numeroBR(prm.comp) > 0 && prm.compMes ? { valor: numeroBR(prm.comp), mes: prm.compMes } : null,
+    compensacao: prm.temComp && numeroBR(prm.comp) > 0 && prm.compMes ? { valor: numeroBR(prm.comp), mes: prm.compMes, atualizacao: prm.compAtual } : null,
     honorarios: { tipo: prm.hTipo, pct: numeroBR(prm.hPct), minimo: numeroBR(prm.hMin), minimoDesde: prm.hMinDesde, valor: numeroBR(prm.hValor), valorDesde: prm.hValorDesde },
   });
   // o cálculo vira o novo valor da causa do processo (total da condenação; os honorários de sucumbência ficam de fora,
@@ -231,6 +231,8 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
           {prm.temComp && <div className="triage">
             <label className="f">Valor creditado (R$)<input inputMode="decimal" value={prm.comp} onChange={(e) => set({ comp: e.target.value })} /></label>
             <label className="f">Mês do crédito<input type="month" value={prm.compMes} onChange={(e) => set({ compMes: e.target.value })} /></label>
+            <label className="f">Como abater<select value={prm.compAtual} onChange={(e) => set({ compAtual: e.target.value as AtualizacaoComp })}>
+              <option value="completa">Atualizado (correção + juros)</option><option value="correcao">Só correção monetária, sem juros</option><option value="historico">Valor histórico (sem correção e sem juros)</option></select></label>
           </div>}
           <div className="triage">
             <label className="f">Honorários sucumbenciais<select value={prm.hTipo} onChange={(e) => set({ hTipo: e.target.value as ParamsCs["honorarios"]["tipo"] })}><option value="percentual">% sobre a condenação</option><option value="fixo">Valor fixo</option><option value="nenhum">Sem honorários</option></select></label>
@@ -250,7 +252,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
             <table className="grid"><tbody>
               {totalPrevio.linhas.length > 0 && <tr><td>Danos materiais ({totalPrevio.linhas.length} parcelas{totalPrevio.porContrato.length ? ", " + totalPrevio.porContrato.map((c) => `${mesBR(c.ini)} a ${mesBR(c.fim)}`).join("; ") : ""})</td><td className="num">{moeda(totalPrevio.materiais)}</td></tr>}
               {totalPrevio.moral && <tr><td>Danos morais atualizados</td><td className="num">{moeda(totalPrevio.moral.total)}</td></tr>}
-              {totalPrevio.compensacao && <tr><td>(−) Compensação atualizada</td><td className="num">−{moeda(totalPrevio.compensacao.total)}</td></tr>}
+              {totalPrevio.compensacao && <tr><td>(−) Compensação {prm.compAtual === "historico" ? "(valor histórico)" : prm.compAtual === "correcao" ? "corrigida" : "atualizada"}</td><td className="num">−{moeda(totalPrevio.compensacao.total)}</td></tr>}
               <tr><td><strong>Total da condenação</strong></td><td className="num"><strong>{moeda(totalPrevio.condenacao)}</strong></td></tr>
               {totalPrevio.honorarios && <tr><td>Honorários sucumbenciais{totalPrevio.honorarios.prevaleceMinimo ? " (piso)" : ""}</td><td className="num">{moeda(totalPrevio.honorarios.valor)}</td></tr>}
               <tr><td><strong>Total líquido exequendo</strong></td><td className="num"><strong>R$ {moeda(totalPrevio.total)}</strong></td></tr>

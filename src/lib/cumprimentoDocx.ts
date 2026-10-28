@@ -3,7 +3,7 @@
 import JSZip from "jszip";
 import { MODELO_CUMPRIMENTO_DOCX } from "@/modelos/modeloCumprimento";
 import { mesBR } from "./calculo";
-import { REGIMES_CS, MODULACAO_CS, type ParamsCs, type ResultadoCs } from "./cumprimento";
+import { REGIMES_CS, MODULACAO_CS, textoAtualizacaoComp, type ParamsCs, type ResultadoCs } from "./cumprimento";
 import { moeda, porExtenso } from "./formato";
 
 export type DadosPeticaoCs = {
@@ -63,7 +63,7 @@ export function corpoCumprimento(d: DadosPeticaoCs): string {
     o.push(par(`**${L()}Danos materiais:** conforme ${d.fonteExtrato || "o extrato de créditos do benefício (HISCRE)"}, foram identificadas ${cts.join("; e ")}. Cada parcela foi atualizada pelos critérios do título (${crit}), ${juros}, na forma da restituição ${forma} determinada no título judicial, totalizando ${rs(r.materiais)};`, { jc: "both" }));
   }
   if (r.moral && p.moral) o.push(par(`**${L()}Danos morais:** o valor de R$ ${moeda(p.moral.valor)}, fixado no título, foi atualizado com juros de mora desde ${mesBR(p.moral.jurosDesde)} e correção monetária desde ${mesBR(p.moral.correcaoDesde)}, resultando no valor de ${rs(r.moral.total)};`, { jc: "both" }));
-  if (r.compensacao && p.compensacao) o.push(par(`**${L()}Compensação:** nos termos do título, foi deduzido o valor creditado na conta ${exe} (R$ ${moeda(p.compensacao.valor)}, em ${mesBR(p.compensacao.mes)}), atualizado pelos mesmos critérios, no total de R$ ${moeda(r.compensacao.total)};`, { jc: "both" }));
+  if (r.compensacao && p.compensacao) o.push(par(`**${L()}Compensação:** nos termos do título, foi deduzido o valor creditado na conta ${exe} (R$ ${moeda(p.compensacao.valor)}, em ${mesBR(p.compensacao.mes)}), ${textoAtualizacaoComp(p.compensacao.atualizacao)}, no total de R$ ${moeda(r.compensacao.total)};`, { jc: "both" }));
   if (r.honorarios) {
     const h = p.honorarios;
     o.push(par(`**${L()}Honorários sucumbenciais:** ${h.tipo === "percentual"
@@ -76,7 +76,7 @@ export function corpoCumprimento(d: DadosPeticaoCs): string {
   const linhas: { item: string; valor: string; tipo: "normal" | "total" | "final" }[] = [];
   if (r.linhas.length) linhas.push({ item: `Danos materiais — restituição ${p.restituicao === "simples" ? "simples" : "em dobro"} (${r.porContrato.map((c) => `${c.n} parcelas de R$ ${moeda(c.parcela)}, competências ${mesBR(c.ini)} a ${mesBR(c.fim)}`).join("; ")}, atualizadas pelos critérios do título, cada parcela desde sua própria competência)`, valor: moeda(r.materiais), tipo: "normal" });
   if (r.moral && p.moral) linhas.push({ item: `Danos morais — R$ ${moeda(p.moral.valor)} (valor fixado no título), com juros desde ${mesBR(p.moral.jurosDesde)} e correção monetária desde ${mesBR(p.moral.correcaoDesde)}`, valor: moeda(r.moral.total), tipo: "normal" });
-  if (r.compensacao && p.compensacao) linhas.push({ item: `(-) Compensação do valor creditado (R$ ${moeda(p.compensacao.valor)}, ${mesBR(p.compensacao.mes)}), atualizado`, valor: "-" + moeda(r.compensacao.total), tipo: "normal" });
+  if (r.compensacao && p.compensacao) linhas.push({ item: `(-) Compensação do valor creditado (R$ ${moeda(p.compensacao.valor)}, ${mesBR(p.compensacao.mes)})${p.compensacao.atualizacao === "historico" ? ", valor histórico" : p.compensacao.atualizacao === "correcao" ? ", corrigido" : ", atualizado"}`, valor: "-" + moeda(r.compensacao.total), tipo: "normal" });
   linhas.push({ item: "TOTAL DA CONDENAÇÃO", valor: moeda(r.condenacao), tipo: "total" });
   if (r.honorarios) linhas.push({ item: p.honorarios.tipo === "percentual" ? `Honorários sucumbenciais — ${p.honorarios.pct}% sobre o valor da condenação (R$ ${moeda(r.honorarios.pctValor)})${p.honorarios.minimo ? ` ou o piso de R$ ${moeda(r.honorarios.minimoAtual)}, o que for maior; prevalece ${r.honorarios.prevaleceMinimo ? "o piso" : "o percentual"}` : ""}` : "Honorários sucumbenciais fixados no título", valor: moeda(r.honorarios.valor), tipo: "normal" });
   linhas.push({ item: "TOTAL LÍQUIDO EXEQUENDO", valor: moeda(r.total), tipo: "final" });

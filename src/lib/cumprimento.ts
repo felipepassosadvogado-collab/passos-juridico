@@ -23,6 +23,9 @@ export const MODULACAO_CS = "2021-04";
 /** salário mínimo nacional por ano (piso de honorários) */
 export const SALARIO_MINIMO: Record<string, number> = { "2022": 1212, "2023": 1320, "2024": 1412, "2025": 1518, "2026": 1621 };
 
+export type AtualizacaoComp = "completa" | "correcao" | "historico";
+/** como a compensação aparece nos textos do cálculo e da petição */
+export const textoAtualizacaoComp = (a?: AtualizacaoComp) => a === "historico" ? "pelo valor histórico, sem correção monetária e sem juros" : a === "correcao" ? "apenas corrigido monetariamente, sem juros" : "atualizado pelos mesmos critérios";
 export type ContratoCs = { numero: string; parcela: number; inicio: string; fim: string };
 export type ParamsCs = {
   base: string; regime: RegimeCs;
@@ -31,7 +34,8 @@ export type ParamsCs = {
   /** juros dos danos materiais: desde cada desconto (Súmula 54) ou desde a citação */
   jurosMateriais: "desconto" | "citacao"; citacao?: string;
   moral: { valor: number; jurosDesde: string; correcaoDesde: string } | null;
-  compensacao: { valor: number; mes: string } | null;
+  /** atualizacao: "completa" (correção + juros, padrão), "correcao" (só correção) ou "historico" (valor nominal, sem correção nem juros) */
+  compensacao: { valor: number; mes: string; atualizacao?: AtualizacaoComp } | null;
   honorarios: { tipo: "nenhum" | "percentual" | "fixo"; pct: number; minimo: number; minimoDesde: string; valor: number; valorDesde: string };
 };
 export type LinhaCs = { contrato: string; comp: string; valor: number; base: number; dobro: boolean; fator: number; corrigido: number; jurosPct: number; juros: number; total: number };
@@ -91,7 +95,11 @@ export function liquidar(p: ParamsCs, ix: Indices): ResultadoCs {
     return { contrato: ct, n: ls.length, parcela: ls[0].valor, ini: ls[0].comp, fim: ls[ls.length - 1].comp, nominal: r2(ls.reduce((s, l) => s + l.valor, 0)), base: r2(ls.reduce((s, l) => s + l.base, 0)), total: r2(ls.reduce((s, l) => s + l.total, 0)) }; });
   const materiais = r2(linhas.reduce((s, l) => s + l.total, 0));
   const moral = p.moral && p.moral.valor > 0 ? atualizar(p.moral.valor, p.moral.correcaoDesde, p.moral.jurosDesde, p.base, p.regime, ix, faltam) : null;
-  const compensacao = p.compensacao && p.compensacao.valor > 0 ? atualizar(p.compensacao.valor, p.compensacao.mes, p.compensacao.mes, p.base, p.regime, ix, faltam) : null;
+  const pc = p.compensacao;
+  const compensacao = pc && pc.valor > 0
+    ? pc.atualizacao === "historico" ? { valor: r2(pc.valor), fator: 1, corrigido: r2(pc.valor), jurosPct: 0, juros: 0, total: r2(pc.valor) }
+    : atualizar(pc.valor, pc.mes, pc.atualizacao === "correcao" ? null : pc.mes, p.base, p.regime, ix, faltam)
+    : null;
   const condenacao = r2(materiais + (moral?.total || 0) - (compensacao?.total || 0));
   let honorarios: ResultadoCs["honorarios"] = null; const h = p.honorarios;
   if (h.tipo === "percentual") {

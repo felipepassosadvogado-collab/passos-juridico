@@ -2,7 +2,7 @@
 // Memória de cálculo do cumprimento de sentença em PDF (pdf-lib, no navegador).
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { mesBR } from "./calculo";
-import { MODULACAO_CS, REGIMES_CS, type ItemCs, type ParamsCs, type ResultadoCs } from "./cumprimento";
+import { MODULACAO_CS, REGIMES_CS, textoAtualizacaoComp, type ItemCs, type ParamsCs, type ResultadoCs } from "./cumprimento";
 
 const brl = (v: number) => "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: number, d = 6) => v.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -39,7 +39,7 @@ export async function pdfCumprimento(r: ResultadoCs, p: ParamsCs, h: CabecalhoCs
     p.restituicao === "nenhuma" ? "" : (p.restituicao === "simples" ? "Danos materiais: restituição simples" : p.restituicao === "dobro" ? "Danos materiais: restituição em dobro (art. 42, parágrafo único, do CDC)" : `Danos materiais: restituição em dobro a partir de ${mesBR(MODULACAO_CS)} (STJ, EAREsp 676.608/RS) e simples antes disso`)
       + `, cada parcela corrigida desde a sua competência e com juros ${p.jurosMateriais === "citacao" && p.citacao ? "desde a citação (" + mesBR(p.citacao) + ")" : "desde a sua competência (Súmula 54 do STJ)"}.`,
     r.moral && p.moral ? `Danos morais: ${brl(p.moral.valor)}, com correção monetária desde ${mesBR(p.moral.correcaoDesde)} e juros de mora desde ${mesBR(p.moral.jurosDesde)}.` : "",
-    r.compensacao && p.compensacao ? `Compensação: valor creditado de ${brl(p.compensacao.valor)} em ${mesBR(p.compensacao.mes)}, atualizado pelos mesmos critérios e deduzido da condenação.` : "",
+    r.compensacao && p.compensacao ? `Compensação: valor creditado de ${brl(p.compensacao.valor)} em ${mesBR(p.compensacao.mes)}, ${textoAtualizacaoComp(p.compensacao.atualizacao)}, deduzido da condenação.` : "",
     p.honorarios.tipo === "percentual" ? `Honorários sucumbenciais: ${p.honorarios.pct}% sobre o valor atualizado da condenação${p.honorarios.minimo ? `, com piso de ${brl(p.honorarios.minimo)}${p.honorarios.minimoDesde ? " (" + mesBR(p.honorarios.minimoDesde) + ", atualizado monetariamente desde então)" : ""}, prevalecendo o maior` : ""}.`
       : p.honorarios.tipo === "fixo" ? `Honorários sucumbenciais fixados em ${brl(p.honorarios.valor)}${p.honorarios.valorDesde ? ", atualizados monetariamente desde " + mesBR(p.honorarios.valorDesde) : ""}.` : "Sem honorários sucumbenciais no título.",
     "Cada valor é atualizado a partir do mês seguinte ao seu marco inicial até a data-base, inclusive; correção composta mês a mês e juros simples sobre o valor corrigido.",
@@ -53,7 +53,7 @@ export async function pdfCumprimento(r: ResultadoCs, p: ParamsCs, h: CabecalhoCs
   const linhasResumo: [string, number, boolean][] = [];
   if (r.linhas.length) linhasResumo.push([`Danos materiais (${r.linhas.length} parcelas atualizadas)`, r.materiais, false]);
   if (r.moral) linhasResumo.push(["Danos morais atualizados", r.moral.total, false]);
-  if (r.compensacao) linhasResumo.push(["(-) Compensação do valor creditado, atualizado", -r.compensacao.total, false]);
+  if (r.compensacao) linhasResumo.push([p.compensacao?.atualizacao === "historico" ? "(-) Compensação do valor creditado (valor histórico)" : p.compensacao?.atualizacao === "correcao" ? "(-) Compensação do valor creditado, corrigido" : "(-) Compensação do valor creditado, atualizado", -r.compensacao.total, false]);
   linhasResumo.push(["TOTAL DA CONDENAÇÃO", r.condenacao, true]);
   if (r.honorarios) linhasResumo.push([`Honorários sucumbenciais${r.honorarios.prevaleceMinimo ? " (piso)" : p.honorarios.tipo === "percentual" ? ` (${p.honorarios.pct}%)` : ""}`, r.honorarios.valor, false]);
   linhasResumo.push(["TOTAL LÍQUIDO EXEQUENDO", r.total, true]);
@@ -88,7 +88,7 @@ export async function pdfCumprimento(r: ResultadoCs, p: ParamsCs, h: CabecalhoCs
     if (p.restituicao === "dobro_modulado" && r.linhas.some((l) => !l.dobro)) paragrafo("* restituição simples (desconto anterior a " + mesBR(MODULACAO_CS) + ").", 7.5);
   }
   if (r.moral && p.moral) item("DANOS MORAIS", r.moral, `Correção monetária desde ${mesBR(p.moral.correcaoDesde)} e juros de mora desde ${mesBR(p.moral.jurosDesde)}, até ${mesBR(p.base)}.`);
-  if (r.compensacao && p.compensacao) item("COMPENSAÇÃO (VALOR CREDITADO)", r.compensacao, `Valor creditado em ${mesBR(p.compensacao.mes)}, atualizado pelos mesmos critérios e deduzido da condenação.`);
+  if (r.compensacao && p.compensacao) item("COMPENSAÇÃO (VALOR CREDITADO)", r.compensacao, `Valor creditado em ${mesBR(p.compensacao.mes)}, ${textoAtualizacaoComp(p.compensacao.atualizacao)}, deduzido da condenação.`);
   if (r.honorarios) {
     titulo("HONORÁRIOS SUCUMBENCIAIS");
     if (p.honorarios.tipo === "percentual") paragrafo(`${p.honorarios.pct}% sobre a condenação atualizada (${brl(r.condenacao)}) = ${brl(r.honorarios.pctValor)}.${p.honorarios.minimo ? ` Piso: ${brl(p.honorarios.minimo)}${p.honorarios.minimoDesde ? " atualizado desde " + mesBR(p.honorarios.minimoDesde) : ""} = ${brl(r.honorarios.minimoAtual)}.` : ""} Devido: ${brl(r.honorarios.valor)}${r.honorarios.prevaleceMinimo ? " (prevalece o piso)" : ""}.`, 8.5);

@@ -21,3 +21,17 @@ describe("liquidação do cumprimento (caso Nabor, memória aceita no JEF de Joi
     expect(r.honorarios?.valor).toBe(1621); expect(r.total).toBeCloseTo(11041.49, 2);
   });
 });
+
+describe("compensação do valor creditado", () => {
+  const caso = (atualizacao?: "completa" | "correcao" | "historico") => liquidar({
+    base: "2026-08", regime: "ipcae_selic", restituicao: "simples", jurosMateriais: "desconto",
+    contratos: [{ numero: "1", parcela: 54, inicio: "2021-02", fim: "2026-04" }], moral: null,
+    compensacao: { valor: 2299.83, mes: "2021-01", atualizacao }, honorarios: { tipo: "nenhum", pct: 0, minimo: 0, minimoDesde: "", valor: 0, valorDesde: "" },
+  }, ix);
+  it("valor histórico: abate exatamente o valor creditado, sem correção nem juros", () => {
+    const r = caso("historico"); expect(r.compensacao?.total).toBe(2299.83); expect(r.compensacao?.juros).toBe(0);
+    expect(r.condenacao).toBeCloseTo(r.materiais - 2299.83, 2);
+  });
+  it("só correção: corrige, mas sem juros", () => { const r = caso("correcao"); expect(r.compensacao!.total).toBeGreaterThan(2299.83); expect(r.compensacao!.juros).toBe(0); });
+  it("padrão continua atualizando com correção e juros", () => { const r = caso(); expect(r.compensacao!.juros).toBeGreaterThan(0); });
+});
