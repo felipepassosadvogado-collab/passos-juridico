@@ -23,6 +23,16 @@ function Painel() {
   const abriuCorr = useRef(""); const [caixaCheia, setCaixaCheia] = useState<Cheia>(""); const [filtro, setFiltro] = useState("");
   useEffect(() => { try { const v = localStorage.getItem("painel.cheia"); if (v === "minhas" || v === "corrigir" || v === "agenda" || v === "flag") setCaixaCheia(v); } catch { /* sem armazenamento */ } }, []);
   const cheia = (v: Cheia) => { setCaixaCheia(v); setFiltro(""); try { localStorage.setItem("painel.cheia", v); } catch { /* sem armazenamento */ } window.scrollTo({ top: 0 }); };
+  // caixas minimizadas no Painel (ficam lembradas neste navegador)
+  const [rec, setRec] = useState<string[]>([]);
+  useEffect(() => { try { const l = JSON.parse(localStorage.getItem("painel.recolhidas") || "[]"); if (Array.isArray(l)) setRec(l.map(String)); } catch { /* sem armazenamento */ } }, []);
+  const gravarRec = (l: string[]) => { setRec(l); try { localStorage.setItem("painel.recolhidas", JSON.stringify(l)); } catch { /* sem armazenamento */ } };
+  const recolher = (id: string) => gravarRec(rec.includes(id) ? rec.filter((x) => x !== id) : [...rec, id]);
+  const cls = (id: string) => "panel" + (rec.includes(id) ? " recolhida" : "");
+  const BtnRec = ({ id, n, auto }: { id: string; n?: number; auto?: boolean }) => (
+    <button className="btn ghost rec-btn" style={auto ? { marginLeft: "auto" } : undefined} onClick={() => recolher(id)} aria-expanded={!rec.includes(id)} title={rec.includes(id) ? "Mostrar o conteúdo desta caixa" : "Esconder o conteúdo desta caixa"}>
+      {rec.includes(id) ? <>{n != null && n > 0 && <span className="count">{n}</span>}▸ Expandir</> : "▾ Minimizar"}</button>);
+  const vai = (id: string) => { if (rec.includes(id)) gravarRec(rec.filter((x) => x !== id)); setTimeout(() => ir(id), 30); };
   const partesTxt = (t: { processo_numero: string | null; caso_id: string | null; descricao: string; tipo: string | null }) => semAcento([t.descricao, t.tipo, t.processo_numero ? processos.get(t.processo_numero)?.cliente_nome : ""].join(" ")).toLowerCase();
   const x = useMemo(() => {
     const t = hojeBR(); const abertas = [...tarefas.values()].filter((y) => y.status !== "feito");
@@ -70,34 +80,34 @@ function Painel() {
       <div className="head"><div><h2>Olá, {eu.nome.split(/[\s.]/)[0]}</h2><div className="sub">{dia.charAt(0).toUpperCase() + dia.slice(1)} · o que está com você e com a equipe</div></div><div className="tools"><BotaoDjen /></div></div>
       <div className="stats">
         <Link className="stat" href="/publicacoes"><span className="n">{x.cx.length}</span><span className="l">intimações para ler</span></Link>
-        <button className={"stat" + (x.venc ? " late" : "")} onClick={() => ir("sec-minhas")}><span className="n">{x.minhas.length}</span><span className="l">{x.venc ? `${x.minhas.length} minhas, ${x.venc} vencendo ou vencidas` : "tarefas minhas em aberto"}</span></button>
-        <button className={"stat" + (x.eqVenc ? " late" : "")} onClick={() => ir("sec-equipe")}><span className="n">{x.equipe.length}</span><span className="l">{x.eqVenc ? `prazos da equipe na semana, ${x.eqVenc} vencendo ou vencidos` : "prazos da equipe nos próximos 7 dias"}</span></button>
-        <button className="stat" onClick={() => ir("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
+        <button className={"stat" + (x.venc ? " late" : "")} onClick={() => vai("sec-minhas")}><span className="n">{x.minhas.length}</span><span className="l">{x.venc ? `${x.minhas.length} minhas, ${x.venc} vencendo ou vencidas` : "tarefas minhas em aberto"}</span></button>
+        <button className={"stat" + (x.eqVenc ? " late" : "")} onClick={() => vai("sec-equipe")}><span className="n">{x.equipe.length}</span><span className="l">{x.eqVenc ? `prazos da equipe na semana, ${x.eqVenc} vencendo ou vencidos` : "prazos da equipe nos próximos 7 dias"}</span></button>
+        <button className="stat" onClick={() => vai("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
       </div>
       <div className="pcols"><div className="pcol">
-      <CaixaAgenda onAbrir={() => cheia("agenda")} />
-      {x.nl.length > 0 && <section className="panel"><div className="ph"><h3>Avisos novos</h3><span className="count hot">{x.nl.length}</span></div>
+      <CaixaAgenda onAbrir={() => cheia("agenda")} recolhida={rec.includes("sec-agenda")} onRecolher={() => recolher("sec-agenda")} />
+      {x.nl.length > 0 && <section className={cls("sec-avisos")} id="sec-avisos"><div className="ph"><h3>Avisos novos</h3><span className="count hot">{x.nl.length}</span><BtnRec id="sec-avisos" auto /></div>
         <div className="rows">{x.nl.slice(0, 8).map((n) => (
           <div key={n.id} className="row click" onClick={() => { lida(n.id); if (n.processo_numero) j.abrirProcesso(n.processo_numero, n.tarefa_id ? { aba: "tarefas", alvo: "tar-" + n.tarefa_id } : undefined); else if (n.caso_id) j.abrirCaso(n.caso_id); }}>
             <span className="pill ok">{n.tipo === "protocolo" ? "protocolo" : n.tipo === "tarefa" ? "tarefa" : "aviso"}</span>
             <div className="main"><div className="t">{n.texto}</div><div className="s">{[nomeBonito(n.processo_numero ? processos.get(n.processo_numero)?.cliente_nome || "" : ""), "de " + nome(n.de), dataHoraBR(n.em)].filter(Boolean).join(" · ")}</div></div>
             <button className="btn ghost" onClick={(e) => { e.stopPropagation(); lida(n.id); }}>Lido</button></div>))}</div></section>}
-      <section className="panel"><div className="ph"><h3>1. Ler intimações</h3><Link className="btn ghost" href="/publicacoes">Abrir a caixa</Link></div>
+      <section className={cls("sec-intimacoes")} id="sec-intimacoes"><div className="ph"><h3>1. Ler intimações</h3><Link className="btn ghost" style={{ marginLeft: "auto" }} href="/publicacoes">Abrir a caixa</Link><BtnRec id="sec-intimacoes" n={x.cx.length} /></div>
         {x.cx.length ? <div className="rows">{x.cx.slice(0, 8).map((c) => { const p = processos.get(c.processo_numero); return (
           <div key={c.id} className="row click" onClick={() => j.abrirPub(c.id)}><span className="pill acc">{dataBR(c.data).slice(0, 5)}</span>
             <div className="main"><div className="t">{nomeBonito(p?.cliente_nome || "") || p?.mascara}</div><div className="s">{atoPub(c)} · {c.orgao || ""}{c.analise ? " · já analisada" : ""}</div></div><span className="mono muted">{p?.mascara}</span></div>); })}
           {x.cx.length > 8 && <div className="row"><span /><div className="s">e mais {x.cx.length - 8} na caixa</div><span /></div>}</div>
           : <div className="empty"><strong>Nenhuma intimação para ler.</strong>A caixa está em dia.</div>}</section>
       </div><div className="pcol">
-      <section className="panel" id="sec-corrigir"><div className="ph"><h3>2. Corrigir peças da equipe</h3><span className="muted" style={{ fontSize: 12 }}>enviadas para você revisar</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("corrigir")} title="Abrir as peças para corrigir na tela inteira">⤢ Abrir caixa</button></div>
+      <section className={cls("sec-corrigir")} id="sec-corrigir"><div className="ph"><h3>2. Corrigir peças da equipe</h3><span className="muted" style={{ fontSize: 12 }}>enviadas para você revisar</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("corrigir")} title="Abrir as peças para corrigir na tela inteira">⤢ Abrir caixa</button><BtnRec id="sec-corrigir" n={x.corrigir.length} /></div>
         {x.corrigir.length ? <ListaEnxuta key={corrigirId || "c"} lista={x.corrigir} abrirId={corrigirId} /> : <div className="empty"><strong>Nada esperando sua correção.</strong>Quando alguém enviar uma peça para você revisar, ela aparece aqui com o arquivo anexado.</div>}</section>
-      <section className="panel" id="sec-minhas"><div className="ph"><h3>3. Cumprir minhas tarefas</h3><span className="muted" style={{ fontSize: 12 }}>criadas por você ou pela equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("minhas")} title="Abrir as suas tarefas na tela inteira">⤢ Abrir caixa</button></div>
+      <section className={cls("sec-minhas")} id="sec-minhas"><div className="ph"><h3>3. Cumprir minhas tarefas</h3><span className="muted" style={{ fontSize: 12 }}>criadas por você ou pela equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("minhas")} title="Abrir as suas tarefas na tela inteira">⤢ Abrir caixa</button><BtnRec id="sec-minhas" n={x.minhas.length} /></div>
         {x.minhas.length ? <ListaEnxuta lista={x.minhas} /> : <div className="empty"><strong>Nenhuma tarefa sua em aberto.</strong>Quando alguém criar uma tarefa com você como responsável, ela aparece aqui.</div>}</section>
-      <section className="panel" id="sec-flag"><div className="ph"><h3>4. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("flag")} title="Abrir na tela inteira">⤢ Abrir caixa</button></div>
+      <section className={cls("sec-flag")} id="sec-flag"><div className="ph"><h3>4. Importantes e urgentes</h3><span className="muted" style={{ fontSize: 12 }}>de toda a equipe</span><button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => cheia("flag")} title="Abrir na tela inteira">⤢ Abrir caixa</button><BtnRec id="sec-flag" n={x.flag.length} /></div>
         {x.flag.length ? <div>{x.q.filter(([, l]) => l.length).map(([tit, l, dica]) => <div key={tit} className="quad"><div className="qh"><strong>{tit}</strong><span className="muted"> · {dica} · {l.length}</span></div><ListaEnxuta lista={l} limite={5} /></div>)}</div>
           : <div className="empty"><strong>Nenhuma tarefa marcada.</strong>Ao criar ou editar uma tarefa, marque “Importante” e/ou “Urgente” para ela aparecer aqui.</div>}</section>
       </div></div>
-      <section className="panel" id="sec-equipe"><div className="ph"><h3>5. Prazos da equipe</h3><span className="muted" style={{ fontSize: 12 }}>vencidos, de hoje e dos próximos 7 dias, de todos</span><Link className="btn ghost" href="/agenda?modo=lista" style={{ marginLeft: "auto" }}>Ver todos</Link></div>
+      <section className={cls("sec-equipe")} id="sec-equipe"><div className="ph"><h3>5. Prazos da equipe</h3><span className="muted" style={{ fontSize: 12 }}>vencidos, de hoje e dos próximos 7 dias, de todos</span><Link className="btn ghost" href="/agenda?modo=lista" style={{ marginLeft: "auto" }}>Ver todos</Link><BtnRec id="sec-equipe" n={x.equipe.length} /></div>
         {x.equipe.length ? <TabelaTarefas lista={x.equipe} /> : <div className="empty"><strong>Nada vencido nem vencendo nesta semana.</strong></div>}</section>
     </>
   );

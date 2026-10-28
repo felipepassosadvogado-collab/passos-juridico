@@ -862,3 +862,8 @@ html.claro .wa .msg.meu .wa-play{background:#1f6b4f;color:#fff}html.claro .wa .m
 .rcrm-prev dt{font-size:12px;color:var(--muted);margin-top:6px}.rcrm-prev dd{margin:0;font-weight:600}
 .rcrm-metas{width:100%;margin-top:6px;font-size:13px;border-collapse:collapse}.rcrm-metas td{padding:4px 0;border-top:1px solid var(--line)}.rcrm-metas .num{text-align:right}
 @media (max-width:860px){.rcrm{grid-template-columns:1fr}.rcrm-prev{position:static}}
+/* caixas minimizadas no Painel: só o cabeçalho fica visível */
+.panel.recolhida>:not(.ph){display:none!important}
+.panel.recolhida>.ph{border-bottom:0}
+.rec-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.rec-btn .count{margin:0}

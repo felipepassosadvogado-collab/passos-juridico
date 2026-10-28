@@ -121,18 +121,19 @@ export function AtosDoProcesso({ numero, abrirForm, onFecharForm }: { numero: st
 }
 
 /** caixa de Meus expedientes: audiências e coletas ainda não realizadas (de toda a equipe) */
-export function CaixaAgenda({ onAbrir }: { onAbrir?: () => void } = {}) {
+export function CaixaAgenda({ onAbrir, recolhida, onRecolher }: { onAbrir?: () => void; recolhida?: boolean; onRecolher?: () => void } = {}) {
   const { avisos, v } = useDados(); const j = useJanelas();
   const [verFeitos, setVerFeitos] = useState(false);
   const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em))
     .sort((a, b) => verFeitos ? (b.realizado_em || "").localeCompare(a.realizado_em || "") : (a.data_evento || "9").localeCompare(b.data_evento || "9")), [avisos, verFeitos, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const feitos = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && a.realizado_em).length, [avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <section className="panel agenda" id="sec-agenda">
+    <section className={"panel agenda" + (recolhida ? " recolhida" : "")} id="sec-agenda">
       <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação ou dentro do processo"}</span>
         {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}
         <button className="btn" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} onClick={() => j.agendarAto()}>📅 Agendar</button>
-        {onAbrir && <button className="btn ghost" onClick={onAbrir} title="Abrir na tela inteira">⤢ Abrir caixa</button>}</div>
+        {onAbrir && <button className="btn ghost" onClick={onAbrir} title="Abrir na tela inteira">⤢ Abrir caixa</button>}
+        {onRecolher && <button className="btn ghost rec-btn" onClick={onRecolher} aria-expanded={!recolhida} title={recolhida ? "Mostrar o conteúdo desta caixa" : "Esconder o conteúdo desta caixa"}>{recolhida ? <>{lista.length > 0 && <span className="count">{lista.length}</span>}▸ Expandir</> : "▾ Minimizar"}</button>}</div>
       {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} comCliente />)}</div> : <div className="empty">{verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, ou dentro do processo, clique em “Agendar audiência / coleta”.</>}</div>}
     </section>
   );
