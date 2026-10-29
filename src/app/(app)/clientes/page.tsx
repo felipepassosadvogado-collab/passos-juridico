@@ -1,4 +1,5 @@
 "use client";
+import { teclado } from "@/components/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -43,7 +44,7 @@ export default function Clientes() {
       {!clientes.size ? <div className="panel"><div className="empty"><strong>Nenhum cliente cadastrado ainda.</strong>Importe os dados do painel antigo ou cadastre o primeiro cliente.</div></div> :
         <div className="panel tscroll"><table className="grid"><thead><tr><th>Cliente</th><th>CPF</th><th>Telefone</th><th>Processos</th><th>Prazos</th></tr></thead>
           <tbody>{l.slice(0, 500).map((c) => (
-            <tr key={c.id} className="click" onClick={() => j.abrirCliente(c.id)}>
+            <tr key={c.id} className="click" onClick={() => j.abrirCliente(c.id)} {...teclado(() => j.abrirCliente(c.id))}>
               <td><div style={{ fontWeight: 600 }}>{nomeBonito(c.nome)}</div><div className="s">{[c.cidade, c.nb ? "NB " + c.nb : ""].filter(Boolean).join(" · ")}</div></td>
               <td className="mono">{c.cpf || "—"}</td><td className="mono">{c.telefone || "—"}</td><td>{qtd[c.id] || 0}</td>
               <td>{prz[c.id] ? <span className="pill soon">{prz[c.id]} em aberto</span> : !(c.cpf && c.telefone) ? <span className="pill">ficha incompleta</span> : ""}</td></tr>))}</tbody></table></div>}

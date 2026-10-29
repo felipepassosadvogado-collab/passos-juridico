@@ -22,7 +22,7 @@ function Chat() {
             <span className="cc"><span className="cn">{c.nome}</span><span className="cs">{ult ? (ult.de === eu.id ? "Você: " : "") + resumo(ult).slice(0, 60) : c.sub}</span></span>{n ? <span className="count hot">{n}</span> : null}</button>; })}
           <div className="muted chat-dica">Para conversar com alguém, convide a pessoa em Equipe.</div></aside>
         <section className="chat-thread">
-          <header className="chat-topo"><button className="btn ghost voltar" onClick={() => setAberto(false)}>‹</button><Avatar id={outroDaDm(atual.id, eu.id)} nome={atual.nome} />
+          <header className="chat-topo"><button className="btn ghost voltar" title="Voltar à lista de conversas" aria-label="Voltar à lista de conversas" onClick={() => setAberto(false)}><span aria-hidden="true">‹</span></button><Avatar id={outroDaDm(atual.id, eu.id)} nome={atual.nome} />
             <div><div style={{ fontWeight: 700 }}>{atual.nome}</div><div style={{ fontSize: 12 }}><Presenca id={outroDaDm(atual.id, eu.id)} /></div></div>
             <div className="muted s" style={{ marginLeft: "auto" }} title="✓ enviada (a pessoa está fora do sistema) · ✓✓ entregue (a pessoa está no sistema) · ✓✓ azul: lida">✓ fora do sistema · ✓✓ no sistema · <span style={{ color: "#4d9bff" }}>✓✓ lida</span></div></header>
           <Fio key={atual.id} conversa={atual.id} vazio="Nenhuma mensagem ainda. Comece a conversa." />

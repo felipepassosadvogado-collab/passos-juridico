@@ -38,14 +38,14 @@ export default function Configuracoes() {
       <section className="panel"><div className="ph"><h3>Honorários contratuais</h3></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: "72ch" }}>
           <p style={{ margin: 0 }}>Percentual padrão sobre o valor da causa, usado no CRM e na ficha quando o processo não tem um percentual próprio.</p>
-          <div className="tools"><input style={{ width: 110 }} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} /><span>%</span>
-            <button className="btn primary" onClick={() => { const v = parseFloat(pct.replace(",", ".")); if (!(v > 0 && v <= 100)) { aviso("Informe um percentual entre 0 e 100."); return; } salvarGeral({ honorariosPct: v }, "Percentual salvo."); }}>Salvar</button></div>
+          <div className="tools"><input style={{ width: 110 }} inputMode="decimal" aria-label="Percentual padrão de honorários contratuais" value={pct} onChange={(e) => setPct(e.target.value)} /><span>%</span>
+            <button className="btn primary" onClick={() => { const v = parseFloat(pct.replace(",", ".")); if (!(v > 0 && v <= 100)) { aviso("Informe um percentual entre 0 e 100."); return; } salvarGeral({ honorariosPct: v }, "Percentual salvo."); }} title="Salvar o percentual padrão de honorários">Salvar</button></div>
         </div></section>
       <section className="panel"><div className="ph"><h3>Atende Direito</h3></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p style={{ margin: 0, maxWidth: "70ch" }}>Endereço que o botão “Abrir no Atende Direito” abre a partir de um aviso ao cliente. Pode usar {"{cpf}"}, {"{nome}"}, {"{telefone}"} e {"{processo}"}, que o sistema troca pelos dados do cliente.</p>
-          <div className="tools"><input style={{ flex: 1, minWidth: 240 }} value={url} placeholder="Ex.: https://seusite.com.br/clientes?cpf={cpf}" onChange={(e) => setUrl(e.target.value)} />
-            <button className="btn primary" onClick={() => { const v = url.trim(); if (v && !/^https:\/\//.test(v)) { aviso("Use um endereço que comece com https://"); return; } salvarGeral({ atendeUrl: v }, "Endereço salvo."); }}>Salvar</button></div>
+          <div className="tools"><input style={{ flex: 1, minWidth: 240 }} aria-label="Endereço do Atende Direito" value={url} placeholder="Ex.: https://seusite.com.br/clientes?cpf={cpf}" onChange={(e) => setUrl(e.target.value)} />
+            <button className="btn primary" title="Salvar o endereço do Atende Direito" onClick={() => { const v = url.trim(); if (v && !/^https:\/\//.test(v)) { aviso("Use um endereço que comece com https://"); return; } salvarGeral({ atendeUrl: v }, "Endereço salvo."); }}>Salvar</button></div>
         </div></section>
       <section className="panel"><div className="ph"><h3>WhatsApp do escritório</h3><span className="muted" style={{ fontSize: 12.5 }}>conexão pelo QR-code (aparelhos conectados)</span></div>
         <div className="pb"><PainelConexao /></div></section>

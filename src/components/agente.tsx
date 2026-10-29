@@ -38,7 +38,7 @@ export function ConfigAgente() {
         </div>
         <label className="f">Aviso do golpe (na primeira mensagem; o assistente escreve com as palavras dele)<textarea rows={3} value={f.avisoGolpe || ""} onChange={(e) => setF({ ...f, avisoGolpe: e.target.value })} /></label>
         <label className="f">Orientações extras (opcional)<textarea rows={3} value={f.instrucoes || ""} placeholder="Ex.: perícias do JEF de Joinville são no 2º andar; para mandar documentos, pedir foto nítida de frente e verso." onChange={(e) => setF({ ...f, instrucoes: e.target.value })} /></label>
-        <div className="tools"><button className="btn primary" onClick={() => salvar({ nome: f.nome?.trim(), horario: f.horario?.trim(), avisoGolpe: f.avisoGolpe?.trim(), instrucoes: f.instrucoes?.trim() }, "Assistente salvo.")}>Salvar</button></div>
+        <div className="tools"><button className="btn primary" title="Salvar as configurações do assistente virtual do WhatsApp" onClick={() => salvar({ nome: f.nome?.trim(), horario: f.horario?.trim(), avisoGolpe: f.avisoGolpe?.trim(), instrucoes: f.instrucoes?.trim() }, "Assistente salvo.")}>Salvar</button></div>
         <div className="muted" style={{ fontSize: 12.5 }}>Ele sempre se apresenta como assistente virtual do escritório: não finge ser pessoa nem advogado, não promete resultado, não fala de valores a receber nem de honorários.</div>
       </div></section>
   );

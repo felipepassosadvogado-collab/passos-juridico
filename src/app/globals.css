@@ -867,3 +867,22 @@ html.claro .wa .msg.meu .wa-play{background:#1f6b4f;color:#fff}html.claro .wa .m
 .panel.recolhida>.ph{border-bottom:0}
 .rec-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .rec-btn .count{margin:0}
+/* acessibilidade: foco do teclado visível em linhas clicáveis e dica (o mesmo texto do leitor de tela)
+   ao focar, pelo teclado, um botão que só tem ícone — o mouse continua usando a dica nativa (title) */
+.row.click:focus-visible,.tj-corr-h:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:8px}
+tr.click:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+tr.click:focus-visible td{background:var(--sunken)}
+.icb-q,.mk{position:relative}
+:is(.icb,.icb-q,.mk,.wa-vel,.wa-play)[aria-label]:focus-visible::after{
+  content:attr(aria-label);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:60;
+  background:var(--fg);color:var(--bg);font:500 12px/1.3 inherit;padding:5px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;
+  box-shadow:0 4px 14px rgb(0 0 0 / .25)}
+.railtoggle[aria-label]:focus-visible::after{left:0;transform:none}
+.cf-botao:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
+@media (hover:none){:is(.icb,.icb-q,.mk,.wa-vel,.wa-play)[aria-label]:focus-visible::after{display:none}}
+/* botões que zeram o estilo (all:unset) perdiam o contorno de foco do teclado */
+:is(.ag-num,.fc-at-tit,.fc-proc-tit,.gaba,.gac,.gs-av,.lx-mais,.mais,.pub-chip,.visor-aba-n,.visor-aba-x,.wa-vel):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wa-play,.wa-vel{position:relative}
+.gsearch:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent);color:var(--fg)}
+.wa-cli-tgl{all:unset;cursor:pointer;font-weight:700}.wa-cli-tgl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}

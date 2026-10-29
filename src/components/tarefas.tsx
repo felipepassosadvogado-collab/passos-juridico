@@ -303,8 +303,8 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
           return [
             <tr key={t.id} id={"tar-" + t.id} className={"tr-t" + (done ? " feita" : "")} tabIndex={0} onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
               <td className="marcas" onClick={(e) => e.stopPropagation()}>
-                <button className={"mk estrela" + (t.importante ? " on" : "")} title={t.importante ? "Importante" : "Marcar como importante"} onClick={() => flag(t, "importante")}>{Ic.estrela(t.importante)}</button>
-                <button className={"mk urg" + (t.urgente ? " on" : "")} title={t.urgente ? "Urgente" : "Marcar como urgente"} onClick={() => flag(t, "urgente")}>!</button>
+                <button className={"mk estrela" + (t.importante ? " on" : "")} aria-pressed={t.importante} title={t.importante ? "Importante: clique para desmarcar" : "Marcar como importante"} aria-label={t.importante ? "Desmarcar importante" : "Marcar como importante"} onClick={() => flag(t, "importante")}>{Ic.estrela(t.importante)}</button>
+                <button className={"mk urg" + (t.urgente ? " on" : "")} aria-pressed={t.urgente} title={t.urgente ? "Urgente: clique para desmarcar" : "Marcar como urgente"} aria-label={t.urgente ? "Desmarcar urgente" : "Marcar como urgente"} onClick={() => flag(t, "urgente")}>!</button>
                 <CirculoStatus t={t} />
               </td>
               <td><div className="tnome">{t.descricao}</div>

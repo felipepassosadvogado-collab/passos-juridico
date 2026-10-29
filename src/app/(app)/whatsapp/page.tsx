@@ -95,9 +95,9 @@ function WhatsApp() {
       <div className={"chat wa" + (aberto ? " aberto" : "")}>
         <aside className="chat-lista">
           <div className="wa-filtros">
-            <input value={q} placeholder="Buscar nome ou telefone" onChange={(e) => setQ(e.target.value)} />
+            <input value={q} aria-label="Buscar conversa por nome ou telefone" placeholder="Buscar nome ou telefone" onChange={(e) => setQ(e.target.value)} />
             <div className="wa-chips">{([["todas", "Todas"], ["naolidas", "Não lidas"], ["equipe", "Pediu atendente"], ["clientes", "Clientes"], ["sem", "Sem cliente"]] as [Filtro, string][]).map(([k, t]) =>
-              <button key={k} className={"pill" + (filtro === k ? " acc" : "")} onClick={() => setFiltro(k)}>{t}</button>)}</div>
+              <button key={k} className={"pill" + (filtro === k ? " acc" : "")} aria-pressed={filtro === k} onClick={() => setFiltro(k)}>{t}</button>)}</div>
           </div>
           {vis.map((c) => { const d = new Date(c.ultima_em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
             return <button key={c.id} className={"chat-conv" + (c.id === ativa ? " ativa" : "")} onClick={() => { setAtiva(c.id); setNova(null); setAberto(true); }}>
@@ -108,17 +108,17 @@ function WhatsApp() {
         </aside>
         <section className="chat-thread">
           {conv || nova ? <>
-            <header className="chat-topo wa-topo"><button className="btn ghost voltar" onClick={() => setAberto(false)}>‹</button>
+            <header className="chat-topo wa-topo"><button className="btn ghost voltar" title="Voltar à lista de conversas" aria-label="Voltar à lista de conversas" onClick={() => setAberto(false)}><span aria-hidden="true">‹</span></button>
               <span className={"avr wa-av" + (cli ? " cli" : "")}>{iniciais(titulo) || "?"}</span>
               <div style={{ minWidth: 0 }}><div style={{ fontWeight: 700 }}>{titulo}</div>
                 <div className="muted s">{foneBR(conv?.telefone || cli?.telefone || nova?.telefone)}{conv?.nome && cli && semAcento(conv.nome) !== semAcento(cli.nome) ? ` · no WhatsApp: ${conv.nome}` : ""}</div></div>
               <div className="wa-acoes">
                 {cli ? <>
                   <button className="btn ghost" onClick={() => j.abrirCliente(cli.id)}>Ficha do cliente</button>
-                  {procs.slice(0, 3).map((p) => <button key={p.numero} className="pill" title={p.mascara} onClick={() => j.abrirProcesso(p.numero)}>{bancoCurto(p.banco)} · {p.mascara.slice(0, 7)}</button>)}
-                  {conv && <button className="btn ghost" title="Desligar desta ficha" onClick={() => ligar(null)}>✕</button>}
+                  {procs.slice(0, 3).map((p) => <button key={p.numero} className="pill" title={"Abrir o processo " + p.mascara} aria-label={"Abrir o processo " + p.mascara + " contra " + bancoCurto(p.banco)} onClick={() => j.abrirProcesso(p.numero)}>{bancoCurto(p.banco)} · {p.mascara.slice(0, 7)}</button>)}
+                  {conv && <button className="btn ghost" title="Desligar esta conversa da ficha do cliente (a conversa não é apagada)" aria-label="Desligar esta conversa da ficha do cliente" onClick={() => ligar(null)}><span aria-hidden="true">✕</span></button>}
                 </> : conv && (ligando ? <BuscaCliente placeholder="Ligar a um cliente: nome ou CPF" onEscolher={(id) => ligar(id)} /> : <button className="btn" onClick={() => setLigando(true)}>Ligar a um cliente</button>)}
-                {conv && <button className="btn ghost" onClick={arquivar}>{conv.arquivada ? "Desarquivar" : "Arquivar"}</button>}
+                {conv && <button className="btn ghost" title={conv.arquivada ? "Voltar a conversa para a lista principal" : "Tirar a conversa da lista principal (continua guardada)"} onClick={arquivar}>{conv.arquivada ? "Desarquivar" : "Arquivar"}</button>}
               </div>
             </header>
             {conv && <AgenteNaConversa conv={conv} onAtualizar={atualizar} onEnviada={juntar} />}

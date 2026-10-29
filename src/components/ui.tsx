@@ -15,6 +15,12 @@ export const Ic = {
 };
 
 /** janela sobre a tela (o "drawer" do painel antigo); fecha com Esc ou clicando fora */
+/** linha/cartão clicável (div ou tr) acessível pelo teclado: Tab chega nela, Enter ou Espaço abre */
+export const teclado = (abrir: () => void) => ({
+  tabIndex: 0,
+  onKeyDown: (e: React.KeyboardEvent) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); abrir(); } },
+});
+
 export function Janela({ aberta = true, onFechar, largo, titulo, sub, acoes, children }: {
   aberta?: boolean; onFechar: () => void; largo?: boolean; titulo: React.ReactNode; sub?: React.ReactNode; acoes?: React.ReactNode; children: React.ReactNode;
 }) {
@@ -34,7 +40,7 @@ export function Janela({ aberta = true, onFechar, largo, titulo, sub, acoes, chi
       <aside ref={ref} className={"drawer" + (largo ? " largo" : "")} role="dialog" aria-modal="true" aria-label={typeof titulo === "string" ? titulo : undefined}>
         <div className="dh">
           <div style={{ minWidth: 0 }}><h2>{titulo}</h2>{sub && <div className="muted">{sub}</div>}</div>
-          <div className="tools">{acoes}<button className="btn ghost" onClick={onFechar}>Fechar</button></div>
+          <div className="tools">{acoes}<button className="btn ghost" title="Fechar esta janela (Esc)" onClick={onFechar}>Fechar</button></div>
         </div>
         {children}
       </aside>

@@ -1,4 +1,5 @@
 "use client";
+import { teclado } from "@/components/ui";
 // Janelas abertas por cima de qualquer tela: publicação, aviso ao cliente, nova tarefa,
 // atendimento do CRM e petição inicial. Uma abre por cima da outra; "Fechar" volta à anterior.
 import Link from "next/link";
@@ -85,7 +86,7 @@ function JanelaNovaTarefa({ numero: inicial, ato, onFechar }: { numero?: string;
         <button className="btn ghost" onClick={() => setNumero("")}>Trocar processo</button></div>
         : <label className="f">Processo (cliente ou número)<input type="search" autoFocus value={q} placeholder="Digite o nome do cliente ou parte do número" onChange={(e) => setQ(e.target.value)} /></label>}
       {achados.length > 0 && <div className="panel"><div className="rows">{achados.map((x) => (
-        <div key={x.numero} className="row click" onClick={() => setNumero(x.numero)}><span className="pill">{bancoCurto(x.banco)}</span>
+        <div key={x.numero} className="row click" onClick={() => setNumero(x.numero)} {...teclado(() => setNumero(x.numero))}><span className="pill">{bancoCurto(x.banco)}</span>
           <div className="main"><div className="t">{nomeBonito(x.cliente_nome || "—")}</div><div className="s mono">{x.mascara}</div></div><span /></div>))}</div></div>}
       {!p && q.length >= 2 && !achados.length && <div className="muted">Nenhum processo encontrado. Para um caso que ainda não virou processo, crie a tarefa pelo atendimento no CRM.</div>}
       {p && (modo === "ato" ? <FormAgendar key={"a" + p.numero} numero={p.numero} onFim={onFechar} />

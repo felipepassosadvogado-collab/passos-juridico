@@ -84,7 +84,7 @@ export function FichaCliente({ c, emJanela, onFechar }: { c?: Cliente; emJanela?
           {ps.length > 0 && <div className="fc-sec"><strong>Processos judiciais</strong><span className="count">{ps.length}</span></div>}
           {ps.map((p) => (
             <div key={p.numero} className="fc-proc">
-              <button className="fc-proc-tit" onClick={() => j.abrirProcesso(p.numero)}>
+              <button className="fc-proc-tit" title="Abrir o processo" aria-label={"Abrir o processo " + p.mascara + " contra " + bancoCurto(p.banco)} onClick={() => j.abrirProcesso(p.numero)}>
                 <span className="mono">{p.mascara}</span><span className="pill">{bancoCurto(p.banco)}</span></button>
               {(p.reus || []).length > 0 && <div className="fc-partes">x {(p.reus || []).map((r) => nomeBonito(r)).join(" · ")}</div>}
               <div className="muted s">{(faseCRM(p.fase) || "Sem fase") + " · " + (p.orgao || "juízo não informado")}{p.ultima_data ? " · " + dataBR(p.ultima_data) : ""}</div>

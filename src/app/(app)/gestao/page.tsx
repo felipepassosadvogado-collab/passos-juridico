@@ -1,4 +1,5 @@
 "use client";
+import { teclado } from "@/components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { dataBR, dataHoraBR, semAcento } from "@/lib/formato";
@@ -230,7 +231,7 @@ export default function Gestao() {
         </section>
         <section className="panel gs-lado">
           <div className="gs-rot">Colaboradores com mais tarefas atrasadas</div>
-          <div className="gs-avs">{atrasoPorPessoa.length ? atrasoPorPessoa.map((x) => <button key={x.id} className="gs-av" title={`${nome(x.id)}: ${x.n} atrasada(s) — ver`} onClick={() => { setPessoa(x.id); setVisao("atrasadas"); setPer(["2000-01-01", t0]); setRascunho(["2000-01-01", t0]); }}>
+          <div className="gs-avs">{atrasoPorPessoa.length ? atrasoPorPessoa.map((x) => <button key={x.id} className="gs-av" title={`${nome(x.id)}: ${x.n} atrasada(s) — ver`} aria-label={`${nome(x.id)}: ${x.n} tarefa(s) atrasada(s). Ver a lista`} onClick={() => { setPessoa(x.id); setVisao("atrasadas"); setPer(["2000-01-01", t0]); setRascunho(["2000-01-01", t0]); }}>
             <Avatar id={x.id} /><span className="gs-badge">{x.n}</span></button>) : <span className="muted">Ninguém com tarefa atrasada. 🎉</span>}</div>
           <div className="gs-rot" style={{ marginTop: 14 }}>Agilidade{pessoa ? " de " + nome(pessoa).split(" ")[0] : " geral"} no período</div>
           <div className="gs-ag">
@@ -242,11 +243,11 @@ export default function Gestao() {
         </section>
       </div>
       {linhas.length > 1 && !pessoa && <section className="panel tscroll"><table className="grid gtab"><thead><tr>{["Colaborador", "Concluídas em dia", "Em atraso", "Pendentes", "Atrasadas", "No prazo"].map((t) => <th key={t}>{t}</th>)}</tr></thead>
-        <tbody>{linhas.map(({ p, n }) => <tr key={p.id} className="click" onClick={() => setPessoa(p.id)}><td><ChipResp id={p.id} /></td><td className="num">{n.emDia.length}</td><td className="num">{n.emAtraso.length || "—"}</td><td className="num">{n.pend.length}</td>
+        <tbody>{linhas.map(({ p, n }) => <tr key={p.id} className="click" title="Ver só esta pessoa" onClick={() => setPessoa(p.id)} {...teclado(() => setPessoa(p.id))}><td><ChipResp id={p.id} /></td><td className="num">{n.emDia.length}</td><td className="num">{n.emAtraso.length || "—"}</td><td className="num">{n.pend.length}</td>
           <td className={"num" + (n.atrasadas.length ? " fatal" : "")}>{n.atrasadas.length || "—"}</td><td>{n.taxa == null ? <span className="muted">—</span> : <span className={"pill " + (n.taxa >= 90 ? "ok" : n.taxa >= 70 ? "soon" : "late")}>{n.taxa}%</span>}</td></tr>)}</tbody></table></section>}
       <div className="gs-bar">
-        <label className="gs-sel"><select value={visao} onChange={(e) => setVisao(e.target.value as Visao)}>{(Object.keys(VISOES) as Visao[]).map((k) => <option key={k} value={k}>{VISOES[k]}</option>)}</select></label>
-        <label className="gs-sel"><select value={pessoa} onChange={(e) => setPessoa(e.target.value)}><option value="">Toda a equipe</option>{equipe.map((p) => <option key={p.id} value={p.id}>{p.nome.toUpperCase()}</option>)}</select></label>
+        <label className="gs-sel"><select aria-label="O que mostrar" value={visao} onChange={(e) => setVisao(e.target.value as Visao)}>{(Object.keys(VISOES) as Visao[]).map((k) => <option key={k} value={k}>{VISOES[k]}</option>)}</select></label>
+        <label className="gs-sel"><select aria-label="De quem" value={pessoa} onChange={(e) => setPessoa(e.target.value)}><option value="">Toda a equipe</option>{equipe.map((p) => <option key={p.id} value={p.id}>{p.nome.toUpperCase()}</option>)}</select></label>
         {busca || q ? <input className="gs-busca" autoFocus value={q} placeholder={visao === "acessos" ? "Nome do colaborador" : "Cliente, tarefa ou nº do processo"} onChange={(e) => setQ(e.target.value)} onBlur={() => !q && setBusca(false)} />
           : <button className="gs-b" onClick={() => setBusca(true)}>{Ic.busca} Buscar</button>}
         <div className="gs-pop-w">

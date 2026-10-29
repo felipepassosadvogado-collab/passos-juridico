@@ -85,6 +85,7 @@ function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean;
   const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null; const balcao = a.modalidade === "jf_balcao";
   const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";
   const avisado = a.status === "avisado";
+  const quem = (comCliente ? nomeBonito(p?.cliente_nome || "") : a.tipo_evento || "ato") + (a.data_evento ? " em " + dataBR(a.data_evento) : "");
   return <div className={"row ag-row" + (a.realizado_em ? " feito" : "")}>
     <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
     <div className="main">{comCliente ? <div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
@@ -95,10 +96,10 @@ function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean;
         {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}
         {avisado && <PillConfirmacao av={a} />}</div></div>
     <div className="ag-acts">
-      <button className={a.status !== "pendente" ? "btn ghost" : "btn wa"} onClick={() => j.abrirAviso(a.id)}>{a.status !== "pendente" ? "Ver aviso" : "Avisar o cliente"}</button>
-      {onEditar && !a.realizado_em && <button className="btn ghost" onClick={onEditar}>Editar</button>}
-      {a.realizado_em ? <button className="btn ghost" onClick={() => realizado(a, false)}>Desfazer</button>
-        : <button className="btn ghost" title="O ato aconteceu (o cliente compareceu / assinou o termo)" onClick={() => realizado(a, true)}>✓ Realizado</button>}
+      <button className={a.status !== "pendente" ? "btn ghost" : "btn wa"} title={a.status !== "pendente" ? "Ver a mensagem de aviso enviada ao cliente" : "Abrir o aviso para mandar a mensagem ao cliente pelo WhatsApp"} aria-label={(a.status !== "pendente" ? "Ver aviso: " : "Avisar o cliente: ") + quem} onClick={() => j.abrirAviso(a.id)}>{a.status !== "pendente" ? "Ver aviso" : "Avisar o cliente"}</button>
+      {onEditar && !a.realizado_em && <button className="btn ghost" title="Editar data, hora, local ou modalidade" aria-label={"Editar o agendamento: " + quem} onClick={onEditar}>Editar</button>}
+      {a.realizado_em ? <button className="btn ghost" title="Desfazer: o ato volta para a lista das próximas" aria-label={"Desfazer realizado: " + quem} onClick={() => realizado(a, false)}>Desfazer</button>
+        : <button className="btn ghost" title="Marcar como realizado: o ato aconteceu (o cliente compareceu / assinou o termo)" aria-label={"Marcar como realizado: " + quem} onClick={() => realizado(a, true)}><span aria-hidden="true">✓</span> Realizado</button>}
     </div></div>;
 }
 
@@ -131,9 +132,9 @@ export function CaixaAgenda({ onAbrir, recolhida, onRecolher }: { onAbrir?: () =
     <section className={"panel agenda" + (recolhida ? " recolhida" : "")} id="sec-agenda">
       <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação ou dentro do processo"}</span>
         {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}
-        <button className="btn" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} onClick={() => j.agendarAto()}>📅 Agendar</button>
-        {onAbrir && <button className="btn ghost" onClick={onAbrir} title="Abrir na tela inteira">⤢ Abrir caixa</button>}
-        {onRecolher && <button className="btn ghost rec-btn" onClick={onRecolher} aria-expanded={!recolhida} title={recolhida ? "Mostrar o conteúdo desta caixa" : "Esconder o conteúdo desta caixa"}>{recolhida ? <>{lista.length > 0 && <span className="count">{lista.length}</span>}▸ Expandir</> : "▾ Minimizar"}</button>}</div>
+        <button className="btn" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} title="Agendar uma audiência ou coleta de padrão grafotécnico" onClick={() => j.agendarAto()}><span aria-hidden="true">📅</span> Agendar</button>
+        {onAbrir && <button className="btn ghost" onClick={onAbrir} title="Abrir na tela inteira" aria-label="Abrir a caixa Audiências e coletas em tela inteira"><span aria-hidden="true">⤢</span> Abrir caixa</button>}
+        {onRecolher && <button className="btn ghost rec-btn" onClick={onRecolher} aria-expanded={!recolhida} aria-controls="sec-agenda" aria-label={(recolhida ? "Expandir a caixa Audiências e coletas" : "Minimizar a caixa Audiências e coletas") + (recolhida && lista.length ? `, ${lista.length} agendamento(s)` : "")} title={recolhida ? "Mostrar o conteúdo desta caixa" : "Esconder o conteúdo desta caixa (fica lembrado neste navegador)"}>{recolhida ? <>{lista.length > 0 && <span className="count" aria-hidden="true">{lista.length}</span>}<span aria-hidden="true">▸</span> Expandir</> : <><span aria-hidden="true">▾</span> Minimizar</>}</button>}</div>
       {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} comCliente />)}</div> : <div className="empty">{verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, ou dentro do processo, clique em “Agendar audiência / coleta”.</>}</div>}
     </section>
   );

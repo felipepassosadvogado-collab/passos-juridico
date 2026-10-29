@@ -9,7 +9,7 @@ import type { Tarefa } from "@/lib/tipos";
 import { Coluna, ProxTarefa, useArrasto } from "@/components/crm";
 import { useJanelas } from "@/components/janelas";
 import { ExportarCrm } from "@/components/exportarCrm";
-import { Avatar, Ic } from "@/components/ui";
+import { Avatar, Ic, teclado } from "@/components/ui";
 import { honorarios, pctPadrao } from "@/lib/valores";
 
 function CRM() {
@@ -65,7 +65,7 @@ function CRM() {
     for (const p of procs) { const f = faseCRM(p.fase); (grupos.get(grupos.has(f) ? f : "") || []).push(p); }
     visiveis = procs;
     quadro = <div className="kanban">{cols.map(([k, t]) => <Coluna key={k} chave={"j:" + k} titulo={t} extra={(() => { const s = soma(grupos.get(k) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_FASE[k]} cartoes={(grupos.get(k) || []).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")).map((p) => (
-      <article key={p.numero} className="kcard" data-id={p.numero} tabIndex={0} onClick={() => { if (!arrastou.current) j.abrirProcesso(p.numero); }}>
+      <article key={p.numero} className="kcard" data-id={p.numero} {...teclado(() => j.abrirProcesso(p.numero))} onClick={() => { if (!arrastou.current) j.abrirProcesso(p.numero); }}>
         <div className="kc1">{nomeBonito(p.cliente_nome || "—")}</div><div className="kc2">x {bancoCurto(p.banco)}{p.orgao ? " · " + p.orgao : ""}</div>
         <div className="kc3"><span className="mono">{p.mascara}</span>{av(p.responsavel)}</div>
         {linhaValor(p)}<ProxTarefa t={proxima.get(p.numero)} />{mover(faseCRM(p.fase), [...cols, ["Encerrado", "Encerrado"]], (f) => moverProc(p.numero, f))}</article>))} />)}</div>;
@@ -75,7 +75,7 @@ function CRM() {
     visiveis = cs;
     quadro = <>{!casos.size && <div className="banner">Nenhum atendimento ainda. Clique em “Novo atendimento” para cadastrar o primeiro caso, antes de virar processo.</div>}
       <div className="kanban">{ETAPAS.map((e) => <Coluna key={e} chave={"p:" + e} titulo={e} extra={(() => { const s = soma(grupos.get(e) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_ETAPA[e]} cartoes={(grupos.get(e) || []).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map((c) => (
-        <article key={c.id} className="kcard" data-id={c.id} tabIndex={0} onClick={() => { if (!arrastou.current) j.abrirCaso(c.id); }}>
+        <article key={c.id} className="kcard" data-id={c.id} {...teclado(() => j.abrirCaso(c.id))} onClick={() => { if (!arrastou.current) j.abrirCaso(c.id); }}>
           <div className="kc1">{nomeBonito(c.nome || "—")}</div><div className="kc2">x {c.banco ? bancoCurto(c.banco) : "banco a definir"}{c.contratos ? " · " + c.contratos : ""}</div>
           <div className="kc3">{c.processo_numero ? <span className="mono">{mascaraCnj(c.processo_numero)}</span> : <span className="muted">desde {dataBR(c.criado_em.slice(0, 10))}</span>}{av(c.responsavel)}</div>
           {linhaValor(c)}<ProxTarefa t={proxima.get("c:" + c.id)} />{mover(c.etapa, ETAPAS.map((x) => [x, x]), (x) => moverCaso(c.id, x))}</article>))} />)}</div></>;
@@ -86,9 +86,9 @@ function CRM() {
       <div className="toolbar">
         <div className="seg" role="tablist">{([["pre", "Pré-processual"], ["judicial", "Judicial"]] as const).map(([k, t]) => <button key={k} role="tab" aria-selected={q.quadro === k} onClick={() => setQ({ ...q, quadro: k })}>{t}</button>)}</div>
         {q.quadro === "pre" && <button className="btn primary" onClick={() => j.abrirCaso("novo")}>Novo atendimento</button>}
-        <label className="tb">{Ic.busca}<input type="search" placeholder="Buscar cliente ou nº" value={q.busca} onChange={(e) => setQ({ ...q, busca: e.target.value })} /></label>
-        <label className="tb">{Ic.filtro}<select value={q.banco} onChange={(e) => setQ({ ...q, banco: e.target.value })}><option value="">Todos os bancos</option>{bancos.map((b) => <option key={b}>{b}</option>)}</select></label>
-        <label className="tb">{Ic.filtro}<select value={q.resp} onChange={(e) => setQ({ ...q, resp: e.target.value })}><option value="">Todos os responsáveis</option>{ops.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}</select></label>
+        <label className="tb">{Ic.busca}<input type="search" aria-label="Buscar cliente ou nº do processo" placeholder="Buscar cliente ou nº" value={q.busca} onChange={(e) => setQ({ ...q, busca: e.target.value })} /></label>
+        <label className="tb">{Ic.filtro}<select aria-label="Filtrar por réu (banco)" value={q.banco} onChange={(e) => setQ({ ...q, banco: e.target.value })}><option value="">Todos os bancos</option>{bancos.map((b) => <option key={b}>{b}</option>)}</select></label>
+        <label className="tb">{Ic.filtro}<select aria-label="Filtrar por responsável" value={q.resp} onChange={(e) => setQ({ ...q, resp: e.target.value })}><option value="">Todos os responsáveis</option>{ops.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}</select></label>
         {q.quadro === "judicial" && titular && semFase.length > 0 && <button className="btn ghost" disabled={ocupado} onClick={sugerir}>{ocupado ? "Classificando…" : "Sugerir fases automaticamente"}</button>}
       </div>
       {msg && <div className="banner">{msg}</div>}

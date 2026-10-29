@@ -77,7 +77,7 @@ function Visor({ docs, ativo, setAtivo, fechar, fecharTodos }: { docs: Doc[]; at
         <span className="visor-ic" aria-hidden="true">👁</span>
         <div className="visor-abas">{docs.map((x) => <span key={x.id} className={"visor-aba" + (x.id === d?.id ? " on" : "")}>
           <button className="visor-aba-n" title={x.nome} onClick={() => { setAtivo(x.id); setMin(false); }}>{x.nome}</button>
-          <button className="visor-aba-x" aria-label={"Fechar " + x.nome} onClick={() => fechar(x.id)}>✕</button></span>)}</div>
+          <button className="visor-aba-x" title={"Fechar " + x.nome} aria-label={"Fechar " + x.nome} onClick={() => fechar(x.id)}><span aria-hidden="true">✕</span></button></span>)}</div>
         {d && <a className="icb" href={d.url} target="_blank" rel="noopener noreferrer" title="Abrir numa aba nova" aria-label="Abrir numa aba nova">↗</a>}
         <button className="icb" title={min ? "Expandir" : "Minimizar"} aria-label={min ? "Expandir" : "Minimizar"} onClick={() => setMin(!min)}>{min ? "▢" : "–"}</button>
         <button className="icb" title="Fechar tudo" aria-label="Fechar o visualizador" onClick={fecharTodos}>✕</button>

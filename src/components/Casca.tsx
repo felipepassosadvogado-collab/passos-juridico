@@ -52,7 +52,7 @@ function Menu() {
   const adm: [string, string][] = [["/equipe", "Equipe"], ...(titular ? [["/configuracoes", "Configurações"], ["/importar", "Importar dados"]] as [string, string][] : [])];
   const ativo = (h: string) => (h === "/" ? p === "/" : p.startsWith(h));
   const item = ([h, t, n, hot]: [string, string, number?, boolean?]) => (
-    <Link key={h} href={h} aria-current={ativo(h) ? "page" : undefined} title={t}>{I(ICONES[h])}<span className="lbl">{t}</span>
+    <Link key={h} href={h} aria-current={ativo(h) ? "page" : undefined} title={t} aria-label={t + (n ? `, ${n}` : "")}>{I(ICONES[h])}<span className="lbl">{t}</span>
       {n !== undefined && <span className={"count" + (hot ? " hot" : "") + (n ? "" : " zero")} data-curto={n > 99 ? "99+" : String(n)}>{n}</span>}</Link>
   );
   return <nav className="rail" aria-label="Seções">{itens.map(item)}<div className="sep" />{adm.map(item)}</nav>;
@@ -153,8 +153,8 @@ function Sino() {
   const lida = async (ids: string[]) => { if (!ids.length) return; const { data } = await sb.from("notificacoes").update({ lida: true }).in("id", ids).select(); for (const x of data || []) aplicar("notificacoes", x); };
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button className="icb" title="Avisos" aria-label="Avisos" onClick={() => setAberto(!aberto)}>{I('<path d="M5 13.5V9a5 5 0 0 1 10 0v4.5l1.5 1.5h-13z"/><path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>')}{total > 0 && <span className="count hot">{total}</span>}</button>
-      {aberto && <div className="addmenu notif">
+      <button className="icb" title={total ? `Avisos: ${total} pendente(s)` : "Avisos"} aria-label={total ? `Avisos, ${total} pendente(s)` : "Avisos, nada pendente"} aria-haspopup="true" aria-expanded={aberto} onClick={() => setAberto(!aberto)} onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}>{I('<path d="M5 13.5V9a5 5 0 0 1 10 0v4.5l1.5 1.5h-13z"/><path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>')}{total > 0 && <span className="count hot" aria-hidden="true">{total}</span>}</button>
+      {aberto && <div className="addmenu notif" onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}>
         <div className="nh"><strong>Avisos</strong>{nl.length > 0 && <button className="reflink" onClick={() => lida(nl.map((n) => n.id))}>Marcar todos como lidos</button>}</div>
         {corrigir.length > 0 && <><div className="nsec">Petições para corrigir ({corrigir.length})</div>
           {corrigir.slice(0, 8).map((t) => { const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
@@ -179,8 +179,8 @@ function Adicionar() {
   useEffect(() => { if (!aberto) return; const f = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setAberto(false); }; document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [aberto]);
   return (
     <div className="addwrap" ref={ref}>
-      <button className="btn primary" aria-haspopup="true" aria-label="Adicionar" onClick={() => setAberto(!aberto)}><span className="rot">Adicionar <span aria-hidden="true">▾</span></span><span className="mais-ic" aria-hidden="true">+</span></button>
-      {aberto && <div className="addmenu">
+      <button className="btn primary" aria-haspopup="true" aria-expanded={aberto} aria-label="Adicionar: nova tarefa, agendamento, processo ou cliente" title="Criar uma tarefa, um agendamento, um processo ou um cliente" onClick={() => setAberto(!aberto)} onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}><span className="rot">Adicionar <span aria-hidden="true">▾</span></span><span className="mais-ic" aria-hidden="true">+</span></button>
+      {aberto && <div className="addmenu" onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}>
         <button onClick={() => { setAberto(false); j.novaTarefa(); }}>Nova tarefa</button>
         <button onClick={() => { setAberto(false); j.agendarAto(); }}>Agendar audiência / coleta</button>
         <button onClick={() => { setAberto(false); j.novoProcesso(); }}>Novo processo</button>
@@ -195,6 +195,15 @@ function InfoDjen() {
   return <span className="syncinfo" title={config.djen?.ultimoErro ? "Última tentativa falhou: " + config.djen.ultimoErro : "Última busca no DJEN"}>DJEN: {u ? dataHoraBR(u).slice(0, 5) + " " + dataHoraBR(u).slice(11) : "—"}{config.djen?.ultimoErro ? " ⚠" : ""}</span>;
 }
 
+/** botão que liga/desliga uma classe no <html> (menu recolhido, tema claro) e diz ao leitor de tela o estado atual */
+function BotaoAlterna({ classe, chave, valores, className, rotulo, expandido, children }: { classe: string; chave: string; valores: [string, string]; className: string; rotulo: (ligado: boolean) => string; expandido?: boolean; children: React.ReactNode }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => { setOn(document.documentElement.classList.contains(classe)); }, [classe]);
+  const r = rotulo(on);
+  return <button className={className} title={r} aria-label={r} {...(expandido ? { "aria-expanded": !on } : { "aria-pressed": on })}
+    onClick={() => { const v = document.documentElement.classList.toggle(classe); setOn(v); try { localStorage.setItem(chave, v ? valores[1] : valores[0]); } catch { /* sem armazenamento */ } }}>{children}</button>;
+}
+
 export function Casca({ children }: { children: React.ReactNode }) {
   const { eu, pronto, erroCarga } = useDados(); const p = usePathname();
   const cheio = p.startsWith("/crm") || p.startsWith("/chat") || p.startsWith("/whatsapp");
@@ -202,16 +211,17 @@ export function Casca({ children }: { children: React.ReactNode }) {
     <>
       <Menu />
       <div className="railtop">
-          <button className="icb railtoggle" title="Recolher ou mostrar o menu" onClick={() => { const f = document.documentElement.classList.toggle("rail-fechado"); try { localStorage.setItem("menu", f ? "recolhido" : "aberto"); } catch { /* sem armazenamento */ } }}>
-            {I('<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/>')}</button>
-          <Link href="/" className="logo"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS</span><span className="t2">ADVOCACIA</span></span></Link>
+          <BotaoAlterna classe="rail-fechado" chave="menu" valores={["aberto", "recolhido"]} className="icb railtoggle"
+            rotulo={(on) => (on ? "Mostrar o menu lateral" : "Recolher o menu lateral")} expandido>
+            {I('<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/>')}</BotaoAlterna>
+          <Link href="/" className="logo" aria-label="Passos Advocacia: ir para o Painel" title="Ir para o Painel"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS</span><span className="t2">ADVOCACIA</span></span></Link>
       </div>
       <div className="col">
         <header className="topbar">
           <Busca />
           <div className="tright">
             <InfoDjen />
-            <button className="icb" title="Alternar tema claro e escuro" onClick={() => { const c = document.documentElement.classList.toggle("claro"); try { localStorage.setItem("tema", c ? "claro" : "escuro"); } catch { /* sem armazenamento */ } }}>{I('<path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/>')}</button>
+            <BotaoAlterna classe="claro" chave="tema" valores={["escuro", "claro"]} className="icb" rotulo={(on) => (on ? "Mudar para o tema escuro" : "Mudar para o tema claro")}>{I('<path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/>')}</BotaoAlterna>
             <Sino />
             <Adicionar />
             <span className="ola"><Avatar id={eu.id} /><span className="nome">Olá, <b>{eu.nome.split(/[\s.]/)[0]}</b></span></span>

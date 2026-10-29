@@ -1,4 +1,5 @@
 "use client";
+import { teclado } from "@/components/ui";
 // Processo: caixa compacta (no estilo do ADVBOX) com abas Tarefas, Andamentos, Intimações e Dados.
 // A mesma caixa serve de página inteira em /processos/[numero].
 import Link from "next/link";
@@ -165,7 +166,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
       <div className="proc-tit">
         <h2>{titulo}</h2>
         <div className="mono muted proc-num">{p.mascara}
-          <button className="icb-q mini" title="Copiar o número" onClick={async () => { try { await navigator.clipboard.writeText(p.mascara); aviso("Número copiado."); } catch { aviso(p.mascara); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button>
+          <button className="icb-q mini" title="Copiar o número do processo" aria-label="Copiar o número do processo" onClick={async () => { try { await navigator.clipboard.writeText(p.mascara); aviso("Número copiado."); } catch { aviso(p.mascara); } }}>{S('<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2"/>')}</button>
           <span className="s"> · {p.orgao || "juízo não informado"}{faseCRM(p.fase) ? " · " + faseCRM(p.fase) : ""}</span></div>
       </div>
       <div className="abas" role="tablist">
@@ -174,7 +175,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
       </div>
       <div className="proc-corpo" ref={corpo}>
         {aba === "tarefas" && <>
-          <div className="tools"><select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)}><option value="todas">Todas as atividades</option><option value="abertas">Em aberto</option><option value="feitas">Cumpridas</option></select>
+          <div className="tools"><select aria-label="Mostrar atividades" title="Filtrar as atividades do processo" value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)}><option value="todas">Todas as atividades</option><option value="abertas">Em aberto</option><option value="feitas">Cumpridas</option></select>
             <button className={tf ? "btn ghost" : "btn primary"} onClick={() => setTf(!tf)}>{tf ? "Cancelar" : <>{Ic.tarefa}Nova tarefa</>}</button></div>
           {tf && <FormTarefa numero={p.numero} resp={p.responsavel || eu.id} onCriada={() => setTf(false)} />}
           <AtosDoProcesso numero={p.numero} abrirForm={agendar} onFecharForm={() => setAgendar(false)} />
@@ -223,7 +224,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           </div>
           <div className="tools"><button className="btn primary" onClick={() => salvar({ fase: ed.fase || null, notas: ed.notas || null })}>Salvar</button></div>
           <section className="panel"><div className="ph"><h3>Avisos ao cliente</h3><button className="btn ghost" onClick={async () => { const id = await criarAviso({ processo_numero: p.numero }); if (id) j.abrirAviso(id); }}>Novo aviso</button></div>
-            {avs.length ? <div className="rows">{avs.map((a) => <div key={a.id} className="row click" onClick={() => j.abrirAviso(a.id)}>
+            {avs.length ? <div className="rows">{avs.map((a) => <div key={a.id} className="row click" title="Abrir o aviso ao cliente" onClick={() => j.abrirAviso(a.id)} {...teclado(() => j.abrirAviso(a.id))}>
               <span className={"pill " + (a.status === "pendente" ? "soon" : "ok")}>{a.status === "avisado" ? "mensagem enviada" : a.status === "dispensado" ? "sem aviso" : "pendente"}</span>
               <div className="main"><div className="t">{(a.tipo_evento || "Ato") + (a.data_evento ? " · " + dataBR(a.data_evento) + (a.hora ? " " + a.hora.slice(0, 5) : "") : "")}</div><div className="s">{a.local || ""}</div></div><span /></div>)}</div>
               : <div className="empty">Nenhum aviso ao cliente neste processo.</div>}</section>

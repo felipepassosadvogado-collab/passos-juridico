@@ -11,7 +11,7 @@ import { atoPub, ehAgenda, MODALIDADES, STATUS_NOME } from "@/lib/regras";
 import { TabelaTarefas, usePartes } from "@/components/tarefas";
 import type { Aviso, Publicacao, Tarefa } from "@/lib/tipos";
 import { useJanelas } from "@/components/janelas";
-import { Avatar, Ic, baixar } from "@/components/ui";
+import { Avatar, Ic, baixar, teclado } from "@/components/ui";
 
 type Tipo = "tarefa" | "correcao" | "intimacao" | "ato" | "aviso";
 type Sit = "pend" | "conc" | "atras";
@@ -28,6 +28,7 @@ const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julh
 const SEM = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const diaLocal = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) : "");
 type Filtros = { modo: "mes" | "semana" | "dia" | "lista"; resp: string; base: "compromisso" | "conclusao"; tipos: Tipo[]; sits: Sit[] };
+const PERIODO: Record<Filtros["modo"], string> = { mes: "um mês", semana: "uma semana", dia: "um dia", lista: "" };
 const PADRAO: Filtros = { modo: "mes", resp: "", base: "compromisso", tipos: ["tarefa", "correcao", "intimacao", "ato", "aviso"], sits: ["pend", "atras"] };
 const ler = (): Filtros => { try { return { ...PADRAO, ...JSON.parse(localStorage.getItem("agenda.filtros") || "{}") }; } catch { return PADRAO; } };
 
@@ -149,24 +150,24 @@ function Agenda() {
           <div className="ag-topo"><h2 style={{ marginLeft: 0 }}>Tarefas</h2><span className="muted">{lista.length}</span></div>
           <div className="toolbar">
             <button className="btn primary" onClick={() => j.novaTarefa()}>Nova tarefa</button>
-            <label className="tb">{Ic.busca}<input type="search" placeholder="Cliente, tarefa ou nº do processo" value={q} onChange={(e) => setQ(e.target.value)} /></label>
-            <label className="tb">{Ic.ordem}<select value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}><option value="prazo">Ordenar: prazo fatal</option><option value="cliente">Ordenar: cliente</option><option value="recentes">Ordenar: mais recentes</option></select></label>
+            <label className="tb">{Ic.busca}<input type="search" aria-label="Buscar por cliente, tarefa ou nº do processo" placeholder="Cliente, tarefa ou nº do processo" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+            <label className="tb">{Ic.ordem}<select aria-label="Ordenar a lista" value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}><option value="prazo">Ordenar: prazo fatal</option><option value="cliente">Ordenar: cliente</option><option value="recentes">Ordenar: mais recentes</option></select></label>
             <label className="ag-chk"><input type="checkbox" checked={soFlag} onChange={(e) => setSoFlag(e.target.checked)} />Só importantes e urgentes</label>
             <button className="btn ghost" onClick={exportar}>{Ic.exportar}Exportar</button>
           </div>
           <section className="panel">{pronto ? <TabelaTarefas lista={lista} /> : <div className="empty">Carregando…</div>}</section>
           {outrosLista.length > 0 && <section className="panel"><div className="ph"><h3>Intimações, audiências, coletas e avisos</h3><span className="muted" style={{ fontSize: 12 }}>dos últimos 30 e dos próximos 120 dias</span></div>
-            <div className="rows">{outrosLista.map((i) => <div key={i.id} className="row click" onClick={i.abrir}><span className="pill" style={{ borderLeft: "3px solid " + TIPOS[i.tipo].cor }}>{dataBR(i.dia).slice(0, 5)}{i.hora ? " " + i.hora : ""}</span>
+            <div className="rows">{outrosLista.map((i) => <div key={i.id} className="row click" onClick={i.abrir} {...teclado(i.abrir)}><span className="pill" style={{ borderLeft: "3px solid " + TIPOS[i.tipo].cor }}>{dataBR(i.dia).slice(0, 5)}{i.hora ? " " + i.hora : ""}</span>
               <div className="main"><div className="t">{i.titulo}</div><div className="s">{i.cli}{i.reu && i.reu !== "—" ? " · " + i.reu : ""}</div></div>{i.resp ? <Avatar id={i.resp} pequeno /> : <span />}</div>)}</div></section>}
         </> : <>
-        <div className="ag-topo"><button className="icb" aria-label="Anterior" onClick={() => mover(-1)}>‹</button><button className="icb" aria-label="Próximo" onClick={() => mover(1)}>›</button>
+        <div className="ag-topo"><button className="icb" title={"Voltar " + PERIODO[f.modo]} aria-label={"Voltar " + PERIODO[f.modo]} onClick={() => mover(-1)}><span aria-hidden="true">‹</span></button><button className="icb" title={"Avançar " + PERIODO[f.modo]} aria-label={"Avançar " + PERIODO[f.modo]} onClick={() => mover(1)}><span aria-hidden="true">›</span></button>
           <h2>{rot.charAt(0).toUpperCase() + rot.slice(1)}</h2><button className="btn ghost" onClick={() => setRef(hojeBR())}>Hoje</button></div>
         {f.modo === "dia" ? <div className="ag-diaLista">{(porDia.get(ref) || []).length ? (porDia.get(ref) || []).map((i) => <Cartao key={i.id} i={i} />) : <div className="empty">Nada neste dia com os filtros escolhidos.</div>}</div>
           : <div className="tscroll"><div className={"ag-grade " + f.modo}>
             {SEM.map((s) => <div key={s} className="ag-sem">{s}</div>)}
             {dias.map((d) => { const l = porDia.get(d) || []; const fora = f.modo === "mes" && d.slice(0, 7) !== mesRef; const max = f.modo === "mes" ? 3 : 50;
               return <div key={d} className={"ag-cel" + (fora ? " fora" : "") + (d === hoje ? " hoje" : "")}>
-                <button className="ag-num" title="Ver o dia" onClick={() => { setRef(d); muda({ modo: "dia" }); }}>{+d.slice(8, 10)}</button>
+                <button className="ag-num" title="Ver o dia" aria-label={"Ver o dia " + d.slice(8, 10) + "/" + d.slice(5, 7)} onClick={() => { setRef(d); muda({ modo: "dia" }); }}>{+d.slice(8, 10)}</button>
                 {l.slice(0, max).map((i) => <Cartao key={i.id} i={i} curto={f.modo === "mes"} />)}
                 {l.length > max && <button className="reflink ag-mais" onClick={() => { setRef(d); muda({ modo: "dia" }); }}>+ {l.length - max} mais</button>}
               </div>; })}

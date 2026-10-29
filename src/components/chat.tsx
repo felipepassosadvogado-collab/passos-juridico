@@ -163,12 +163,12 @@ export function Compositor({ conversa, placeholder, onEnviada }: { conversa: str
       {(citados.length > 0 || files.length > 0) && <div className="comp-extra">
         {citados.map((d) => { const p = processos.get(d)!; return <span key={d} className="pill acc">⚖ {nomeBonito(p.cliente_nome || "")}</span>; })}
         {files.map((f, i) => <span key={i} className="comp-arq">{/^image\//.test(f.type) ? <img src={URL.createObjectURL(f)} alt="" /> : <span className="ext">{(f.name.split(".").pop() || "").toUpperCase()}</span>}
-          <span className="an">{f.name}</span><button className="icb" title="Tirar" aria-label={"Tirar " + f.name} onClick={() => setFiles(files.filter((_, j) => j !== i))}>✕</button></span>)}
+          <span className="an">{f.name}</span><button className="icb" title={"Tirar " + f.name + " da mensagem"} aria-label={"Tirar " + f.name + " da mensagem"} onClick={() => setFiles(files.filter((_, j) => j !== i))}>✕</button></span>)}
       </div>}
       <div className="chat-comp">
-        <button className="icb" title="Anexar imagem ou arquivo (ou cole um print com Ctrl+V)" aria-label="Anexar" onClick={() => arq.current?.click()}>
+        <button className="icb" title="Anexar imagem ou arquivo (ou cole um print com Ctrl+V)" aria-label="Anexar imagem ou arquivo" onClick={() => arq.current?.click()}>
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M15.5 9.5l-5.8 5.8a3.6 3.6 0 0 1-5.1-5.1l6.4-6.4a2.4 2.4 0 0 1 3.4 3.4l-6.3 6.3a1.2 1.2 0 0 1-1.7-1.7l5.7-5.7"/></svg></button>
-        <button className="icb" title="Citar um processo (ou digite @ e o nome do cliente)" aria-label="Citar processo" onClick={() => { const e = ref.current; const c = e?.selectionStart ?? t.length; const pre = c > 0 && !/\s/.test(t[c - 1]) ? " @" : "@"; const novo = t.slice(0, c) + pre + t.slice(c); setT(novo); requestAnimationFrame(() => { if (e) { e.focus(); const k = c + pre.length; e.setSelectionRange(k, k); olhar(novo, k); } }); }}>@</button>
+        <button className="icb" title="Citar um processo (ou digite @ e o nome do cliente)" aria-label="Citar um processo na mensagem" onClick={() => { const e = ref.current; const c = e?.selectionStart ?? t.length; const pre = c > 0 && !/\s/.test(t[c - 1]) ? " @" : "@"; const novo = t.slice(0, c) + pre + t.slice(c); setT(novo); requestAnimationFrame(() => { if (e) { e.focus(); const k = c + pre.length; e.setSelectionRange(k, k); olhar(novo, k); } }); }}>@</button>
         <input ref={arq} type="file" hidden multiple accept="image/*,application/pdf,.docx,.xlsx" onChange={(e) => { anexar(Array.from(e.target.files || [])); e.target.value = ""; }} />
         <textarea ref={ref} rows={1} value={t} placeholder={placeholder}
           onChange={(e) => { setT(e.target.value); altura(); olhar(e.target.value, e.target.selectionStart); }}
@@ -183,7 +183,7 @@ export function Compositor({ conversa, placeholder, onEnviada }: { conversa: str
             }
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ir(); }
           }} />
-        <button className="btn primary" disabled={enviando} onClick={ir}>{enviando ? "Enviando…" : "Enviar"}</button>
+        <button className="btn primary" title="Enviar a mensagem (ou tecle Enter)" disabled={enviando} onClick={ir}>{enviando ? "Enviando…" : "Enviar"}</button>
       </div>
     </div>
   );
@@ -211,18 +211,18 @@ export function ChatFlutuante() {
     <div className="chat-flut">
       {aberto && <div className="cf-janela" role="dialog" aria-label="Chat">
         <header className="cf-topo">
-          {c && <button className="icb" title="Voltar às conversas" onClick={() => setConv(null)}>‹</button>}
+          {c && <button className="icb" title="Voltar às conversas" aria-label="Voltar à lista de conversas" onClick={() => setConv(null)}><span aria-hidden="true">‹</span></button>}
           <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}><strong>{c ? c.nome : "Conversas"}</strong>{c && <Presenca id={outroDaDm(c.id, eu.id)} />}</span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-            <Link className="icb" title="Abrir o chat em tela cheia" href={"/chat" + (c ? "?c=" + encodeURIComponent(c.id) : "")} onClick={() => setAberto(false)}>⤢</Link>
-            <button className="icb" title="Minimizar" onClick={() => setAberto(false)}>–</button></span>
+            <Link className="icb" title="Abrir o chat em tela cheia" aria-label="Abrir o chat em tela cheia" href={"/chat" + (c ? "?c=" + encodeURIComponent(c.id) : "")} onClick={() => setAberto(false)}><span aria-hidden="true">⤢</span></Link>
+            <button className="icb" title="Minimizar o chat" aria-label="Minimizar o chat" onClick={() => setAberto(false)}><span aria-hidden="true">–</span></button></span>
         </header>
         {c ? <><Fio conversa={c.id} vazio="Nenhuma mensagem ainda." /><Compositor conversa={c.id} placeholder="Mensagem…" /></> :
           <div className="cf-lista">{convs.map((x) => { const n = naoLidas(x.id); const ult = daConversa(x.id).slice(-1)[0];
             return <button key={x.id} className="chat-conv" onClick={() => setConv(x.id)}><span className="av-pres"><Avatar id={outroDaDm(x.id, eu.id)} nome={x.nome} /><PontoOnline id={outroDaDm(x.id, eu.id)} /></span>
               <span className="cc"><span className="cn">{x.nome}</span><span className="cs">{ult ? (ult.de === eu.id ? "Você: " : "") + resumo(ult).slice(0, 50) : x.sub}</span></span>{n ? <span className="count hot">{n}</span> : null}</button>; })}</div>}
       </div>}
-      <button className="cf-botao" title={aberto ? "Fechar o chat" : "Abrir o chat"} aria-label="Chat" onClick={() => setAberto(!aberto)}>
+      <button className="cf-botao" title={aberto ? "Fechar o chat interno" : "Abrir o chat interno da equipe"} aria-label={(aberto ? "Fechar o chat interno" : "Abrir o chat interno da equipe") + (total > 0 && !aberto ? `, ${total} mensagem(ns) não lida(s)` : "")} aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
         <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 5.5A2 2 0 0 1 5.5 3.5h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3h0a2 2 0 0 1-2-2z" /></svg>
         {total > 0 && !aberto && <span className="count hot">{total}</span>}
       </button>

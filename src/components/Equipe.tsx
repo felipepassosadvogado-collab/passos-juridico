@@ -128,7 +128,7 @@ export function LinhaMembro({ m, eu, titular }: { m: Perfil; eu: string; titular
         <label className="f">Papel<select name="papel" defaultValue={m.papel}><option value="titular">Titular</option><option value="advogado">Advogado(a)</option><option value="colaborador">Colaborador(a)</option></select></label>
         <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingBottom: 9 }}><input type="checkbox" name="ativo" defaultChecked={m.ativo} /> Acesso ativo</label>
       </> : <span className="pill acc" style={{ marginBottom: 9 }}>{m.papel === "titular" ? "Titular" : m.papel === "advogado" ? "Advogado(a)" : "Colaborador(a)"}{m.id === eu ? " · você" : ""}</span>}
-      {podeEditar && <button className="btn" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>}
+      {podeEditar && <button className="btn" title="Salvar as alterações deste membro" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>}
       {st?.erro && <span className="pill late">{st.erro}</span>}{st && "ok" in st && st.ok && <span className="pill ok">{st.ok}</span>}
     </form>
   );

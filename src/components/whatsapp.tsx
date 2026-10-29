@@ -171,12 +171,12 @@ function PlayerAudio({ msgId }: { msgId: string }) {
   const trocaVel = () => { const v = vel === 1 ? 1.5 : vel === 1.5 ? 2 : 1; setVel(v); if (ref.current) ref.current.playbackRate = v; };
   return (
     <div className="wa-audio" ref={caixa} onClick={(e) => e.stopPropagation()}>
-      <button className="wa-play" aria-label={tocando ? "Pausar" : "Ouvir"} disabled={carregando} onClick={tocar}>{carregando ? "…" : tocando ? "❚❚" : "▶"}</button>
+      <button className="wa-play" title={tocando ? "Pausar o áudio" : "Ouvir o áudio"} aria-label={carregando ? "Carregando o áudio" : tocando ? "Pausar o áudio" : "Ouvir o áudio"} disabled={carregando} onClick={tocar}>{carregando ? "…" : tocando ? "❚❚" : "▶"}</button>
       <input type="range" min={0} max={dur || 0} step={0.1} value={t} disabled={!src || !dur} aria-label="Posição do áudio"
         onChange={(e) => { const v = +e.target.value; setT(v); if (ref.current) ref.current.currentTime = v; }}
         style={{ background: `linear-gradient(to right, currentColor ${dur ? (t / dur) * 100 : 0}%, rgba(128,128,128,.4) 0)` }} />
       <span className="wa-tempo">{src ? fmt(t) + " / " + fmt(dur) : "🎤 áudio"}</span>
-      <button className="wa-vel" onClick={trocaVel} title="Velocidade">{vel}×</button>
+      <button className="wa-vel" onClick={trocaVel} title="Velocidade do áudio: clique para trocar (1×, 1,5×, 2×)" aria-label={`Velocidade ${String(vel).replace(".", ",")} vezes. Trocar velocidade`}>{vel}×</button>
       <audio ref={ref} preload="metadata" onPlay={() => setTocando(true)} onPause={() => setTocando(false)} onEnded={() => { setTocando(false); setT(0); }}
         onTimeUpdate={(e) => { const c = e.currentTarget.currentTime; if (c < 1e6) setT(c); }} onLoadedMetadata={(e) => { const el = e.currentTarget; if (isFinite(el.duration)) setDur(el.duration); else { el.currentTime = 1e7; const fim = () => { el.removeEventListener("timeupdate", fim); if (isFinite(el.duration)) setDur(el.duration); el.currentTime = 0; setT(0); }; el.addEventListener("timeupdate", fim); } }} onDurationChange={(e) => isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)} />
     </div>
@@ -238,13 +238,13 @@ export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, on
   };
   return (
     <div className="chat-comp-w"><div className="chat-comp">
-      <label className="icb" title="Anexar foto ou documento">📎<input type="file" hidden onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} /></label>
+      <label className="icb" title="Anexar foto ou documento" aria-label="Anexar foto ou documento" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.click(); } }}><span aria-hidden="true">📎</span><input type="file" hidden onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} /></label>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-        {arq && <span className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" onClick={() => setArq(null)}>Tirar</button></span>}
+        {arq && <span className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" title="Tirar o anexo da mensagem" aria-label={"Tirar o anexo " + arq.name} onClick={() => setArq(null)}>Tirar</button></span>}
         <textarea rows={1} value={t} disabled={!!desativado} placeholder={desativado || "Mensagem pelo WhatsApp do escritório… (Enter envia, Shift+Enter quebra linha)"} onChange={(e) => setT(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envia(); } }} style={{ resize: "vertical", minHeight: 40 }} />
       </div>
-      <button className="btn primary" disabled={enviando || !!desativado || (!t.trim() && !arq)} onClick={envia}>{enviando ? "Enviando…" : "Enviar"}</button>
+      <button className="btn primary" title="Enviar pelo WhatsApp do escritório (ou tecle Enter)" disabled={enviando || !!desativado || (!t.trim() && !arq)} onClick={envia}>{enviando ? "Enviando…" : "Enviar"}</button>
     </div></div>
   );
 }
@@ -274,10 +274,10 @@ export function WhatsappDoCliente({ clienteId, inicioAberto }: { clienteId: stri
   return (
     <div className="tj-corr wa-cli">
       <div className="tj-corr-h" style={{ cursor: "pointer" }} onClick={() => setAberto(!aberto)}>
-        <strong>{aberto ? "▾" : "▸"} WhatsApp do cliente</strong>
+        <button type="button" className="wa-cli-tgl" aria-expanded={aberto} title={aberto ? "Esconder a conversa" : "Mostrar a conversa de WhatsApp deste cliente"} onClick={(e) => { e.stopPropagation(); setAberto(!aberto); }}><span aria-hidden="true">{aberto ? "▾" : "▸"}</span> WhatsApp do cliente</button>
         <span className="muted s">{conv ? (conv.ultima_texto ? "última: " + conv.ultima_texto.slice(0, 60) : "conversa aberta") : cli.telefone ? "nenhuma mensagem ainda · " + foneBR(cli.telefone) : "sem telefone na ficha"}</span>
         {doCliente.reduce((s, c) => s + (c.nao_lidas || 0), 0) > 0 && <span className="count hot">{doCliente.reduce((s, c) => s + (c.nao_lidas || 0), 0)}</span>}
-        {conv && <a className="reflink" style={{ marginLeft: "auto" }} href={"/whatsapp?c=" + conv.id} onClick={(e) => e.stopPropagation()}>abrir no WhatsApp ↗</a>}
+        {conv && <a className="reflink" style={{ marginLeft: "auto" }} href={"/whatsapp?c=" + conv.id} title="Abrir esta conversa no painel de WhatsApp do escritório" onClick={(e) => e.stopPropagation()}>abrir no WhatsApp <span aria-hidden="true">↗</span></a>}
       </div>
       {aberto && doCliente.length > 1 && <div className="wa-chips">{doCliente.map((c) => <button key={c.id} className={"pill" + (c.id === conv?.id ? " acc" : "")} onClick={() => setSel(c.id)}>{c.nome || foneBR(c.telefone)}{c.nao_lidas ? ` (${c.nao_lidas})` : ""}</button>)}</div>}
       {aberto && <div className="wa-cli-corpo">
