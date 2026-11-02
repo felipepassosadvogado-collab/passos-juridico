@@ -26,7 +26,7 @@ const PROC_COLS_BASE = "numero,mascara,tribunal,orgao,cidade,classe,cliente_id,c
 let PROC_COLS = PROC_COLS_BASE + ",valor_causa,honorarios_pct";
 
 type Ctx = Mapas & {
-  v: number; pronto: boolean; erroCarga: string;
+  v: number; pronto: boolean; erroCarga: string; /** a carga completa já deu certo ao menos uma vez nesta sessão */ carregou: boolean;
   eu: Perfil; titular: boolean; equipe: Perfil[]; config: Record<string, any>; lidas: Record<string, string>;
   sb: ReturnType<typeof supabaseNavegador>;
   nome: (id?: string | null) => string;
@@ -55,6 +55,7 @@ export async function todas(q: () => any): Promise<Linha[]> {
 /** mensagem legível a partir de um erro do Supabase (as regras do banco já vêm em português) */
 export function msgErro(e: unknown, padrao = "Não foi possível salvar. Tente de novo."): string {
   const m = (e as { message?: string })?.message || "";
+  if (/Failed to fetch|NetworkError|Load failed|fetch failed|ERR_INTERNET|network request failed/i.test(m)) return "Sem conexão com o servidor: nada foi salvo. Confira a internet e tente de novo.";
   if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para fazer isso.";
   if (/duplicate key/i.test(m)) return "Esse registro já existe.";
   if (/definido na cria/i.test(m)) return "Para trocar o responsável, falta instalar a etapa 0022 (0022_trocar_responsavel.sql) no Supabase.";
@@ -210,7 +211,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
   }, [v, pronto, sb, aplicar]);
 
   const valor: Ctx = {
-    ...m.current, v, pronto, erroCarga, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, remover, registrar, recarregar: carregar,
+    ...m.current, v, pronto, erroCarga, carregou: ultimaCarga.current > 0, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, remover, registrar, recarregar: carregar,
     marcarLidaLocal: (c, ate) => setLidas((x) => ({ ...x, [c]: ate })), online, lidasOutros,
   };
   return (

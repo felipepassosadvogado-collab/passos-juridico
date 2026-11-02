@@ -5,7 +5,8 @@ import { useWaConversas } from "@/components/whatsapp";
 import { Inatividade, limparUso } from "@/components/inatividade";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { BarraNavegacao, CarregandoInicial, ErroCarga, FaixaRede, IndicadorAtividade } from "@/components/carregando";
 import { useDados } from "@/lib/dados";
 import { bancoCurto, dataHoraBR, iniciais, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
@@ -205,7 +206,7 @@ function BotaoAlterna({ classe, chave, valores, className, rotulo, expandido, ch
 }
 
 export function Casca({ children }: { children: React.ReactNode }) {
-  const { eu, pronto, erroCarga } = useDados(); const p = usePathname();
+  const { eu, pronto, erroCarga, carregou, recarregar } = useDados(); const p = usePathname();
   const cheio = p.startsWith("/crm") || p.startsWith("/chat") || p.startsWith("/whatsapp");
   return (
     <>
@@ -217,9 +218,11 @@ export function Casca({ children }: { children: React.ReactNode }) {
           <Link href="/" className="logo" aria-label="Passos Advocacia: ir para o Painel" title="Ir para o Painel"><img src="/marca/fp.png" alt="" width={40} height={35} /><span className="logotxt"><span className="t1">PASSOS</span><span className="t2">ADVOCACIA</span></span></Link>
       </div>
       <div className="col">
+        <Suspense fallback={null}><BarraNavegacao /></Suspense>
         <header className="topbar">
           <Busca />
           <div className="tright">
+            <IndicadorAtividade />
             <InfoDjen />
             <BotaoAlterna classe="claro" chave="tema" valores={["escuro", "claro"]} className="icb" rotulo={(on) => (on ? "Mudar para o tema escuro" : "Mudar para o tema claro")}>{I('<path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/>')}</BotaoAlterna>
             <Sino />
@@ -228,9 +231,10 @@ export function Casca({ children }: { children: React.ReactNode }) {
             <form action="/auth/sair" method="post" onSubmit={limparUso}><button className="btn ghost" title="Sair do sistema">Sair</button></form>
           </div>
         </header>
+        <FaixaRede onVoltou={recarregar} />
         <main><div className={"wrap" + (cheio ? " cheio" : "")}><AlertaDjen />
-          {erroCarga && <div className="banner erro">{erroCarga}</div>}
-          {pronto ? children : <div className="empty"><strong>Carregando os dados do escritório…</strong>Leva poucos segundos.</div>}
+          {erroCarga && carregou && <div className="banner erro">{erroCarga} <button className="reflink" onClick={() => recarregar()}>Tentar de novo</button></div>}
+          {!pronto ? <CarregandoInicial onTentar={() => recarregar()} /> : erroCarga && !carregou ? <ErroCarga msg={erroCarga} onTentar={recarregar} /> : children}
         </div></main>
       </div>
       <ChatFlutuante />

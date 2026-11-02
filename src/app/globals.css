@@ -886,3 +886,39 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .wa-play,.wa-vel{position:relative}
 .gsearch:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent);color:var(--fg)}
 .wa-cli-tgl{all:unset;cursor:pointer;font-weight:700}.wa-cli-tgl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+/* ───── retorno visual de carregamento, gravação e conexão ───── */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* esqueleto (mesmo desenho do Painel: título, 4 cartões e painéis com linhas) */
+.esq{display:flex;flex-direction:column;gap:14px;padding-top:4px}
+.sk{background:linear-gradient(90deg,var(--surface) 0%,var(--sunken) 40%,var(--surface) 80%);background-size:300% 100%;border-radius:8px;animation:sk-brilho 1.4s ease-in-out infinite}
+@keyframes sk-brilho{0%{background-position:100% 0}100%{background-position:0 0}}
+.sk-tit{height:30px;width:min(260px,60%)}.sk-sub{height:14px;width:min(380px,80%);margin-top:-6px}
+.esq-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.sk-stat{height:96px;border-radius:var(--r)}
+.esq-painel{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.sk-ph{height:18px;width:200px}.esq-linha{display:flex;gap:12px;align-items:center}.sk-pill{width:46px;height:22px;border-radius:99px}
+.sk-l1{height:13px;width:55%}.sk-l2{height:11px;width:35%;margin-top:6px}
+.esq-lento{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:13.5px}
+@media (max-width:700px){.esq-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* carga que falhou */
+.erro-carga{display:flex;flex-direction:column;align-items:flex-start;gap:10px;border:1px solid var(--late);border-radius:var(--r);padding:20px;margin-top:8px;max-width:640px}
+.erro-carga strong{font-size:16px}
+/* barra de progresso entre páginas */
+.nav-progresso{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:100;opacity:0;pointer-events:none;box-shadow:0 0 8px var(--accent)}
+.nav-progresso.on{opacity:1;width:85%;transition:width 8s cubic-bezier(.1,.7,.2,1),opacity .1s}
+.nav-progresso.fim{opacity:0;width:100%;transition:width .2s ease-out,opacity .3s .15s}
+/* "Salvando…" no topo */
+.salvando-ind{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:0}
+.salvando-ind:empty{display:none}
+.salvando-ind .pt{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulsa 1s ease-in-out infinite}
+@keyframes pulsa{50%{opacity:.25}}
+/* botão cuja ação está indo para o servidor: não aceita novo clique até a resposta */
+.ocupado[aria-busy=true]{cursor:progress!important;opacity:.6}
+/* sem internet */
+.faixa-rede{background:var(--late-soft);color:var(--late);border-bottom:1px solid var(--late);padding:8px 16px;font-size:13.5px;font-weight:600;text-align:center}
+.faixa-rede.ok{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+@media (prefers-reduced-motion:reduce){
+  .sk{animation:none;background:var(--sunken)}
+  .salvando-ind .pt{animation:none}
+  .nav-progresso.on{transition:none;width:100%;opacity:1;background:repeating-linear-gradient(90deg,var(--accent) 0 12px,transparent 12px 18px)}
+  .nav-progresso.fim{transition:none}
+}
