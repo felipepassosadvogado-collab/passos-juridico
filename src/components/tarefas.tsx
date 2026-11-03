@@ -12,7 +12,7 @@ import { calcularVencimento, cidadeDoProcesso, diasPulados, foroDe, dataValida, 
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { TAREFAS, TAREFAS_GRUPOS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
-import { ChipResp, Avatar, Ic, SelResp, useConfirmar, tamanhoBR } from "./ui";
+import { ChipResp, Avatar, Ic, SelResp, useConfirmar, tamanhoBR, useRespPadrao } from "./ui";
 import { useJanelas } from "./janelas";
 import { useVisor } from "./visor";
 
@@ -177,8 +177,8 @@ export function ListaAnexos({ t }: { t: Tarefa }) {
 /** formulário de tarefa usado na publicação, no processo, no atendimento e em "Nova tarefa" */
 /** tarefa da rotina do escritório, sem processo (ex.: "verificar os prazos do dia"), com repetição opcional */
 export function FormTarefaAutonoma({ onCriada }: { onCriada?: () => void }) {
-  const { sb, eu, aplicar, aviso, nome } = useDados(); const hoje = hojeBR();
-  const [f, setF] = useState({ titulo: "", detalhe: "", resp: eu.id as string | null, inicio: hoje, repetir: "nao" as "nao" | "util" | "todo" | "semana", ate: isoData(somaDias(paraData(hoje), 30)), imp: false, urg: false });
+  const { sb, eu, aplicar, aviso, nome } = useDados(); const hoje = hojeBR(); const rp = useRespPadrao(eu.id);
+  const [f, setF] = useState({ titulo: "", detalhe: "", resp: rp.inicial as string | null, inicio: hoje, repetir: "nao" as "nao" | "util" | "todo" | "semana", ate: isoData(somaDias(paraData(hoje), 30)), imp: false, urg: false });
   const [ocupado, setOcupado] = useState(false);
   const datas = datasRepeticao(f.inicio, f.ate, f.repetir);
   const criar = async () => {
@@ -200,7 +200,7 @@ export function FormTarefaAutonoma({ onCriada }: { onCriada?: () => void }) {
       <div className="triage">
         <label className="f wide">O que fazer<input autoFocus value={f.titulo} placeholder="Ex.: Verificar os prazos do dia" onChange={(e) => setF({ ...f, titulo: e.target.value })} /></label>
         <label className="f wide">Detalhe (opcional)<input value={f.detalhe} placeholder="Ex.: conferir a caixa de publicações e a Agenda" onChange={(e) => setF({ ...f, detalhe: e.target.value })} /></label>
-        <label className="f">Responsável<SelResp valor={f.resp} onChange={(v) => setF({ ...f, resp: v })} /></label>
+        <label className="f" title="Fica escolhido para as próximas tarefas que você criar">Responsável<SelResp valor={f.resp} onChange={(v) => { setF({ ...f, resp: v }); rp.lembrar(v); }} /></label>
         <label className="f">{f.repetir === "nao" ? "Prazo" : "A partir de"}<input type="date" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value })} /></label>
         <label className="f">Repetir<select value={f.repetir} onChange={(e) => setF({ ...f, repetir: e.target.value as typeof f.repetir })}>
           <option value="nao">Não repetir</option><option value="util">Todo dia útil (seg. a sex.)</option><option value="todo">Todos os dias</option><option value="semana">Toda semana</option></select></label>
@@ -222,9 +222,9 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
   tipo?: string | null; desc?: string; dias?: number | null; resp?: string | null; extra?: React.ReactNode;
   onCriada?: (t: Tarefa) => void; aoCriar?: () => Promise<void> | void; botoes?: React.ReactNode;
 }) {
-  const { sb, eu, aplicar, aviso, nome, processos } = useDados(); const j = useJanelas();
+  const { sb, eu, aplicar, aviso, nome, processos } = useDados(); const j = useJanelas(); const rp = useRespPadrao(resp !== undefined ? resp : eu.id);
   const proc = numero ? processos.get(numero) : undefined; const foro = foroDe(numero, proc?.tribunal); const cidade = proc ? cidadeDoProcesso(proc) : null;
-  const [f, setF] = useState({ tipo: tipo && TAREFAS.includes(tipo) ? tipo : "", desc: desc || "", dias: dias ? String(dias) : "", venc: "", vencMan: false, resp: resp !== undefined ? resp : eu.id, imp: false, urg: false });
+  const [f, setF] = useState({ tipo: tipo && TAREFAS.includes(tipo) ? tipo : "", desc: desc || "", dias: dias ? String(dias) : "", venc: "", vencMan: false, resp: rp.inicial, imp: false, urg: false });
   const [ocupado, setOcupado] = useState(false);
   const auto = pub && +f.dias ? calcularVencimento(pub.data, +f.dias, pub.eproc, foro, cidade) : "";
   const pulados = auto && pub ? diasPulados(pub.data, auto, foro, cidade) : [];
@@ -254,7 +254,7 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
         {pub && <label className="f">Dias úteis<input type="number" min={1} value={f.dias} onChange={(e) => setF({ ...f, dias: e.target.value, vencMan: false })} /></label>}
         <label className="f">Prazo fatal<input type="date" value={venc} onChange={(e) => setF({ ...f, venc: e.target.value, vencMan: true })} />
           {auto && !f.vencMan && <span className="muted s" title={pulados.map((x) => dataBR(x.data) + ": " + x.motivo).join("\n")}>{foro === "tjsc" ? "calendário do TJSC" : "calendário da Justiça Federal"}{pulados.length ? ` · pulou ${pulados.length} dia(s) sem expediente` : ""}</span>}</label>
-        <label className="f">Responsável<SelResp valor={f.resp} onChange={(v) => setF({ ...f, resp: v })} /></label>
+        <label className="f" title="Fica escolhido para as próximas tarefas que você criar">Responsável<SelResp valor={f.resp} onChange={(v) => { setF({ ...f, resp: v }); rp.lembrar(v); }} /></label>
         {extra}
         <div className="flags">
           <label className="chk imp"><input type="checkbox" checked={f.imp} onChange={(e) => setF({ ...f, imp: e.target.checked })} />Importante</label>

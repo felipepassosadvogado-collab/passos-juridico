@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bancoDosReus, nomeBonito, semAcento } from "./formato";
 import { hojeBR, isoData, paraData, somaDias } from "./prazos";
 import { analisarPublicacoes } from "./claude";
+import { tirarRepetidasDaCaixa } from "./repetidas";
 import { pedacos } from "./emLote";
 import { avisoDaAnalise } from "./regras";
 
@@ -66,7 +67,7 @@ export async function buscarProcesso(numero: string) {
   };
 }
 
-export type ResultadoSync = { novas: number; caixa: number; processosNovos: number; analisadas: number; paginas: number; erro?: string; avisos?: string[]; completa?: boolean; /** publicações novas que foram para a caixa (para analisar depois, em segundo plano) */ novasIds?: number[] };
+export type ResultadoSync = { novas: number; caixa: number; processosNovos: number; analisadas: number; paginas: number; /** cópias do mesmo ato tiradas da caixa */ repetidas?: number; erro?: string; avisos?: string[]; completa?: boolean; /** publicações novas que foram para a caixa (para analisar depois, em segundo plano) */ novasIds?: number[] };
 
 /** variações de nome e OAB que a busca cobre (Configurações → DJEN pode acrescentar outras) */
 export type Variacao = { tipo: "oab"; numero: string; uf?: string | null } | { tipo: "advogado" | "parte"; nome: string };
@@ -254,6 +255,15 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
       const porProc = new Map<string, Record<string, any>[]>(); for (const l of linhas) (porProc.get(l.processo_numero) || porProc.set(l.processo_numero, []).get(l.processo_numero)!).push(l);
       for (const l of porProc.values()) { const e = await gravar(l); if (e) throw new ErroDjen("não consegui gravar as publicações: " + e.message); }
     }
+    // o mesmo ato em duas comunicações (ex.: acórdão enviado uma vez por destinatário): a cópia fica gravada, mas sai da caixa
+    try {
+      const repetidas = await tirarRepetidasDaCaixa(adm);
+      if (repetidas.length) {
+        const fora = new Set(repetidas); const antes = novasIds.length;
+        for (let k = novasIds.length - 1; k >= 0; k--) if (fora.has(novasIds[k])) novasIds.splice(k, 1);
+        res.caixa -= antes - novasIds.length; res.repetidas = repetidas.length;
+      }
+    } catch (e) { console.warn("repetidas", (e as Error).message); }
     // avisa a equipe do que precisa de olho humano
     if (res.processosNovos || semFicha.length) {
       const { data: tit } = await adm.from("profiles").select("id").eq("papel", "titular").eq("ativo", true);

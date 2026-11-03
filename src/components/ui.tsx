@@ -63,6 +63,16 @@ export function ChipResp({ id }: { id?: string | null }) {
   return <span className={"chip" + (id ? "" : " vazio")}><span className="av"><RostoOuIniciais id={id} /></span>{id ? (id === eu.id ? "Você" : nome(id)) : "Sem responsável"}</span>;
 }
 
+/** quem recebe as tarefas novas por padrão: a última pessoa escolhida por quem está criando; na primeira vez, para o titular, a Amanda */
+export function useRespPadrao(sugerido: string | null) {
+  const { eu, equipe, titular } = useDados(); const chave = "tarefa.responsavel." + eu.id;
+  const ativo = (id: string | null | undefined) => !!id && equipe.some((p) => p.id === id && p.ativo);
+  let salvo: string | null = null; try { salvo = localStorage.getItem(chave); } catch { /* sem armazenamento */ }
+  const padrao = ativo(salvo) ? salvo : titular ? equipe.find((p) => p.ativo && p.papel !== "titular" && /^amanda\b/i.test(p.nome))?.id || null : null;
+  const lembrar = (v: string | null) => { try { if (v) localStorage.setItem(chave, v); } catch { /* sem armazenamento */ } };
+  return { inicial: padrao || sugerido, lembrar };
+}
+
 export function SelResp({ valor, onChange, vazio = "Sem responsável", excluir, id }: { valor: string | null; onChange: (v: string | null) => void; vazio?: string | null; excluir?: string[]; id?: string }) {
   const ops = useOpcoesEquipe().filter((o) => !excluir?.includes(o.id));
   return (

@@ -14,8 +14,8 @@ const ESPERA_MS = 240000; // a rota tem até 300 s; depois disso o navegador par
 export function BotaoDjen({ rotulo = "Buscar no DJEN", dias, classe = "btn primary" }: { rotulo?: string; dias?: number; classe?: string }) {
   const { aviso, recarregar, sb } = useDados(); const [ocupado, setOcupado] = useState(false); const [fase, setFase] = useState("");
   const relogio = useCronometro(ocupado);
-  const resumo = (j: { caixa?: number; analisadas?: number; analisando?: number; avisos?: string[] }) => {
-    const extra = j.avisos?.length ? ` Atenção: ${j.avisos.length} variação(ões) com aviso (veja em Configurações).` : "";
+  const resumo = (j: { caixa?: number; analisadas?: number; analisando?: number; avisos?: string[]; repetidas?: number }) => {
+    const extra = (j.repetidas ? ` ${j.repetidas} ${j.repetidas === 1 ? "publicação repetida (mesmo ato) saiu" : "publicações repetidas (mesmo ato) saíram"} da caixa.` : "") + (j.avisos?.length ? ` Atenção: ${j.avisos.length} variação(ões) com aviso (veja em Configurações).` : "");
     if (!j.caixa) return "Busca completa: nenhuma publicação nova no DJEN." + extra;
     const claude = j.analisando ? ` O Claude está analisando ${j.analisando} em segundo plano; as análises aparecem sozinhas na caixa.` : j.analisadas ? ` ${j.analisadas} já analisadas pelo Claude.` : "";
     return `${j.caixa} ${j.caixa === 1 ? "publicação nova na caixa" : "publicações novas na caixa"}.${claude}${extra}`;
