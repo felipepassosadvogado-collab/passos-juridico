@@ -1,15 +1,15 @@
 "use client";
-import { classificarFases } from "@/lib/acoesLote";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDados, useOpcoesEquipe, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, iniciais, moeda, nomeBonito, semAcento } from "@/lib/formato";
 import { mascaraCnj, soDigitos } from "@/lib/cnj";
-import { DICAS_ETAPA, DICAS_FASE, ETAPAS, FASES, faseCRM, sugerirFase } from "@/lib/regras";
+import { DICAS_ETAPA, DICAS_FASE, ETAPAS, FASES, faseCRM } from "@/lib/regras";
 import type { Tarefa } from "@/lib/tipos";
 import { Coluna, ProxTarefa, useArrasto } from "@/components/crm";
 import { useJanelas } from "@/components/janelas";
 import { ExportarCrm } from "@/components/exportarCrm";
+import { FasesComClaude } from "@/components/fasesClaude";
 import { Avatar, Ic, teclado } from "@/components/ui";
 import { honorarios, pctPadrao } from "@/lib/valores";
 
@@ -17,7 +17,7 @@ function CRM() {
   const d = useDados(); const { processos, casos, tarefas, sb, aplicar, registrar, aviso, titular, nome, v, eu } = d;
   const j = useJanelas(); const router = useRouter(); const sp = useSearchParams(); const ops = useOpcoesEquipe();
   const [q, setQ] = useState({ quadro: sp.get("caso") ? "pre" : "judicial", busca: "", banco: "", resp: "" });
-  const [msg, setMsg] = useState(""); const [exp, setExp] = useState(false); const [conf, setConf] = useState(false); const [ocupado, setOcupado] = useState(false);
+  const [msg] = useState(""); const [exp, setExp] = useState(false);
   useEffect(() => { const c = sp.get("caso"); if (c) j.abrirCaso(c); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const proxima = useMemo(() => {
     const m = new Map<string, Tarefa>();
@@ -42,14 +42,9 @@ function CRM() {
     if (etapa === "Elaboração da inicial" && ![...tarefas.values()].some((t) => t.caso_id === id && t.status !== "feito" && /inicial/i.test(t.descricao))) { j.abrirCaso(id, true); aviso("Crie a tarefa de elaboração da inicial."); }
   };
   const arrastou = useArrasto((id, col) => { if (col.startsWith("j:")) moverProc(id, col.slice(2)); else if (col.startsWith("p:")) moverCaso(id, col.slice(2)); });
-  const semFase = [...processos.values()].filter((p) => !faseCRM(p.fase) && sugerirFase(p));
-  const sugerir = async () => {
-    if (!conf) { setConf(true); setMsg(`${semFase.length} processos sem fase têm sugestão pelo juízo, classe ou último ato. Clique de novo em “Sugerir fases automaticamente” para aplicar. Os demais continuam em “A classificar”.`); return; }
-    setConf(false); setMsg(""); setOcupado(true); let k = 0;
-    // em lote: uma gravação por fase e uma para o histórico (antes: duas por processo)
-    try { const r = await classificarFases(sb, semFase.map((p) => ({ numero: p.numero, fase: sugerirFase(p) })), eu.id); for (const p of r.linhas) { aplicar("processos", p); k++; } aviso(r.erro ? `${k} processos classificados; os demais não foram gravados (${msgErro(r.erro)}).` : k + " processos classificados."); }
-    finally { setOcupado(false); }
-  };
+  // só os processos sem fase ("A classificar"); o Claude sugere, a pessoa revisa e aplica
+  const semFase = [...processos.values()].filter((p) => !faseCRM(p.fase));
+  const [fasesClaude, setFasesClaude] = useState(false);
   const av = (id?: string | null) => id ? <Avatar id={id} pequeno /> : null;
   const padrao = pctPadrao(d.config);
   const vh = (x: { valor_causa?: number | null; honorarios_pct?: number | null }) => ({ v: x.valor_causa || 0, pct: x.honorarios_pct ?? padrao, h: honorarios(x.valor_causa, x.honorarios_pct ?? padrao) });
@@ -91,7 +86,8 @@ function CRM() {
         <label className="tb">{Ic.busca}<input type="search" aria-label="Buscar cliente ou nº do processo" placeholder="Buscar cliente ou nº" value={q.busca} onChange={(e) => setQ({ ...q, busca: e.target.value })} /></label>
         <label className="tb">{Ic.filtro}<select aria-label="Filtrar por réu (banco)" value={q.banco} onChange={(e) => setQ({ ...q, banco: e.target.value })}><option value="">Todos os bancos</option>{bancos.map((b) => <option key={b}>{b}</option>)}</select></label>
         <label className="tb">{Ic.filtro}<select aria-label="Filtrar por responsável" value={q.resp} onChange={(e) => setQ({ ...q, resp: e.target.value })}><option value="">Todos os responsáveis</option>{ops.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}</select></label>
-        {q.quadro === "judicial" && titular && semFase.length > 0 && <button className="btn ghost" disabled={ocupado} onClick={sugerir}>{ocupado ? "Classificando…" : "Sugerir fases automaticamente"}</button>}
+        {q.quadro === "judicial" && titular && semFase.length > 0 && <button className="btn ghost" title="O Claude lê o histórico de cada processo em “A classificar” e sugere a fase; você revisa antes de gravar" onClick={() => setFasesClaude(true)}>{Ic.claude}Sugerir fases com o Claude ({semFase.length})</button>}
+        {fasesClaude && <FasesComClaude onFechar={() => setFasesClaude(false)} />}
       </div>
       {msg && <div className="banner">{msg}</div>}
       {(() => { const s = soma(visiveis);

@@ -134,3 +134,29 @@ Responda só com JSON: {"nome":string|null,"cpf":string|null,"rg":string|null (n
 
 export const promptExtrato = (banco?: string) => `Você recebe o extrato de empréstimos consignados do INSS (HISCON) de um aposentado/pensionista (fotos ou PDF). Copie exatamente o que está escrito; use null se não houver. Datas em AAAA-MM-DD; valores como número com ponto decimal.
 Responda só com JSON: {"especie": string|null (espécie do benefício por extenso, em minúsculas), "nb": string|null, "bancoPagador": string|null (instituição que paga o benefício), "contratos": [{"numero": string, "banco": string, "parcela": number|null, "inclusao": string|null, "inicioDesconto": string|null, "situacao": string|null, "parcelasDescontadas": number|null}]}${banco ? " Liste primeiro os contratos do banco " + banco + "." : ""}`;
+
+// ───────────── CRM: fase de cada processo sem classificação, pelo histórico ─────────────
+export type ProcessoParaFase = { numero: string; processo: string; orgao: string | null; classe: string | null; ultimoAto: string | null; cliente: string | null;
+  publicacoes: { data: string; tipo: string | null; resumo: string; texto: string }[]; historico: string[]; tarefas: string[] };
+export type FaseSugerida = { fase: string; motivo: string; confianca: "alta" | "media" | "baixa" };
+const INSTR_FASE = `Você auxilia um advogado que representa a parte AUTORA (aposentados/pensionistas) em ações contra bancos e o INSS sobre empréstimos consignados não contratados (Juizado Especial Federal no eproc/TRF4 e Justiça Estadual de SC). Para cada processo, leia TODO o contexto (juízo, classe, publicações da mais recente para a mais antiga, histórico e tarefas) e diga em que fase do andamento ele está HOJE.
+Fases (use exatamente um destes nomes):
+- "Protocolo / citação": inicial protocolada, emenda, citação, aguardando contestação.
+- "Réplica": contestação juntada, prazo ou elaboração de réplica.
+- "Perícia / instrução": perícia grafotécnica (nomeação, quesitos, coleta de padrão, laudo, manifestação ao laudo), audiência de instrução, depoimento.
+- "Sentença": concluso para sentença, sentença publicada e ainda sem recurso, embargos de declaração da sentença.
+- "Recurso": recurso inominado/apelação, contrarrazões, processo na Turma Recursal/Tribunal, acórdão, embargos do acórdão, recurso extraordinário/especial.
+- "Cumprimento de sentença": trânsito em julgado com condenação, cálculos, intimação para pagar, RPV/precatório, alvará, depósito, prestação de contas ao cliente.
+- "Petição nos próprios autos": só pedidos incidentais isolados que não se encaixam acima (raro).
+- "Encerrado": arquivado definitivamente, baixa, extinção sem nada a receber, acordo cumprido.
+Regras: o ato mais recente manda (ex.: acórdão recente = "Recurso", mesmo que antes tenha havido perícia; trânsito em julgado + cálculos = "Cumprimento de sentença"). Turma Recursal ou classe "RECURSO CÍVEL" indica "Recurso", salvo se o processo já baixou para execução. Não invente: se o contexto for insuficiente, dê o melhor palpite com confiança "baixa" e diga no motivo o que falta.`;
+export async function sugerirFasesProcessos(lista: ProcessoParaFase[]): Promise<Record<string, FaseSugerida>> {
+  const out = await pedirJson<unknown>([{ type: "text", text: INSTR_FASE + `\n\nResponda só com JSON: um array com um objeto por processo: {"numero": string (igual ao recebido), "fase": uma das fases, "motivo": 1 frase curta citando o ato que decidiu (com a data), "confianca": "alta" | "media" | "baixa"}\n\nProcessos:\n` + JSON.stringify(lista) }], 6000);
+  const res: Record<string, FaseSugerida> = {};
+  for (const r of (Array.isArray(out) ? out : [out]) as Record<string, unknown>[]) {
+    const fase = String(r?.fase || ""); if (!r?.numero || !(FASES as readonly string[]).includes(fase)) continue;
+    const c = String(r.confianca || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    res[String(r.numero)] = { fase, motivo: String(r.motivo || "").slice(0, 300), confianca: c === "alta" ? "alta" : c === "media" ? "media" : "baixa" };
+  }
+  return res;
+}

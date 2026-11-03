@@ -7,10 +7,10 @@ import { nomeBonito, semAcento } from "./formato";
 type Cliente = { from: (t: string) => any };
 
 /** CRM "Sugerir fases automaticamente": grava as fases (1 consulta por fase) e o histórico de cada processo (1 consulta) */
-export async function classificarFases(sb: Cliente, itens: { numero: string; fase: string }[], eu: string) {
+export async function classificarFases(sb: Cliente, itens: { numero: string; fase: string; motivo?: string }[], eu: string, origem = "sugestão automática") {
   const r = await atualizarAgrupado(sb, "processos", "numero", itens.map((x) => ({ id: x.numero, campos: { fase: x.fase } })));
   const gravados = new Set(r.linhas.map((p) => p.numero));
-  const ev = await inserirEmLote(sb, "eventos", itens.filter((x) => gravados.has(x.numero)).map((x) => ({ processo_numero: x.numero, tipo: "fase", dados: { fase: x.fase + " (sugestão automática)" }, por: eu })), 500, "id");
+  const ev = await inserirEmLote(sb, "eventos", itens.filter((x) => gravados.has(x.numero)).map((x) => ({ processo_numero: x.numero, tipo: "fase", dados: { fase: x.fase + " (" + origem + ")", ...(x.motivo ? { texto: "Fase " + x.fase + " (" + origem + "): " + x.motivo } : {}) }, por: eu })), 500, "id");
   if (ev.erro) console.warn("evento", ev.erro);
   return { linhas: r.linhas, erro: r.erro };
 }
