@@ -1,6 +1,7 @@
 "use client";
 // "Gerar petição": o Claude redige a peça a partir da publicação, do processo e dos documentos enviados,
 // e o Word sai no papel timbrado do escritório.
+import { avisarColchetes } from "./colchetes";
 import { Cronometro } from "./carregando";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
@@ -81,7 +82,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       if (!r.ok || j.erro) { setErroMsg(j.erro || "Não consegui gerar a peça agora."); return; }
       const bin = atob(j.base64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       const blob = new Blob([u], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-      baixar(j.nome, blob);
+      baixar(j.nome, blob); avisarColchetes(blob, j.nome);
       const arq = new File([blob], j.nome, { type: blob.type }); let doc: Documento | null = null;
       if (tarefa) { setEtapa("Anexando a minuta na tarefa…"); doc = (await acoes.anexar(tarefa, [arq]))?.[0] || null; }
       const anexada = !!doc; setMinuta({ arq, doc, editada: false });

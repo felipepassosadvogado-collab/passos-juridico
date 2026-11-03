@@ -1,6 +1,7 @@
 "use client";
 // Botão "Emitir kit procuração": procuração, contrato de honorários (com o percentual), declaração de
 // hipossuficiência e declaração de residência, já com os dados da ficha (lidos pelo Claude ou digitados).
+import { avisarColchetes } from "./colchetes";
 import { Cronometro } from "./carregando";
 import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
@@ -51,7 +52,7 @@ export function KitProcuracao({ f, bancoSugerido = "" }: { f: ReturnType<typeof 
       const { MODELO_KIT_DOCX } = await import("@/modelos/modeloKit");
       const blob = await montarKit(MODELO_KIT_DOCX, d);
       f.guardarKit({ banco: k.banco.trim(), pct, contratos: cs.filter((c) => c.numero.trim() || c.parcela.trim()) });
-      baixar(`Kit_Procuracao_-_${nomeBonito(f.ed.nome || "cliente").replace(/\s+/g, "_")}.docx`, blob);
+      const nomeKit = `Kit_Procuracao_-_${nomeBonito(f.ed.nome || "cliente").replace(/\s+/g, "_")}.docx`; baixar(nomeKit, blob); avisarColchetes(blob, nomeKit);
       const faltam = faltasKit(d);
       aviso(faltam.length ? "Kit emitido. Ficou entre [colchetes]: " + faltam.join(", ") + "." : "Kit procuração emitido. Imprima, colha as assinaturas e anexe na ficha.");
     } catch { aviso("Não consegui emitir o kit. Tente de novo."); }

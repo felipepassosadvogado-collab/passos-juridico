@@ -1,4 +1,5 @@
 "use client";
+import { avisarColchetes } from "./colchetes";
 import { Cronometro } from "./carregando";
 import { obterIndices } from "@/lib/indicesBcb";
 // Petição inicial em Word a partir do modelo do escritório, com leitura do extrato do INSS pelo Claude.
@@ -78,7 +79,7 @@ export function JanelaInicial({ ctx, onFechar, onIntermediaria, onCumprimento }:
       const r = await fetch("/api/peticao", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pi, total: totalStr, indebitoAtualizado: atualizado ? moeda(atualizado) : "", contratos, clienteId: cli.id, numero: ctx.numero || null, casoId: ctx.casoId || null }) });
       if (!r.ok) { const j = await r.json().catch(() => ({})); aviso(j.erro || "Não foi possível gerar o arquivo."); return; }
       const nome = decodeURIComponent(r.headers.get("x-nome-arquivo") || "Peticao_Inicial.docx");
-      const blob = await r.blob(); baixar(nome, blob); aviso("Petição gerada e guardada na pasta para protocolo. Revise no Word antes de protocolar.");
+      const blob = await r.blob(); baixar(nome, blob); avisarColchetes(blob, nome); aviso("Petição gerada e guardada na pasta para protocolo. Revise no Word antes de protocolar.");
       guardarNaFicha(sb, cli.id, "inicial", nome, blob).then(() => setKitV((x) => x + 1));
     } catch { aviso("Não foi possível gerar o arquivo. Tente de novo."); }
     finally { setGerando(false); }

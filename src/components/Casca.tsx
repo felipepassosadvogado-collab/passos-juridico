@@ -5,6 +5,7 @@ import { useWaConversas } from "@/components/whatsapp";
 import { Inatividade, limparUso } from "@/components/inatividade";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { CaixaColchetes } from "@/components/colchetes";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BarraNavegacao, CarregandoInicial, ErroCarga, FaixaRede, IndicadorAtividade } from "@/components/carregando";
 import { useDados } from "@/lib/dados";
@@ -239,6 +240,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
         </div></main>
       </div>
       <ChatFlutuante />
+      <CaixaColchetes />
       <Inatividade />
     </>
   );

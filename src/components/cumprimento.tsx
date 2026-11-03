@@ -1,4 +1,5 @@
 "use client";
+import { avisarColchetes } from "./colchetes";
 import { Cronometro } from "./carregando";
 import { obterIndices } from "@/lib/indicesBcb";
 // Cumprimento de sentença: o Claude lê a cópia integral do processo e extrai o título executivo; o sistema calcula a liquidação
@@ -142,7 +143,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
       if (!r.ok) { aviso(j.erro || "Não consegui gerar a petição."); return null; }
       const bin = atob(j.base64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       const f = new File([u], j.nome, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-      setDocx(f); baixar(f.name, f); aviso("Petição de cumprimento gerada. Revise no Word antes de protocolar."); return f;
+      setDocx(f); baixar(f.name, f); avisarColchetes(f, f.name); aviso("Petição de cumprimento gerada. Revise no Word antes de protocolar."); return f;
     } catch (e) { aviso((e as Error).message || "Não consegui gerar a petição."); return null; }
     finally { setGerando(""); }
   };
