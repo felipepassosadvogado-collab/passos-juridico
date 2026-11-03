@@ -36,7 +36,27 @@ async function tratar(req: Request) {
     b.mensagemAtual ? `Mensagem atual (rascunho, pode ser reescrita):\n${corte(b.mensagemAtual, 2000)}` : "",
   ].filter(Boolean).join("\n");
   const protocolo = tipo === "Protocolo da ação";
-  const prompt = protocolo ? `Você escreve, para o escritório Passos Advocacia (Joinville/SC), uma mensagem de WhatsApp para um cliente aposentado ou pensionista, contando que a ação dele foi PROTOCOLADA (distribuída) na Justiça.
+  // instruções livres do advogado ("saíram os atrasados, segue a prestação de contas, peça o Pix"): mandam na mensagem
+  const instrucoes = corte(String(b.instrucoes || "").trim(), 2000);
+  const anexos = (Array.isArray(b.anexos) ? b.anexos : []).map((x: unknown) => String(x).slice(0, 120)).slice(0, 5);
+  const livre = `Você escreve, para o escritório Passos Advocacia (Joinville/SC), a mensagem de WhatsApp que o advogado pediu para um cliente (em geral aposentado ou pensionista).
+O PRINCIPAL são as INSTRUÇÕES DO ADVOGADO abaixo: a mensagem deve dizer exatamente o que ele pediu, com essa intenção, e nada fora disso.
+Regras:
+- Português simples, frases curtas, tom acolhedor e respeitoso, sem juridiquês.
+- Comece com "Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia."
+- Use o contexto (cliente, processo, réu) só no que ajudar a mensagem pedida; ignore data, local e ato se as instruções não falarem deles.
+${anexos.length ? `- Vão junto com a mensagem estes arquivos: ${anexos.join(", ")}. Mencione-os pelo que são, de forma natural (ex.: "segue em anexo a prestação de contas").
+` : ""}- Não invente valores, datas, prazos, chaves Pix, contas bancárias nem promessas que não estejam nas instruções ou no contexto. Se as instruções pedirem para solicitar o Pix, peça que o cliente informe a chave Pix dele (no nome dele). Se faltar um dado que a mensagem precisa, escreva sem ele e aponte em "conferir".
+- No máximo uns 900 caracteres, 2 a 5 parágrafos curtos, no máximo 1 emoji, sem markdown.
+- Termine de forma natural, pedindo resposta quando a mensagem pedir algo ao cliente.
+Formato da resposta (texto puro, sem JSON e sem comentários antes): primeiro a mensagem pronta; depois, se houver algo para a equipe conferir, uma linha só com ===CONFERIR=== e, abaixo, um item por linha começando com "- ".
+
+INSTRUÇÕES DO ADVOGADO:
+${instrucoes}
+
+Contexto:
+${ctx}`;
+  const prompt = instrucoes ? livre : protocolo ? `Você escreve, para o escritório Passos Advocacia (Joinville/SC), uma mensagem de WhatsApp para um cliente aposentado ou pensionista, contando que a ação dele foi PROTOCOLADA (distribuída) na Justiça.
 Regras:
 - Português simples, frases curtas, tom acolhedor, sem juridiquês.
 - Comece com "Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia."

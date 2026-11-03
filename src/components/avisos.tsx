@@ -53,11 +53,35 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   // o que está digitado nos campos (pode ainda não ter sido gravado) vai para o Claude
   const tela = useRef<Record<string, string>>({}); const anota = (k: string) => (e: { target: { value: string } }) => { tela.current[k] = e.target.value; };
   const [escrevendo, setEscrevendo] = useState(false); const [alertas, setAlertas] = useState<string[]>([]);
+  // instruções livres ao Claude ("diga que saíram os atrasados, que segue a prestação de contas e peça o Pix") e arquivos para mandar junto
+  const chaveInstr = "aviso.instrucoes." + av.id;
+  const [instrucoes, setInstrucoesEstado] = useState(() => { try { return localStorage.getItem(chaveInstr) || ""; } catch { return ""; } });
+  const setInstrucoes = (v: string) => { setInstrucoesEstado(v); try { if (v) localStorage.setItem(chaveInstr, v); else localStorage.removeItem(chaveInstr); } catch { /* sem armazenamento */ } };
+  const [anexos, setAnexos] = useState<File[]>([]); const entradaArq = useRef<HTMLInputElement>(null);
+  const juntarArquivos = (l: File[]) => {
+    const grandes = l.filter((f) => f.size > 15 * 1024 * 1024); if (grandes.length) aviso(`Maior que 15 MB, não dá para mandar pelo WhatsApp: ${grandes.map((f) => f.name).join(", ")}.`);
+    setAnexos((x) => [...x, ...l.filter((f) => f.size <= 15 * 1024 * 1024 && !x.some((y) => y.name === f.name && y.size === f.size))].slice(0, 5));
+  };
+  /** manda a mensagem e, em seguida, cada anexo (o WhatsApp entrega o arquivo como documento ou imagem) */
+  const enviarComAnexos = async (destino: { telefone: string; clienteId?: string; avulso?: boolean; nome?: string }): Promise<string> => {
+    const r0 = await enviarWhatsapp({ ...destino, texto, origem: "aviso" }); // se a mensagem falhar, o erro sobe e nada é marcado
+    const enviados: string[] = []; const falhas: string[] = [];
+    for (const f of anexos) {
+      const caminho = `avisos/${av.id}/${Date.now()}-${f.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.\-]+/g, "_").slice(-80)}`;
+      const up = await sb.storage.from("documentos").upload(caminho, f, { contentType: f.type || undefined });
+      if (up.error) { falhas.push(f.name); continue; }
+      try { await enviarWhatsapp({ conversaId: r0.conversaId, anexo: { caminho, nome: f.name, mime: f.type || "application/octet-stream" }, origem: "aviso" }); enviados.push(f.name); }
+      catch { falhas.push(f.name); }
+    }
+    if (enviados.length) registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "comentario", dados: { texto: "Enviado ao cliente pelo WhatsApp junto com o aviso: " + enviados.join(", ") } });
+    setAnexos(anexos.filter((f) => falhas.includes(f.name))); // os que falharam ficam na lista para tentar de novo pela aba WhatsApp
+    return falhas.length ? `A mensagem foi enviada${enviados.length ? " com " + enviados.join(", ") : ""}, mas não consegui mandar ${falhas.join(", ")}. Envie pela aba WhatsApp, na conversa do cliente.` : "";
+  };
   const escreverClaude = async () => {
     setEscrevendo(true); setAlertas([]);
     try {
       const r = await fetch("/api/claude/mensagem", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ avisoId: av.id, ...tela.current, mensagemAtual: texto }) });
+        body: JSON.stringify({ avisoId: av.id, ...tela.current, mensagemAtual: texto, instrucoes: instrucoes.trim() || undefined, anexos: anexos.map((f) => f.name) }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { aviso(j.erro || "Não consegui escrever a mensagem agora."); return; }
       setTexto(j.mensagem); setMexeu(true); setAlertas(j.alertas || []);
@@ -111,9 +135,20 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         {av.modalidade !== "video" && <label className="f wide2">Local<input defaultValue={av.local || ""} placeholder="Ex.: secretaria da 6ª Vara Federal de Joinville" onChange={anota("local")} onBlur={(e) => e.target.value !== (av.local || "") && salvar({ local: e.target.value || null })} /></label>}
         <label className="f wide">Orientações ao cliente<input defaultValue={av.orientacoes || ""} placeholder="Ex.: levar documento com foto; a coleta leva cerca de 1 hora" onChange={anota("orientacoes")} onBlur={(e) => e.target.value !== (av.orientacoes || "") && salvar({ orientacoes: e.target.value || null })} /></label>
       </div>
+      <label className="f">O que o Claude deve escrever <span className="muted" style={{ fontWeight: 400 }}>(opcional, com suas palavras)</span>
+        <textarea rows={2} value={instrucoes} placeholder="Ex.: informe que saíram os valores atrasados do processo, que estou enviando a prestação de contas em anexo e peça a chave Pix para o depósito"
+          onChange={(e) => setInstrucoes(e.target.value)} /></label>
+      <div className="av-anexos">
+        <button type="button" className="btn ghost" onClick={() => entradaArq.current?.click()} title="Arquivos que vão junto com a mensagem pelo WhatsApp do sistema (PDF, imagem, Word; até 15 MB cada)"><span aria-hidden="true">📎</span> Anexar arquivo</button>
+        <input ref={entradaArq} type="file" hidden multiple accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={(e) => { juntarArquivos(Array.from(e.target.files || [])); e.target.value = ""; }} />
+        {anexos.map((f, i) => <span key={f.name + i} className="anexo"><span className="an">{f.name}</span><span className="muted s">{(f.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB</span>
+          <button className="icb" title={"Tirar " + f.name} aria-label={"Tirar o anexo " + f.name} onClick={() => setAnexos(anexos.filter((_, k) => k !== i))}><span aria-hidden="true">✕</span></button></span>)}
+        {anexos.length > 0 && !waSistema && <span className="muted s">O WhatsApp do sistema está desconectado: envie o arquivo à parte depois de abrir a conversa.</span>}
+        {anexos.length > 0 && waSistema && <span className="muted s">Vai junto ao clicar em “Enviar pelo WhatsApp do sistema”. Em “Abrir no WhatsApp” e “Copiar”, anexe o arquivo à mão.</span>}
+      </div>
       <label className="f">Mensagem<textarea rows={6} value={texto} onChange={(e) => { setTexto(e.target.value); setMexeu(true); }} /></label>
       <div className="tools">
-        <button className="btn" disabled={escrevendo} onClick={escreverClaude} title="O Claude confere o local, as orientações e a publicação e escreve a mensagem">{escrevendo ? <>O Claude está escrevendo… <Cronometro /></> : "✨ Escrever mensagem com o Claude"}</button>
+        <button className="btn" disabled={escrevendo} onClick={escreverClaude} title="O Claude confere o local, as orientações e a publicação e escreve a mensagem">{escrevendo ? <>O Claude está escrevendo… <Cronometro /></> : instrucoes.trim() ? "✨ Escrever com o Claude seguindo as instruções" : "✨ Escrever mensagem com o Claude"}</button>
         {mexeu && <button className="reflink" onClick={() => { setMexeu(false); setTexto(padrao); setAlertas([]); }}>Voltar à mensagem padrão</button>}
       </div>
       {alertas.length > 0 && <div className="banner"><strong>O Claude pede para conferir:</strong><ul style={{ margin: "4px 0 0 18px", padding: 0 }}>{alertas.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}
@@ -129,10 +164,10 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           onClick={async () => {
             if (!wa) { aviso("Informe o WhatsApp do cliente."); return; }
             setEnviandoWa(true);
-            try { await enviarWhatsapp({ telefone: wa, texto, clienteId: cli?.id, avulso: !cli, origem: "aviso" }); await marcar(true); }
+            try { const falha = await enviarComAnexos({ telefone: wa, clienteId: cli?.id, avulso: !cli }); await marcar(true); if (falha) aviso(falha); }
             catch (e) { aviso((e as Error).message); }
             finally { setEnviandoWa(false); }
-          }}>{enviandoWa ? "Enviando…" : "Enviar pelo WhatsApp do sistema"}</button>}
+          }}>{enviandoWa ? "Enviando…" : anexos.length ? `Enviar pelo WhatsApp do sistema (com ${anexos.length} anexo${anexos.length > 1 ? "s" : ""})` : "Enviar pelo WhatsApp do sistema"}</button>}
         {waSistema && <button className="btn" onClick={() => setOutro(outro ? null : { fone: "", nome: "" })}>{outro ? "Cancelar outro número" : "Enviar para outro WhatsApp"}</button>}
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
@@ -150,8 +185,8 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
           const d = outro.fone.replace(/\D/g, ""); if (d.length < 10 || d.length > 13) { aviso("Informe o WhatsApp com DDD."); return; }
           setEnviandoWa(true);
           try {
-            await enviarWhatsapp({ telefone: d, texto, clienteId: cli?.id, avulso: true, origem: "aviso", nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
-            setOutro(null); await marcar(true);
+            const falha = await enviarComAnexos({ telefone: d, clienteId: cli?.id, avulso: true, nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
+            setOutro(null); await marcar(true); if (falha) aviso(falha);
           } catch (e) { aviso((e as Error).message); }
           finally { setEnviandoWa(false); }
         }}>{enviandoWa ? "Enviando…" : "Enviar e marcar como enviada"}</button></div>

@@ -936,3 +936,6 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .wa-anteriores{align-self:center;margin:8px auto}
 @media (max-width:700px){.pagin-tam{margin-left:0}.pagin-nums .btn{padding-inline:10px}}
 .cron{margin-left:6px;opacity:.75;font-size:.92em;font-variant-numeric:tabular-nums}
+.av-anexos{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-2px 0 4px}
+.av-anexos .anexo{display:inline-flex;align-items:center;gap:8px}
+.av-anexos .anexo .icb{width:26px;height:26px}
