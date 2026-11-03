@@ -180,9 +180,10 @@ function Adicionar() {
   useEffect(() => { if (!aberto) return; const f = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setAberto(false); }; document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [aberto]);
   return (
     <div className="addwrap" ref={ref}>
-      <button className="btn primary" aria-haspopup="true" aria-expanded={aberto} aria-label="Adicionar: nova tarefa, agendamento, processo ou cliente" title="Criar uma tarefa, um agendamento, um processo ou um cliente" onClick={() => setAberto(!aberto)} onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}><span className="rot">Adicionar <span aria-hidden="true">▾</span></span><span className="mais-ic" aria-hidden="true">+</span></button>
+      <button className="btn primary" aria-haspopup="true" aria-expanded={aberto} aria-label="Adicionar: nova tarefa, tarefa autônoma, agendamento, processo ou cliente" title="Criar uma tarefa, um agendamento, um processo ou um cliente" onClick={() => setAberto(!aberto)} onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}><span className="rot">Adicionar <span aria-hidden="true">▾</span></span><span className="mais-ic" aria-hidden="true">+</span></button>
       {aberto && <div className="addmenu" onKeyDown={(e) => { if (e.key === "Escape") setAberto(false); }}>
         <button onClick={() => { setAberto(false); j.novaTarefa(); }}>Nova tarefa</button>
+        <button onClick={() => { setAberto(false); j.novaTarefaAutonoma(); }} title="Tarefa da rotina do escritório, sem processo, com repetição opcional">Nova tarefa autônoma</button>
         <button onClick={() => { setAberto(false); j.agendarAto(); }}>Agendar audiência / coleta</button>
         <button onClick={() => { setAberto(false); j.novoProcesso(); }}>Novo processo</button>
         <button onClick={() => { setAberto(false); j.novoCliente(); }}>Novo cliente</button>

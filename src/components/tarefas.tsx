@@ -2,12 +2,13 @@
 // Tarefas: criação, lista enxuta, tabela de atividades e o detalhe com todo o fluxo
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
-import { atualizarAgrupado } from "@/lib/emLote";
+import { atualizarAgrupado, inserirEmLote } from "@/lib/emLote";
+import { datasRepeticao } from "@/lib/repeticao";
 import { Paginacao, usePaginacao } from "./paginacao";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
-import { calcularVencimento, cidadeDoProcesso, diasPulados, foroDe, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
+import { calcularVencimento, cidadeDoProcesso, diasPulados, foroDe, dataValida, hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo, somaDias } from "@/lib/prazos";
 import { bancoCurto, dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { TAREFAS, TAREFAS_GRUPOS, STATUS_NOME, rotuloCorrecao, destinoProtocolo } from "@/lib/regras";
 import type { Documento, Tarefa } from "@/lib/tipos";
@@ -21,6 +22,7 @@ const EXT_OK = /\.(pdf|docx|xlsx)$/i;
 export function usePartes() {
   const { processos, casos } = useDados();
   return (t: Tarefa) => {
+    if (!t.processo_numero && !t.caso_id) return { cli: "Tarefa autônoma", reus: [] as string[], banco: "" }; // rotina do escritório, sem processo
     if (!t.processo_numero && t.caso_id) { const c = casos.get(t.caso_id); return { cli: nomeBonito(c?.nome || ""), reus: c?.banco ? ["x " + nomeBonito(c.banco), "Pré-processual"] : ["Pré-processual"], banco: c?.banco || "" }; }
     const p = t.processo_numero ? processos.get(t.processo_numero) : undefined;
     return { cli: nomeBonito(p?.cliente_nome || ""), reus: (p?.reus || []).map((r) => "x " + nomeBonito(r)), banco: p?.banco || "" };
@@ -173,6 +175,48 @@ export function ListaAnexos({ t }: { t: Tarefa }) {
 }
 
 /** formulário de tarefa usado na publicação, no processo, no atendimento e em "Nova tarefa" */
+/** tarefa da rotina do escritório, sem processo (ex.: "verificar os prazos do dia"), com repetição opcional */
+export function FormTarefaAutonoma({ onCriada }: { onCriada?: () => void }) {
+  const { sb, eu, aplicar, aviso, nome } = useDados(); const hoje = hojeBR();
+  const [f, setF] = useState({ titulo: "", detalhe: "", resp: eu.id as string | null, inicio: hoje, repetir: "nao" as "nao" | "util" | "todo" | "semana", ate: isoData(somaDias(paraData(hoje), 30)), imp: false, urg: false });
+  const [ocupado, setOcupado] = useState(false);
+  const datas = datasRepeticao(f.inicio, f.ate, f.repetir);
+  const criar = async () => {
+    const titulo = f.titulo.trim(); if (!titulo) { aviso("Escreva o que deve ser feito."); return; }
+    if (!datas.length) { aviso("Informe uma data válida."); return; }
+    const descricao = "Tarefa autônoma: " + titulo + (f.detalhe.trim() ? " — " + f.detalhe.trim() : "");
+    setOcupado(true);
+    try {
+      const r = await inserirEmLote(sb, "tarefas", datas.map((v) => ({ processo_numero: null, caso_id: null, tipo: null, descricao, vencimento: v, responsavel: f.resp || null, criado_por: eu.id, importante: f.imp, urgente: f.urg })), 100);
+      for (const t of r.linhas) aplicar("tarefas", t);
+      if (r.erro && !r.linhas.length) { aviso(msgErro(r.erro)); return; }
+      const quem = f.resp === eu.id ? "você" : nome(f.resp);
+      aviso(r.linhas.length > 1 ? `${r.linhas.length} tarefas criadas para ${quem}, de ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}.` + (r.erro ? " Algumas não foram gravadas: " + msgErro(r.erro) : "") : `Tarefa criada para ${quem}, vence em ${dataBR(datas[0])}.`);
+      onCriada?.();
+    } finally { setOcupado(false); }
+  };
+  return (
+    <div className="tarefa">
+      <div className="triage">
+        <label className="f wide">O que fazer<input autoFocus value={f.titulo} placeholder="Ex.: Verificar os prazos do dia" onChange={(e) => setF({ ...f, titulo: e.target.value })} /></label>
+        <label className="f wide">Detalhe (opcional)<input value={f.detalhe} placeholder="Ex.: conferir a caixa de publicações e a Agenda" onChange={(e) => setF({ ...f, detalhe: e.target.value })} /></label>
+        <label className="f">Responsável<SelResp valor={f.resp} onChange={(v) => setF({ ...f, resp: v })} /></label>
+        <label className="f">{f.repetir === "nao" ? "Prazo" : "A partir de"}<input type="date" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value })} /></label>
+        <label className="f">Repetir<select value={f.repetir} onChange={(e) => setF({ ...f, repetir: e.target.value as typeof f.repetir })}>
+          <option value="nao">Não repetir</option><option value="util">Todo dia útil (seg. a sex.)</option><option value="todo">Todos os dias</option><option value="semana">Toda semana</option></select></label>
+        {f.repetir !== "nao" && <label className="f">Até<input type="date" value={f.ate} min={f.inicio} onChange={(e) => setF({ ...f, ate: e.target.value })} /></label>}
+        <div className="flags">
+          <label className="chk imp"><input type="checkbox" checked={f.imp} onChange={(e) => setF({ ...f, imp: e.target.checked })} />Importante</label>
+          <label className="chk urg"><input type="checkbox" checked={f.urg} onChange={(e) => setF({ ...f, urg: e.target.checked })} />Urgente</label>
+        </div>
+      </div>
+      <div className="muted s" aria-live="polite">{f.titulo.trim() ? <>Nome na lista: <b>Tarefa autônoma: {f.titulo.trim()}</b>. </> : null}
+        {f.repetir === "nao" ? "Uma tarefa, sem processo." : datas.length ? `Vai criar ${datas.length} tarefa${datas.length > 1 ? "s" : ""}, uma por ${f.repetir === "semana" ? "semana" : "dia"}, de ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}${f.repetir === "util" ? " (sem sábados, domingos e feriados nacionais)" : ""}. Cada uma aparece na Agenda no seu dia.` : "Confira as datas."}</div>
+      <div className="acts"><button className="btn primary" disabled={ocupado} onClick={criar}>{Ic.tarefa}{ocupado ? "Criando…" : datas.length > 1 ? `Criar ${datas.length} tarefas` : "Criar tarefa"}</button></div>
+    </div>
+  );
+}
+
 export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra, onCriada, aoCriar, botoes }: {
   numero?: string | null; casoId?: string | null; pub?: { id: number; data: string; eproc: boolean } | null;
   tipo?: string | null; desc?: string; dias?: number | null; resp?: string | null; extra?: React.ReactNode;
