@@ -11,7 +11,9 @@ function q(tab: string) {
   const api: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
     select: () => api, eq: (c: string, v: unknown) => (f.push((r) => r[c] === v), api), neq: (c: string, v: unknown) => (f.push((r) => r[c] !== v), api),
     is: (c: string, v: unknown) => (f.push((r) => (r[c] ?? null) === v), api), in: (c: string, v: unknown[]) => (f.push((r) => v.includes(r[c])), api), not: (c: string) => (f.push((r) => r[c] != null), api),
-    gte: (c: string, v: string) => (f.push((r) => String(r[c]) >= v), api), limit: (n: number) => ((lim = n), api), order: (c: string, o?: { ascending?: boolean }) => ((ord = [c, o?.ascending !== false]), api),
+    gte: (c: string, v: string) => (f.push((r) => String(r[c]) >= v), api),
+    // ILIKE de verdade: % = qualquer coisa, _ = um caractere, sem diferenciar maiúsculas
+    ilike: (c: string, pad: string) => { const re = new RegExp("^" + pad.split("").map((ch) => (ch === "%" ? ".*" : ch === "_" ? "." : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("") + "$", "is"); f.push((r) => r[c] != null && re.test(String(r[c]))); return api; }, limit: (n: number) => ((lim = n), api), order: (c: string, o?: { ascending?: boolean }) => ((ord = [c, o?.ascending !== false]), api),
     or: (s: string) => { const cs = s.split(",").map((x) => x.split(".")); f.push((r) => cs.some(([c, op, ...v]) => (op === "is" ? (r[c] ?? null) === val(v.join(".")) : op === "lt" ? String(r[c]) < v.join(".") : false))); return api; },
     update: (d: Linha) => ((acao = "update"), (dados = d), api), insert: (d: Linha) => ((acao = "insert"), (dados = d), api), upsert: (d: Linha) => ((acao = "upsert"), (dados = d), api),
     run() {

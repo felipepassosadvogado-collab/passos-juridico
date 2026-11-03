@@ -6,6 +6,7 @@ import { dataBR, dataHoraBR, semAcento } from "@/lib/formato";
 import { dataValida, diferencaDias, hojeBR, isoData, paraData, situacaoPrazo, somaDias } from "@/lib/prazos";
 import type { Tarefa } from "@/lib/tipos";
 import { usePartes } from "@/components/tarefas";
+import { Paginacao, usePaginacao } from "@/components/paginacao";
 import { useJanelas } from "@/components/janelas";
 import { Avatar, ChipResp, Ic, baixar } from "@/components/ui";
 
@@ -132,12 +133,15 @@ export default function Gestao() {
   const mediaCumpr = G.conc.length ? G.conc.reduce((s, t) => s + (new Date(t.feito_em!).getTime() - new Date(t.criado_em).getTime()), 0) / G.conc.length : NaN;
   const mediaAtraso = G.emAtraso.length ? G.emAtraso.reduce((s, t) => s + (new Date(t.feito_em!).getTime() - new Date(t.vencimento + "T23:59:59-03:00").getTime()), 0) / G.emAtraso.length : NaN;
   const base = { prod: G.conc, atraso: G.emAtraso, pend: G.pend, atrasadas: G.atrasadas }[visao as Exclude<Visao, "acessos">] ?? [];
+  const topoG = useRef<HTMLElement>(null);
   const lista = useMemo(() => {
     const qq = semAcento(q.trim()); let l = base;
     if (qq) l = l.filter((t) => { const pt = partes(t); return semAcento(t.descricao + " " + pt.cli + " " + pt.reus.join(" ")).includes(qq) || (t.processo_numero || "").includes(qq.replace(/\D/g, "") || "#"); });
     const by = { conclusao: (a: Tarefa, b: Tarefa) => (b.feito_em || b.vencimento || "").localeCompare(a.feito_em || a.vencimento || ""), prazo: (a: Tarefa, b: Tarefa) => (a.vencimento || "9").localeCompare(b.vencimento || "9"), cliente: (a: Tarefa, b: Tarefa) => partes(a).cli.localeCompare(partes(b).cli) };
     return [...l].sort(visao === "pend" || visao === "atrasadas" ? (ord === "conclusao" ? by.prazo : by[ord]) : by[ord]);
   }, [base, q, ord, visao]); // eslint-disable-line react-hooks/exhaustive-deps
+  const assinG = [visao, pessoa, per.join(), q, ord].join("|");
+  const pgG = usePaginacao("gestao", lista.length, assinG, 50, false); const pgAc = usePaginacao("acessos", listaAc.length, assinG, 50, false);
   if (!titular) return <div className="empty">A tela de Gestão é do titular do escritório.</div>;
   const linhas = equipe.map((p) => ({ p, n: grupos(todas.filter((t) => t.responsavel === p.id), per[0], per[1], t0) })).filter(({ n }) => n.conc.length || n.pend.length || n.atrasadas.length);
   const exportar = () => {
@@ -266,19 +270,19 @@ export default function Gestao() {
         <button className="gs-b" onClick={exportar}>{Ic.exportar} Exportar planilha</button>
         <button className="btn primary" disabled={gerandoPdf} onClick={relatorioPdf}>{gerandoPdf ? "Gerando…" : "📄 Relatório em PDF"}</button>
       </div>
-      {visao === "acessos" ? <section className="panel tscroll">
-        {acessos == null ? <div className="empty">Carregando acessos…</div> : listaAc.length ? <table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Colaborador</th><th>Dia</th><th>Primeiro acesso</th><th>Último uso <span className="muted">(provável saída)</span></th><th>Tempo ativo</th></tr></thead>
-          <tbody>{listaAc.map((a) => <tr key={a.usuario + a.dia}>
+      {visao === "acessos" ? <section className="panel tscroll" ref={topoG} tabIndex={-1} aria-label="Acessos ao sistema">
+        {acessos == null ? <div className="empty">Carregando acessos…</div> : listaAc.length ? <><table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Colaborador</th><th>Dia</th><th>Primeiro acesso</th><th>Último uso <span className="muted">(provável saída)</span></th><th>Tempo ativo</th></tr></thead>
+          <tbody>{listaAc.slice(pgAc.ini, pgAc.fim).map((a) => <tr key={a.usuario + a.dia}>
             <td><Avatar id={a.usuario} /></td><td className="gs-cli">{nome(a.usuario)}</td>
             <td className="mono">{dataBR(a.dia)} <span className="muted s">{paraData(a.dia).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "short" })}</span></td>
             <td className="mono">{hora(a.primeiro)}</td>
             <td className="mono">{agoraNoSistema(a) ? <span className="pill ok">no sistema agora</span> : hora(a.ultimo)}</td>
-            <td className="mono">{tempo(a.segundos)}</td></tr>)}</tbody></table>
+            <td className="mono">{tempo(a.segundos)}</td></tr>)}</tbody></table><Paginacao p={pgAc} rotulo="acessos" alvo={topoG} /></>
           : <div className="empty">Nenhum acesso registrado em {rotPer}. O registro começou a valer a partir da atualização de 21/10/2026.</div>}
         <div className="muted s" style={{ padding: "8px 14px 12px" }}>O sistema anota o horário enquanto a aba está aberta e na frente; o “último uso” é o último minuto em que a pessoa estava com o sistema aberto. O tempo ativo soma só os minutos com a aba visível.</div>
-      </section> : <section className="panel tscroll">
-        {lista.length ? <table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Cliente</th><th>Tarefa</th><th>Situação</th><th>Data compromisso</th><th>Conclusão</th></tr></thead>
-          <tbody>{lista.slice(0, 500).map((t) => { const pt = partes(t); const s = situacao(t); return (
+      </section> : <section className="panel tscroll" ref={topoG} tabIndex={-1} aria-label="Tarefas da Gestão">
+        {lista.length ? <><table className="grid gs-tab"><thead><tr><th style={{ width: 52 }} /><th>Cliente</th><th>Tarefa</th><th>Situação</th><th>Data compromisso</th><th>Conclusão</th></tr></thead>
+          <tbody>{lista.slice(pgG.ini, pgG.fim).map((t) => { const pt = partes(t); const s = situacao(t); return (
             <tr key={t.id} className="click" tabIndex={0} onClick={() => j.abrirTarefa(t.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirTarefa(t.id); }}>
               <td><Avatar id={t.responsavel} /></td>
               <td><div className="gs-cli">{(pt.cli || "—").toUpperCase()}</div>{pt.reus.map((r, i) => <div key={i} className="gs-reu">{r.toUpperCase()}</div>)}</td>
@@ -286,7 +290,7 @@ export default function Gestao() {
               <td><span className={"pill " + s.cls}>{s.txt}</span></td>
               <td className="mono">{dataBR(t.vencimento)}</td>
               <td className="mono">{t.feito_em ? dataHoraBR(t.feito_em) : <span className="muted">—</span>}</td>
-            </tr>); })}</tbody></table>
+            </tr>); })}</tbody></table><Paginacao p={pgG} rotulo="tarefas da Gestão" alvo={topoG} /></>
           : <div className="empty">Nenhuma tarefa {VISOES[visao].toLowerCase()} em {rotPer}.</div>}
         {lista.length > 500 && <div className="muted" style={{ padding: 12 }}>Mostrando 500 de {lista.length}. Use o filtro ou exporte.</div>}
       </section>}

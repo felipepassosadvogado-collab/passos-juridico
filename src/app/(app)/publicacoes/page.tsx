@@ -1,26 +1,34 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Paginacao, useFiltroUrl, usePaginacao } from "@/components/paginacao";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { useDados } from "@/lib/dados";
 import { bancoCurto, dataBR, nomeBonito } from "@/lib/formato";
 import { atoPub, prazoDaPublicacao, precisaAvisar } from "@/lib/regras";
 import { dataValida, diferencaDias, hojeBR, situacaoPrazo } from "@/lib/prazos";
-import type { Analise } from "@/lib/tipos";
+import type { Analise, Aviso, Tarefa } from "@/lib/tipos";
 import { useJanelas } from "@/components/janelas";
 import { useAnalisar } from "@/components/publicacoes";
 import { BotaoDjen } from "@/components/djen";
 import { Ic } from "@/components/ui";
 
 function Caixa() {
-  const { caixa, processos, tarefas, avisos } = useDados(); const j = useJanelas(); const { analisar, ocupado } = useAnalisar();
+  const { caixa, processos, tarefas, avisos, v } = useDados(); const j = useJanelas(); const { analisar, ocupado } = useAnalisar();
   const sp = useSearchParams();
   useEffect(() => { const a = Number(sp.get("abrir")); if (a && caixa.has(a)) j.abrirPub(a); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [filtro, setFiltro] = useState<"" | "vencidos" | "hoje" | "semana" | "sem">("");
+  const [filtroUrl, setFiltroUrl] = useFiltroUrl("filtro"); const filtro = (["vencidos", "hoje", "semana", "sem"].includes(filtroUrl) ? filtroUrl : "") as "" | "vencidos" | "hoje" | "semana" | "sem"; const setFiltro = setFiltroUrl;
+  const topo = useRef<HTMLDivElement>(null);
   const hoje = hojeBR();
+  // índices por publicação (antes, cada linha percorria todas as tarefas e todos os avisos do escritório)
+  const { tarPorPub, avPorPub } = useMemo(() => {
+    const tarPorPub = new Map<number, Tarefa[]>(); for (const t of tarefas.values()) if (t.publicacao_id != null) (tarPorPub.get(t.publicacao_id) || tarPorPub.set(t.publicacao_id, []).get(t.publicacao_id)!).push(t);
+    const avPorPub = new Map<number, Aviso>(); for (const a of avisos.values()) if (a.publicacao_id != null && !avPorPub.has(a.publicacao_id)) avPorPub.set(a.publicacao_id, a);
+    return { tarPorPub, avPorPub };
+  }, [tarefas, avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
   // cada publicação com o seu prazo (da tarefa criada, ou calculado pela análise do Claude)
   const todos = [...caixa.values()].map((c) => {
-    const ts = [...tarefas.values()].filter((t) => t.publicacao_id === c.id);
+    const ts = tarPorPub.get(c.id) || [];
     const pr = prazoDaPublicacao(c, ts); const k = pr.venc && dataValida(pr.venc) ? diferencaDias(pr.venc, hoje) : null;
     return { c, ts, pr, k, grupo: k == null ? 3 : k < 0 ? 0 : k === 0 ? 1 : 2 };
   });
@@ -29,6 +37,7 @@ function Caixa() {
   // vencidos primeiro (os mais atrasados no topo), depois os de hoje, depois os demais pela data da publicação
   const lista = todos.filter((x) => !filtro || (filtro === "vencidos" ? x.grupo === 0 : filtro === "hoje" ? x.grupo === 1 : filtro === "semana" ? x.k != null && x.k > 0 && x.k <= 5 : !x.c.analise))
     .sort((a, b) => a.grupo - b.grupo || (a.grupo <= 1 ? (a.pr.venc || "").localeCompare(b.pr.venc || "") : 0) || a.c.data.localeCompare(b.c.data) || a.c.id - b.c.id);
+  const pg = usePaginacao("publicacoes", lista.length, filtro);
   const itens = lista.map((x) => x.c);
   const sem = itens.filter((c) => !c.analise);
   const [prog, setProg] = useState<{ feito: number; total: number } | null>(null);
@@ -52,12 +61,12 @@ function Caixa() {
           .map(([k, rot, n, cor]) => (k === "" || n > 0) && <button key={k} className={"pub-chip " + cor + (filtro === k ? " on" : "")} onClick={() => setFiltro(k)}><b>{n}</b>{rot}</button>)}
       </div>}
       {!todos.length ? <div className="panel"><div className="empty"><strong>Tudo triado.</strong>A busca no DJEN pela OAB/SC 58.547 e pelo seu nome roda sozinha às 7h, 10h, 13h, 16h e 19h dos dias úteis (e no fim de semana) e coloca aqui cada publicação nova. Para cada uma, crie as tarefas e conclua a análise.</div></div> :
-        <div className="panel tscroll"><table className="grid pubs"><thead><tr><th>Data</th><th>Prazo</th><th>Cliente</th><th>Ato</th><th>Juízo · processo</th><th /></tr></thead>
-          <tbody>{lista.map(({ c, ts, pr, grupo }, i) => {
+        <><div className="panel tscroll" ref={topo} tabIndex={-1} aria-label="Publicações para triar"><table className="grid pubs"><caption className="sr-only">Publicações para triar, prazos vencidos primeiro{pg.paginas > 1 ? `, página ${pg.pagina} de ${pg.paginas}` : ""}. Enter abre a publicação.</caption><thead><tr><th>Data</th><th>Prazo</th><th>Cliente</th><th>Ato</th><th>Juízo · processo</th><th /></tr></thead>
+          <tbody>{lista.slice(pg.ini, pg.fim).map(({ c, ts, pr, grupo }, j0) => { const i = pg.ini + j0;
             const p = processos.get(c.processo_numero); const a = c.analise as Analise | null;
-            const nt = ts.length; const av = [...avisos.values()].find((x) => x.publicacao_id === c.id);
+            const nt = ts.length; const av = avPorPub.get(c.id);
             const sp = situacaoPrazo(pr.venc, hoje);
-            const sec = !filtro && (i === 0 || lista[i - 1].grupo !== grupo) ? ["Prazo vencido, sem andamento", "Vencem hoje", "Com prazo", "Sem prazo calculado (analise com o Claude ou crie a tarefa)"][grupo] : null;
+            const sec = !filtro && (j0 === 0 || lista[i - 1].grupo !== grupo) ? ["Prazo vencido, sem andamento", "Vencem hoje", "Com prazo", "Sem prazo calculado (analise com o Claude ou crie a tarefa)"][grupo] : null;
             return [sec && <tr key={"s" + grupo} className={"pub-sec" + (grupo <= 1 ? " late" : "")}><td colSpan={6}>{sec}</td></tr>,
               <tr key={c.id} className={"click" + (grupo === 0 ? " atras" : grupo === 1 ? " hoje" : "")} tabIndex={0} onClick={() => j.abrirPub(c.id)} onKeyDown={(e) => { if (e.key === "Enter") j.abrirPub(c.id); }}>
                 <td className="num">{dataBR(c.data).slice(0, 5)}</td>
@@ -69,7 +78,7 @@ function Caixa() {
                   {av ? <span className={"pill " + (av.status === "pendente" ? "soon" : "ok")}>{av.status === "avisado" ? "mensagem enviada" : av.status === "dispensado" ? "sem aviso" : "avisar cliente"}</span> : precisaAvisar(c) ? <span className="pill soon">avisar cliente?</span> : null}
                   {c.eproc && <span className="pill">eproc</span>}{ocupado.has(c.id) && <span className="pill acc">analisando</span>}</td>
               </tr>];
-          })}</tbody></table></div>}
+          })}</tbody></table></div><Paginacao p={pg} rotulo="publicações" alvo={topo} /></>}
     </>
   );
 }

@@ -1,6 +1,7 @@
 // Gravação das conversas do WhatsApp no banco (lado do servidor).
 import type { supabaseAdmin } from "@/lib/supabase/server";
-import { chaveFone } from "./whatsapp";
+import { chaveFone, soFone } from "./whatsapp";
+import { padraoDigitos } from "./lista";
 
 export type Adm = Awaited<ReturnType<typeof supabaseAdmin>>;
 
@@ -30,9 +31,21 @@ export async function conversaDe(adm: Adm, jid: string, telefone: string, nomeWa
   return nova;
 }
 
+/**
+ * Fichas que podem ter este telefone. O banco já filtra pelos 8 últimos dígitos (em qualquer formatação),
+ * em vez de devolver todas as fichas com telefone; quem chama continua comparando exatamente, como antes.
+ */
+export async function fichasComFone<T = { id: string; telefone: string }>(adm: Adm, tel: string | null | undefined, colunas = "id,telefone"): Promise<T[]> {
+  const d = soFone(tel); const pad = d.length >= 12 ? padraoDigitos(d.slice(-8)) : null;
+  let q = adm.from("clientes").select(colunas).not("telefone", "is", null);
+  if (pad) q = q.ilike("telefone", pad);
+  const { data } = await q.limit(5000);
+  return (data || []) as T[];
+}
+
 export async function clientePorFone(adm: Adm, tel: string): Promise<string | null> {
   const k = chaveFone(tel); if (!k) return null;
-  const { data } = await adm.from("clientes").select("id,telefone").not("telefone", "is", null).limit(5000);
+  const data = await fichasComFone(adm, tel);
   const achados = (data || []).filter((x: { telefone: string }) => String(x.telefone).split(/[\/,;]| e /).some((t) => chaveFone(t) === k));
   return achados.length === 1 ? achados[0].id : null; // dois clientes com o mesmo telefone: deixa para a equipe escolher
 }

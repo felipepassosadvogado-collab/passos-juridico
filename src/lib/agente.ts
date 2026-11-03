@@ -4,7 +4,8 @@
 import { MODELO_REDACAO } from "./claude";
 import { INSTANCIA, evo } from "./whatsapp";
 import { dataBR, idade, nomeBonito } from "./formato";
-import { enviarTextoNaConversa, foneBate, type Adm } from "./whatsappDb";
+import { enviarTextoNaConversa, fichasComFone, foneBate, type Adm } from "./whatsappDb";
+import { padraoDigitos } from "./lista";
 
 export type ConfigAgente = { modo?: "desligado" | "rascunho" | "automatico"; nome?: string; horario?: string; avisoGolpe?: string; instrucoes?: string };
 export const AVISO_GOLPE_PADRAO = "Atenção ao golpe do falso advogado: este é o único WhatsApp oficial do escritório, (47) 99642-4673. Nós nunca pedimos pagamento, PIX ou depósito para liberar valores de processo. Se alguém entrar em contato em nome do escritório pedindo dinheiro, não pague e fale com a gente por aqui.";
@@ -89,7 +90,8 @@ type Ctx = { adm: Adm; conv: Conv; acoes: string[] };
 
 async function identificar(c: Ctx, cpf: string, nasc?: string) {
   const d = soDig(cpf); if (d.length !== 11) return { erro: "CPF incompleto: peça os 11 dígitos." };
-  const { data: lista } = await c.adm.from("clientes").select("id,nome,cpf,telefone,nascimento").not("cpf", "is", null).limit(5000);
+  // o banco já filtra pelos 11 dígitos do CPF em qualquer formatação; a comparação exata continua abaixo
+  const { data: lista } = await c.adm.from("clientes").select("id,nome,cpf,telefone,nascimento").not("cpf", "is", null).ilike("cpf", padraoDigitos(d, 11)!).limit(5000);
   const cli = (lista || []).find((x: { cpf: string }) => soDig(x.cpf) === d);
   const est = c.conv.agente_estado || {};
   if (!cli) return { encontrado: false, orientacao: "Não há cliente com esse CPF. Confirme o número; se a pessoa for nova, trate como novo atendimento." };
@@ -289,7 +291,7 @@ export async function rodarAgente(adm: Adm, conversaId: string, msgId: string) {
     const msgs = ((ms || []) as Msg[]).reverse();
     const jaFalamos = msgs.some((m) => m.de_mim);
     // identificação pelo telefone: a conversa ligada a uma ficha, ou um único cliente com este telefone na ficha
-    const { data: clis } = await adm.from("clientes").select("id,nome,telefone").not("telefone", "is", null).limit(5000);
+    const clis = await fichasComFone<{ id: string; nome: string; telefone: string }>(adm, conv.telefone, "id,nome,telefone");
     const pelo = (clis || []).filter((x: { telefone: string }) => foneBate(x.telefone, conv.telefone));
     // (conversa ligada à ficha pela equipe também vale: é "outro número do cliente")
     const fichaFone = conv.cliente_id || (pelo.length === 1 ? pelo[0].id : null);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { ErroWa, INSTANCIA, RESUMO_TIPO, chaveFone, evo, soFone } from "@/lib/whatsapp";
-import { conversaDe } from "@/lib/whatsappDb";
+import { conversaDe, fichasComFone } from "@/lib/whatsappDb";
 
 export const maxDuration = 30;
 type Pedido = { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string }; origem?: "equipe" | "rascunho" | "aviso" };
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   else if (pd?.telefone) {
     // mensagem nova: só para quem é cliente do escritório
     const fone = soFone(pd.telefone); if (fone.length < 12) return erro("Telefone inválido.");
-    const { data: cs } = await adm.from("clientes").select("id,telefone").not("telefone", "is", null).limit(5000);
+    const cs = await fichasComFone(adm, fone);
     const ehCliente = (cs || []).some((c: { telefone: string }) => String(c.telefone).split(/[\/,;]| e /).some((t) => chaveFone(t) === chaveFone(fone)));
     // número avulso só quando a pessoa escolheu "novo contato" na tela
     if (!ehCliente && !pd.avulso && !pd.clienteId) return erro("Esse telefone não está na ficha de nenhum cliente. Use “Número avulso” em Nova conversa para falar com um contato novo.");

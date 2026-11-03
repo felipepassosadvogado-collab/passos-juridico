@@ -1,6 +1,6 @@
 "use client";
 // WhatsApp do escritório dentro do sistema: conversas, mensagens em tempo real, envio e conexão pelo QR-code.
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
@@ -12,13 +12,14 @@ export type WaMensagem = { id: string; conversa_id: string; wa_id: string | null
 
 // ───── conversas: uma só cópia para o menu e para a tela ─────
 type SB = ReturnType<typeof useDados>["sb"];
-const loja = { lista: new Map<string, WaConversa>(), v: 0, ouvintes: new Set<() => void>(), iniciado: false, falhou: false, carregado: false };
+const PAGINA_CONV = 800;
+const loja = { lista: new Map<string, WaConversa>(), v: 0, ouvintes: new Set<() => void>(), iniciado: false, falhou: false, carregado: false, temMais: false, maisCarregando: false };
 const avisar = () => { loja.v++; loja.ouvintes.forEach((f) => f()); };
 function iniciar(sb: SB) {
   if (loja.iniciado) return; loja.iniciado = true;
-  sb.from("wa_conversas").select("*").order("ultima_em", { ascending: false }).limit(800).then(({ data, error }: { data: WaConversa[] | null; error: unknown }) => {
+  sb.from("wa_conversas").select("*").order("ultima_em", { ascending: false }).limit(PAGINA_CONV).then(({ data, error }: { data: WaConversa[] | null; error: unknown }) => {
     if (error) { loja.falhou = true; avisar(); return; }
-    for (const c of data || []) loja.lista.set(c.id, c); loja.carregado = true; avisar();
+    for (const c of data || []) loja.lista.set(c.id, c); loja.carregado = true; loja.temMais = (data || []).length === PAGINA_CONV; avisar();
   });
   sb.channel("wa-conversas").on("postgres_changes", { event: "*", schema: "public", table: "wa_conversas" }, (p: { eventType: string; new: WaConversa; old: { id: string } }) => {
     if (p.eventType === "DELETE") loja.lista.delete(p.old.id); else loja.lista.set(p.new.id, p.new); avisar();
@@ -30,7 +31,15 @@ export function useWaConversas() {
   const v = useSyncExternalStore((f) => { loja.ouvintes.add(f); return () => { loja.ouvintes.delete(f); }; }, () => loja.v, () => 0);
   const lista = useMemo(() => [...loja.lista.values()].sort((a, b) => b.ultima_em.localeCompare(a.ultima_em)), [v]); // eslint-disable-line react-hooks/exhaustive-deps
   const naoLidas = useMemo(() => lista.reduce((s, c) => s + (c.arquivada ? 0 : c.nao_lidas || 0), 0), [lista]);
-  return { lista, naoLidas, semTabela: loja.falhou, carregado: loja.carregado, atualizar: (c: WaConversa) => { loja.lista.set(c.id, c); avisar(); } };
+  /** próxima página de conversas mais antigas, pelo cursor (data da última mensagem da conversa mais antiga na tela) */
+  const carregarMais = async () => {
+    if (loja.maisCarregando || !lista.length) return; loja.maisCarregando = true; avisar();
+    try {
+      const { data, error } = await sb.from("wa_conversas").select("*").lt("ultima_em", lista[lista.length - 1].ultima_em).order("ultima_em", { ascending: false }).limit(PAGINA_CONV);
+      if (!error) { for (const c of (data || []) as WaConversa[]) if (!loja.lista.has(c.id)) loja.lista.set(c.id, c); loja.temMais = (data || []).length === PAGINA_CONV; }
+    } finally { loja.maisCarregando = false; avisar(); }
+  };
+  return { lista, naoLidas, semTabela: loja.falhou, carregado: loja.carregado, temMais: loja.temMais, maisCarregando: loja.maisCarregando, carregarMais, atualizar: (c: WaConversa) => { loja.lista.set(c.id, c); avisar(); } };
 }
 
 /** nome para mostrar: o do cliente; senão o do WhatsApp; senão o telefone */
@@ -44,21 +53,40 @@ export function foneBR(t?: string | null) {
   return n.length === 11 ? `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}` : n.length === 10 ? `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}` : "+" + d;
 }
 
-/** mensagens de uma conversa, em tempo real */
+/** mensagens de uma conversa, em tempo real; as mais antigas vêm aos poucos ("Carregar mensagens anteriores") */
+const PAGINA_MSG = 300;
 export function useWaMensagens(conversaId: string | null) {
   const { sb } = useDados(); const [msgs, setMsgs] = useState<WaMensagem[]>([]); const [carregando, setCarregando] = useState(false);
+  const [temMais, setTemMais] = useState(false); const [maisCarregando, setMaisCarregando] = useState(false); const [erro, setErro] = useState(""); const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
-    if (!conversaId) { setMsgs([]); return; }
-    let vivo = true; setCarregando(true);
-    sb.from("wa_mensagens").select("*").eq("conversa_id", conversaId).order("em", { ascending: false }).limit(300).then(({ data }: { data: WaMensagem[] | null }) => { if (vivo) { setMsgs((data || []).sort((a, b) => a.em.localeCompare(b.em))); setCarregando(false); } });
+    if (!conversaId) { setMsgs([]); setTemMais(false); setErro(""); return; }
+    let vivo = true; setCarregando(true); setErro("");
+    sb.from("wa_mensagens").select("*").eq("conversa_id", conversaId).order("em", { ascending: false }).limit(PAGINA_MSG).then(({ data, error }: { data: WaMensagem[] | null; error: { message?: string } | null }) => {
+      if (!vivo) return;
+      if (error) { setErro(msgErro(error, "Não consegui carregar as mensagens.")); setCarregando(false); return; }
+      setMsgs((data || []).sort((a, b) => a.em.localeCompare(b.em))); setTemMais((data || []).length === PAGINA_MSG); setCarregando(false);
+    }, (e: unknown) => { if (vivo) { setErro(msgErro(e, "Não consegui carregar as mensagens.")); setCarregando(false); } });
     const ch = sb.channel("wa-msg-" + conversaId).on("postgres_changes", { event: "*", schema: "public", table: "wa_mensagens", filter: `conversa_id=eq.${conversaId}` }, (p: { eventType: string; new: WaMensagem }) => {
       if (p.eventType === "DELETE") return;
       setMsgs((l) => { const i = l.findIndex((x) => x.id === p.new.id); if (i >= 0) { const n = [...l]; n[i] = p.new; return n; } return [...l, p.new].sort((a, b) => a.em.localeCompare(b.em)); });
     }).subscribe();
     return () => { vivo = false; sb.removeChannel(ch); };
-  }, [sb, conversaId]);
+  }, [sb, conversaId, tentativa]);
   const juntar = (m: WaMensagem) => setMsgs((l) => (l.some((x) => x.id === m.id) ? l : [...l, m]));
-  return { msgs, carregando, juntar };
+  /** busca a página anterior pelo cursor (data da mensagem mais antiga já na tela) */
+  const anteriores = async () => {
+    if (!conversaId || !msgs.length || maisCarregando) return;
+    setMaisCarregando(true); setErro("");
+    try {
+      const { data, error } = await sb.from("wa_mensagens").select("*").eq("conversa_id", conversaId).lt("em", msgs[0].em).order("em", { ascending: false }).limit(PAGINA_MSG);
+      if (error) { setErro(msgErro(error, "Não consegui carregar as mensagens anteriores.")); return; }
+      const novas = (data || []) as WaMensagem[];
+      setMsgs((l) => { const ids = new Set(l.map((x) => x.id)); return [...novas.filter((x) => !ids.has(x.id)), ...l].sort((a, b) => a.em.localeCompare(b.em)); });
+      setTemMais(novas.length === PAGINA_MSG);
+    } catch (e) { setErro(msgErro(e, "Não consegui carregar as mensagens anteriores.")); }
+    finally { setMaisCarregando(false); }
+  };
+  return { msgs, carregando, juntar, temMais, maisCarregando, anteriores, erro, tentar: () => setTentativa((x) => x + 1) };
 }
 
 export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string }; origem?: "equipe" | "rascunho" | "aviso" }) {
@@ -183,9 +211,17 @@ function PlayerAudio({ msgId }: { msgId: string }) {
   );
 }
 
-export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: boolean }) {
+export function FioWa({ msgs, carregando, temMais, maisCarregando, onAnteriores, erro, onTentar }: { msgs: WaMensagem[]; carregando: boolean; temMais?: boolean; maisCarregando?: boolean; onAnteriores?: () => void; erro?: string; onTentar?: () => void }) {
   const { nome, aviso } = useDados(); const visor = useVisor(); const ref = useRef<HTMLDivElement>(null); const [abrindo, setAbrindo] = useState("");
-  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length]);
+  // mensagem nova no fim: desce até ela; mensagens antigas carregadas no topo: mantém o que a pessoa estava lendo no mesmo lugar
+  const ultima = msgs.length ? msgs[msgs.length - 1].id : ""; const primeira = msgs.length ? msgs[0].id : "";
+  const antes = useRef<{ primeira: string; altura: number; topo: number }>({ primeira: "", altura: 0, topo: 0 });
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return; const a = antes.current;
+    if (a.primeira && primeira !== a.primeira && msgs.some((m) => m.id === a.primeira)) el.scrollTop = el.scrollHeight - a.altura + a.topo;
+    else el.scrollTop = el.scrollHeight;
+  }, [ultima, primeira]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pedirAnteriores = () => { const el = ref.current; if (el) antes.current = { primeira, altura: el.scrollHeight, topo: el.scrollTop }; onAnteriores?.(); };
   const abrir = async (m: WaMensagem) => {
     setAbrindo(m.id);
     try {
@@ -199,8 +235,10 @@ export function FioWa({ msgs, carregando }: { msgs: WaMensagem[]; carregando: bo
   let dia = ""; const hoje = hojeBR();
   return (
     <div className="chat-fio" ref={ref}>
-      {carregando && !msgs.length && <div className="muted" style={{ margin: "auto" }}>Carregando…</div>}
-      {!carregando && !msgs.length && <div className="muted" style={{ margin: "auto" }}>Nenhuma mensagem ainda.</div>}
+      {erro && <div className="banner erro" role="alert" style={{ margin: 8 }}>{erro} {onTentar && <button className="reflink" onClick={onTentar}>Tentar de novo</button>}</div>}
+      {temMais && onAnteriores && !erro && <button className="btn ghost wa-anteriores" disabled={maisCarregando} aria-busy={maisCarregando} onClick={pedirAnteriores}>{maisCarregando ? "Carregando mensagens anteriores…" : "Carregar mensagens anteriores"}</button>}
+      {carregando && !msgs.length && <div className="muted" style={{ margin: "auto" }} role="status">Carregando mensagens…</div>}
+      {!carregando && !msgs.length && !erro && <div className="muted" style={{ margin: "auto" }}>Nenhuma mensagem ainda.</div>}
       {msgs.map((m) => {
         const d = new Date(m.em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); const sep = d !== dia; dia = d;
         const s = m.de_mim ? SINAL[m.status || "enviada"] : null;

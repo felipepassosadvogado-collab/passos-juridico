@@ -155,7 +155,7 @@ function Agenda() {
             <label className="ag-chk"><input type="checkbox" checked={soFlag} onChange={(e) => setSoFlag(e.target.checked)} />Só importantes e urgentes</label>
             <button className="btn ghost" onClick={exportar}>{Ic.exportar}Exportar</button>
           </div>
-          <section className="panel">{pronto ? <TabelaTarefas lista={lista} /> : <div className="empty">Carregando…</div>}</section>
+          <section className="panel">{pronto ? <TabelaTarefas lista={lista} filtros={[q, ord, soFlag, f.resp, f.tipos.join(","), f.sits.join(","), f.base].join("|")} /> : <div className="empty">Carregando…</div>}</section>
           {outrosLista.length > 0 && <section className="panel"><div className="ph"><h3>Intimações, audiências, coletas e avisos</h3><span className="muted" style={{ fontSize: 12 }}>dos últimos 30 e dos próximos 120 dias</span></div>
             <div className="rows">{outrosLista.map((i) => <div key={i.id} className="row click" onClick={i.abrir} {...teclado(i.abrir)}><span className="pill" style={{ borderLeft: "3px solid " + TIPOS[i.tipo].cor }}>{dataBR(i.dia).slice(0, 5)}{i.hora ? " " + i.hora : ""}</span>
               <div className="main"><div className="t">{i.titulo}</div><div className="s">{i.cli}{i.reu && i.reu !== "—" ? " · " + i.reu : ""}</div></div>{i.resp ? <Avatar id={i.resp} pequeno /> : <span />}</div>)}</div></section>}

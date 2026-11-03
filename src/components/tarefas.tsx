@@ -2,6 +2,7 @@
 // Tarefas: criação, lista enxuta, tabela de atividades e o detalhe com todo o fluxo
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
+import { Paginacao, usePaginacao } from "./paginacao";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
@@ -286,8 +287,11 @@ export function FormEdicao({ t, onFim }: { t: Tarefa; onFim: () => void }) {
   );
 }
 
-export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lista: Tarefa[]; mostrarProc?: boolean; limite?: number }) {
+export function TabelaTarefas({ lista, mostrarProc = true, limite = 300, filtros = "" }: { lista: Tarefa[]; mostrarProc?: boolean; limite?: number; /** busca/filtros atuais: quando mudam, volta à página 1 */ filtros?: string }) {
   const { nome, eu, titular, aviso } = useDados(); const acoes = useAcoesTarefa(); const partes = usePartes(); const j = useJanelas();
+  // paginação só na tela (a lista e a ordem continuam as mesmas); o tamanho escolhido fica lembrado
+  const topo = useRef<HTMLDivElement>(null);
+  const pg = usePaginacao("tarefas", lista.length, filtros, limite >= 1000 ? 100 : 50, false); // a página só se ajusta se a lista encolher
   if (!lista.length) return <div className="empty">Nenhuma tarefa.</div>;
   const hoje = hojeBR();
   const flag = (t: Tarefa, campo: "importante" | "urgente") => {
@@ -295,9 +299,9 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
     acoes.flag(t, campo);
   };
   return (
-    <div className="tscroll">
-      <table className="grid ativ"><thead><tr><th /><th>Tarefa</th>{mostrarProc && <th>Partes</th>}<th>Prazo fatal</th><th>Responsável</th></tr></thead>
-        <tbody>{lista.slice(0, limite).flatMap((t) => {
+    <><div className="tscroll" ref={topo} tabIndex={-1} aria-label="Lista de tarefas">
+      <table className="grid ativ"><caption className="sr-only">Tarefas{pg.paginas > 1 ? `, página ${pg.pagina} de ${pg.paginas}` : ""}. Enter abre a tarefa.</caption><thead><tr><th /><th>Tarefa</th>{mostrarProc && <th>Partes</th>}<th>Prazo fatal</th><th>Responsável</th></tr></thead>
+        <tbody>{lista.slice(pg.ini, pg.fim).flatMap((t) => {
           const done = t.status === "feito"; const fatal = !!t.vencimento && !done && t.vencimento <= hoje;
           const { cli, reus } = partes(t); const rc = rotuloCorrecao(t, nome);
           return [
@@ -315,8 +319,7 @@ export function TabelaTarefas({ lista, mostrarProc = true, limite = 300 }: { lis
             </tr>,
           ];
         })}</tbody></table>
-      {lista.length > limite && <div className="muted" style={{ padding: "10px 16px" }}>Mostrando {limite} de {lista.length}. Use a busca.</div>}
-    </div>
+    </div><Paginacao p={pg} rotulo="tarefas" alvo={topo} /></>
   );
 }
 

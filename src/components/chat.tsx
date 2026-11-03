@@ -190,13 +190,37 @@ export function Compositor({ conversa, placeholder, onEnviada }: { conversa: str
 }
 
 /** fio de mensagens que desce sozinho para a última quando chega mensagem nova */
+const PAGINA_CHAT = 200;
 export function Fio({ conversa, vazio }: { conversa: string; vazio: string }) {
-  const { daConversa, marcarLida } = useChat(); const msgs = daConversa(conversa);
+  const { daConversa, marcarLida } = useChat(); const { sb, mensagens, aplicar } = useDados(); const msgs = daConversa(conversa);
   const ref = useRef<HTMLDivElement>(null); const noFundo = useRef(true);
-  useLayoutEffect(() => { const f = ref.current; if (f && noFundo.current) f.scrollTop = f.scrollHeight; }, [msgs.length, conversa]);
+  // a carga inicial traz as 800 mensagens mais recentes do escritório; se chegou nesse limite, pode haver mais antigas desta conversa
+  const [temMais, setTemMais] = useState<boolean | null>(null); const [carregando, setCarregando] = useState(false); const [erro, setErro] = useState("");
+  const podeTerMais = temMais ?? mensagens.size >= 800;
+  const antes = useRef<{ altura: number; topo: number } | null>(null);
+  useLayoutEffect(() => {
+    const f = ref.current; if (!f) return;
+    if (antes.current) { f.scrollTop = f.scrollHeight - antes.current.altura + antes.current.topo; antes.current = null; return; }
+    if (noFundo.current) f.scrollTop = f.scrollHeight;
+  }, [msgs.length, conversa]);
+  useEffect(() => { setTemMais(null); setErro(""); }, [conversa]);
   useEffect(() => { marcarLida(conversa); }, [conversa, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anteriores = async () => {
+    const f = ref.current; if (!msgs.length || carregando) return;
+    setCarregando(true); setErro("");
+    try {
+      const { data, error } = await sb.from("mensagens").select("*").eq("conversa", conversa).lt("em", msgs[0].em).order("em", { ascending: false }).limit(PAGINA_CHAT);
+      if (error) { setErro(msgErro(error, "Não consegui carregar as mensagens anteriores.")); return; }
+      if (f) antes.current = { altura: f.scrollHeight, topo: f.scrollTop };
+      for (const m of data || []) aplicar("mensagens", m);
+      setTemMais((data || []).length === PAGINA_CHAT); if (!(data || []).length) antes.current = null;
+    } catch (e) { setErro(msgErro(e, "Não consegui carregar as mensagens anteriores.")); }
+    finally { setCarregando(false); }
+  };
   return (
     <div className="chat-fio" ref={ref} onScroll={(e) => { const x = e.currentTarget; noFundo.current = x.scrollHeight - x.scrollTop - x.clientHeight < 60; }}>
+      {erro && <div className="banner erro" role="alert">{erro} <button className="reflink" onClick={anteriores}>Tentar de novo</button></div>}
+      {podeTerMais && msgs.length > 0 && !erro && <button className="btn ghost wa-anteriores" disabled={carregando} aria-busy={carregando} onClick={anteriores}>{carregando ? "Carregando mensagens anteriores…" : "Carregar mensagens anteriores"}</button>}
       {msgs.length ? <Bolhas msgs={msgs} /> : <div className="empty">{vazio}</div>}
     </div>
   );

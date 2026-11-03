@@ -12,7 +12,7 @@ type Filtro = "todas" | "naolidas" | "equipe" | "clientes" | "sem";
 
 function WhatsApp() {
   const sp = useSearchParams(); const { sb, clientes, processos, aviso, aplicar } = useDados(); const j = useJanelas();
-  const { lista, semTabela, atualizar, carregado: loaded } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
+  const { lista, semTabela, atualizar, carregado: loaded, temMais: maisConvs, maisCarregando: carregandoConvs, carregarMais: maisConversas } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
   const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
   const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [buscaNova, setBuscaNova] = useState(false);
@@ -27,7 +27,7 @@ function WhatsApp() {
     if (ja) { setAtiva(ja.id); setNova(null); } else if (c.telefone) { setAtiva(null); setNova({ clienteId: pedidoCli }); } else aviso("Este cliente não tem telefone na ficha.");
   }, [pedidoCli, clientes.size, lista.length, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const conv = ativa ? lista.find((c) => c.id === ativa) || null : null;
-  const { msgs, carregando, juntar } = useWaMensagens(conv?.id || null);
+  const { msgs, carregando, juntar, temMais, maisCarregando, anteriores, erro: erroMsgs, tentar } = useWaMensagens(conv?.id || null);
   // abriu a conversa: zera as não lidas
   useEffect(() => {
     if (!conv || !conv.nao_lidas) return;
@@ -105,6 +105,7 @@ function WhatsApp() {
               <span className="cc"><span className="cn">{nomeDe(c)}</span><span className="cs">{c.ultima_texto || foneBR(c.telefone)}</span></span>
               <span className="wa-dir"><span className="muted s">{d === hoje ? dataHoraBR(c.ultima_em).slice(11) : dataHoraBR(c.ultima_em).slice(0, 5)}</span>{c.aguardando_equipe ? <span title="Pediu atendimento da equipe">🙋</span> : null}{c.nao_lidas ? <span className="count hot">{c.nao_lidas}</span> : null}</span></button>; })}
           {!vis.length && <div className="muted chat-dica">{lista.length ? "Nenhuma conversa com esse filtro." : conectado ? "Nenhuma mensagem ainda. As novas aparecem aqui assim que chegarem." : "Conecte o WhatsApp para as conversas aparecerem aqui."}</div>}
+          {maisConvs && <button className="btn ghost wa-anteriores" disabled={carregandoConvs} aria-busy={carregandoConvs} onClick={maisConversas}>{carregandoConvs ? "Carregando conversas mais antigas…" : "Carregar conversas mais antigas"}</button>}
         </aside>
         <section className="chat-thread">
           {conv || nova ? <>
@@ -122,7 +123,7 @@ function WhatsApp() {
               </div>
             </header>
             {conv && <AgenteNaConversa conv={conv} onAtualizar={atualizar} onEnviada={juntar} />}
-            {conv ? <FioWa msgs={msgs} carregando={carregando} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
+            {conv ? <FioWa msgs={msgs} carregando={carregando} temMais={temMais} maisCarregando={maisCarregando} onAnteriores={anteriores} erro={erroMsgs} onTentar={tentar} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
             <CompositorWa conversaId={conv?.id || null} telefone={nova?.telefone || cli?.telefone} nome={nova?.nome} avulso={!cli || !!nova?.outroNumero} clienteId={nova?.clienteId} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
               onEnviada={(m, id) => { if (!conv) { sb.from("wa_conversas").select("*").eq("id", id).single().then(({ data }: { data: WaConversa | null }) => { if (data) atualizar(data); setNova(null); setAtiva(id); }); } else juntar(m); }} />
           </> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Escolha uma conversa.</div></div>}
