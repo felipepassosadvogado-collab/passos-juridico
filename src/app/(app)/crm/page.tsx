@@ -1,4 +1,5 @@
 "use client";
+import { classificarFases } from "@/lib/acoesLote";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDados, useOpcoesEquipe, msgErro } from "@/lib/dados";
@@ -13,7 +14,7 @@ import { Avatar, Ic, teclado } from "@/components/ui";
 import { honorarios, pctPadrao } from "@/lib/valores";
 
 function CRM() {
-  const d = useDados(); const { processos, casos, tarefas, sb, aplicar, registrar, aviso, titular, nome, v } = d;
+  const d = useDados(); const { processos, casos, tarefas, sb, aplicar, registrar, aviso, titular, nome, v, eu } = d;
   const j = useJanelas(); const router = useRouter(); const sp = useSearchParams(); const ops = useOpcoesEquipe();
   const [q, setQ] = useState({ quadro: sp.get("caso") ? "pre" : "judicial", busca: "", banco: "", resp: "" });
   const [msg, setMsg] = useState(""); const [exp, setExp] = useState(false); const [conf, setConf] = useState(false); const [ocupado, setOcupado] = useState(false);
@@ -45,7 +46,8 @@ function CRM() {
   const sugerir = async () => {
     if (!conf) { setConf(true); setMsg(`${semFase.length} processos sem fase têm sugestão pelo juízo, classe ou último ato. Clique de novo em “Sugerir fases automaticamente” para aplicar. Os demais continuam em “A classificar”.`); return; }
     setConf(false); setMsg(""); setOcupado(true); let k = 0;
-    try { for (const p of semFase) { const f = sugerirFase(p); const { data } = await sb.from("processos").update({ fase: f }).eq("numero", p.numero).select().single(); if (data) { aplicar("processos", data); registrar({ processo_numero: p.numero, tipo: "fase", dados: { fase: f + " (sugestão automática)" } }); k++; } } aviso(k + " processos classificados."); }
+    // em lote: uma gravação por fase e uma para o histórico (antes: duas por processo)
+    try { const r = await classificarFases(sb, semFase.map((p) => ({ numero: p.numero, fase: sugerirFase(p) })), eu.id); for (const p of r.linhas) { aplicar("processos", p); k++; } aviso(r.erro ? `${k} processos classificados; os demais não foram gravados (${msgErro(r.erro)}).` : k + " processos classificados."); }
     finally { setOcupado(false); }
   };
   const av = (id?: string | null) => id ? <Avatar id={id} pequeno /> : null;

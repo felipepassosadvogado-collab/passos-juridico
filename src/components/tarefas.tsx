@@ -2,6 +2,7 @@
 // Tarefas: criação, lista enxuta, tabela de atividades e o detalhe com todo o fluxo
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
+import { atualizarAgrupado } from "@/lib/emLote";
 import { Paginacao, usePaginacao } from "./paginacao";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -65,7 +66,8 @@ export function useAcoesTarefa() {
     if (t.tipo !== "Protocolo da inicial" && t.tipo !== "Protocolo da peça") return;
     const alvos = [...tarefas.values()].filter((x) => x.status === "aprovada" && x.responsavel === eu.id &&
       (t.origem_id ? x.id === t.origem_id : t.tipo === "Protocolo da inicial" && !!t.caso_id && x.caso_id === t.caso_id && x.tipo === "Elaboração de inicial"));
-    for (const x of alvos) { const r = await sb.from("tarefas").update({ status: "feito" }).eq("id", x.id).select().single(); if (r.data) aplicar("tarefas", r.data); }
+    if (!alvos.length) return; // uma gravação para todas (antes: uma por tarefa)
+    const r = await atualizarAgrupado(sb, "tarefas", "id", alvos.map((x) => ({ id: x.id, campos: { status: "feito" } }))); for (const x of r.linhas) aplicar("tarefas", x);
   };
   const gravar = async (t: Tarefa, campos: Partial<Tarefa>, ok?: string) => {
     let r: { data: unknown; error: unknown };

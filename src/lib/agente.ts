@@ -144,7 +144,8 @@ async function consultar(c: Ctx, numero: string) {
 
 async function avisarEquipe(c: Ctx, texto: string, extra: { processo_numero?: string | null; caso_id?: string | null } = {}) {
   const { data: eq } = await c.adm.from("profiles").select("id").eq("ativo", true);
-  for (const id of (eq || []).map((x: { id: string }) => x.id)) await c.adm.from("notificacoes").insert({ para: id, de: null, tipo: "whatsapp", texto: texto.slice(0, 500), ...extra });
+  // uma gravação para toda a equipe (antes: uma por pessoa)
+  if (eq?.length) await c.adm.from("notificacoes").insert(eq.map((x: { id: string }) => ({ para: x.id, de: null, tipo: "whatsapp", texto: texto.slice(0, 500), ...extra })));
 }
 
 async function transferir(c: Ctx, motivo: string, resumo: string) {

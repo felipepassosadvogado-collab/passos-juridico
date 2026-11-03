@@ -1,10 +1,11 @@
 "use client";
+import { vincularProcessos } from "@/lib/acoesLote";
 import { teclado } from "@/components/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { Paginacao, useFiltroUrl, usePaginacao } from "@/components/paginacao";
-import { useDados } from "@/lib/dados";
+import { useDados, msgErro } from "@/lib/dados";
 import { nomeBonito, semAcento } from "@/lib/formato";
 import { soDigitos } from "@/lib/cnj";
 import { useJanelas } from "@/components/janelas";
@@ -26,17 +27,13 @@ export default function Clientes() {
   const pg = usePaginacao("clientes", l.length, q);
   /** liga os processos sem ficha ao cliente de mesmo nome (cria a ficha quando não existe) */
   const vincular = async () => {
-    setOcupado(true); let ok = 0;
-    const porNome = new Map([...clientes.values()].map((c) => [semAcento(c.nome), c.id]));
+    setOcupado(true);
     try {
-      for (const p of processos.values()) {
-        if (p.cliente_id) continue; const nome = (p.cliente_nome || "").split(" / ")[0].trim();
-        if (!nome || /\bbanco\b|s\.?a\.?$|ltda|instituto nacional|sigilo/i.test(nome)) continue;
-        let id = porNome.get(semAcento(nome));
-        if (!id) { const { data } = await sb.from("clientes").insert({ nome: nomeBonito(nome) }).select().single(); if (!data) continue; aplicar("clientes", data); id = data.id; porNome.set(semAcento(nome), id!); }
-        const { data } = await sb.from("processos").update({ cliente_id: id }).eq("numero", p.numero).select().single(); if (data) { aplicar("processos", data); ok++; }
-      }
-      aviso(ok + " processos ligados a clientes.");
+      // em lote: fichas novas numa gravação só e processos agrupados por ficha (antes: uma ou duas gravações por processo)
+      const r = await vincularProcessos(sb, [...processos.values()], [...clientes.values()]);
+      for (const c of r.fichasNovas) aplicar("clientes", c);
+      for (const p of r.processos) aplicar("processos", p);
+      aviso(r.erro ? `${r.ligados} processos ligados; houve um erro em parte deles (${msgErro(r.erro)}).` : r.ligados + " processos ligados a clientes.");
     } finally { setOcupado(false); }
   };
   return (

@@ -1,5 +1,6 @@
 "use client";
 // Avisar o cliente de perícia, audiência ou coleta de assinatura, pelo WhatsApp.
+import { atualizarAgrupado } from "@/lib/emLote";
 import { linkSeguro } from "@/lib/link";
 import { enviarWhatsapp } from "./whatsapp";
 import { useEffect, useRef, useState } from "react";
@@ -187,16 +188,12 @@ export function useAcompanhamentoAviso() {
   };
   /** se a data do ato mudar, o lembrete muda junto */
   const ajustarLembrete = async (av: Aviso, novaData: string | null) => {
-    for (const t of tarefasDo(av).filter((x) => x.tipo === "Contato com o cliente" && /lembrar do ato/i.test(x.descricao))) {
-      if (!novaData) continue;
-      const { data } = await sb.from("tarefas").update({ vencimento: isoData(somaDias(paraData(novaData), -3)) }).eq("id", t.id).select().single();
-      if (data) aplicar("tarefas", data);
-    }
+    const lembretes = tarefasDo(av).filter((x) => x.tipo === "Contato com o cliente" && /lembrar do ato/i.test(x.descricao));
+    if (novaData && lembretes.length) { const r = await atualizarAgrupado(sb, "tarefas", "id", lembretes.map((t) => ({ id: t.id, campos: { vencimento: isoData(somaDias(paraData(novaData), -3)) } }))); for (const x of r.linhas) aplicar("tarefas", x); }
   };
   const concluirVerificacao = async (av: Aviso) => {
-    for (const t of tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && x.responsavel === eu.id)) {
-      const { data } = await sb.from("tarefas").update({ status: "feito" }).eq("id", t.id).select().single(); if (data) aplicar("tarefas", data);
-    }
+    const ver = tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && x.responsavel === eu.id);
+    if (ver.length) { const r = await atualizarAgrupado(sb, "tarefas", "id", ver.map((t) => ({ id: t.id, campos: { status: "feito" } }))); for (const x of r.linhas) aplicar("tarefas", x); }
   };
   const confirmou = async (av: Aviso, sim: boolean) => {
     const { data, error } = await sb.from("avisos_cliente").update(sim ? { confirmado_em: new Date().toISOString(), confirmado_por: eu.id, dificuldade: null, dificuldade_em: null } : { confirmado_em: null, confirmado_por: null }).eq("id", av.id).select().single();
@@ -212,7 +209,8 @@ export function useAcompanhamentoAviso() {
     if (texto) {
       registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "comentario", dados: { texto: "Dificuldade para encontrar o cliente (" + resumo(av) + "): " + texto } });
       // a conferência da confirmação fica urgente
-      for (const t of tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && !x.urgente)) { const { data: d2 } = await sb.from("tarefas").update({ urgente: true }).eq("id", t.id).select().single(); if (d2) aplicar("tarefas", d2); }
+      const ver = tarefasDo(av).filter((x) => x.tipo === "Verificar retorno do cliente" && !x.urgente);
+      if (ver.length) { const r = await atualizarAgrupado(sb, "tarefas", "id", ver.map((t) => ({ id: t.id, campos: { urgente: true } }))); for (const x of r.linhas) aplicar("tarefas", x); }
     }
     aviso(texto ? "Marcado: dificuldade de contato com o cliente." : "Dificuldade de contato desmarcada."); return true;
   };

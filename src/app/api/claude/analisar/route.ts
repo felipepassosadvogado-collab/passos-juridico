@@ -20,15 +20,25 @@ export async function POST(req: Request) {
     for (let i = 0; i < pubs.length; i += 10) {
       const lote = pubs.slice(i, i + 10);
       const res = await analisarPublicacoes(lote.map((p) => ({ ...p, mascara: masc[p.processo_numero] })));
+      const comAto: { p: (typeof lote)[number]; an: (typeof res)[string] }[] = [];
       for (const p of lote) {
         const an = res[String(p.id)]; if (!an) continue;
+        // cada publicação tem a sua análise: continua uma gravação por publicação
         const { data } = await m.sb.from("publicacoes").update({ analise: an }).eq("id", p.id).select().single();
         if (data) atualizadas.push(data);
-        if (an.intimarCliente) {
-          const { data: ja } = await m.sb.from("avisos_cliente").select("id").eq("publicacao_id", p.id).maybeSingle();
-          if (!ja) {
-            const { data: av } = await m.sb.from("avisos_cliente").insert({ processo_numero: p.processo_numero, publicacao_id: p.id, ...avisoDaAnalise(an) }).select().single();
-            if (av) { avisos.push(av); await m.sb.from("eventos").insert({ processo_numero: p.processo_numero, publicacao_id: p.id, tipo: "aviso_criado", dados: { texto: (av.tipo_evento || "Ato") + " (pela análise do Claude)" }, por: m.user.id }); }
+        if (an.intimarCliente) comAto.push({ p, an });
+      }
+      // avisos ao cliente e histórico em lote: 3 consultas por lote de 10 (antes: até 3 por publicação)
+      if (comAto.length) {
+        const { data: ja } = await m.sb.from("avisos_cliente").select("publicacao_id").in("publicacao_id", comAto.map((x) => x.p.id));
+        const tem = new Set((ja || []).map((x: { publicacao_id: number }) => x.publicacao_id));
+        const novos = comAto.filter((x) => !tem.has(x.p.id)).map(({ p, an }) => ({ processo_numero: p.processo_numero, publicacao_id: p.id, ...avisoDaAnalise(an) }));
+        if (novos.length) {
+          let { data: avs, error: eAv } = await m.sb.from("avisos_cliente").insert(novos).select();
+          if (eAv) { avs = []; for (const x of novos) { const r = await m.sb.from("avisos_cliente").insert(x).select().single(); if (r.data) avs.push(r.data); } } // um com problema não impede os outros
+          if (avs?.length) {
+            avisos.push(...avs);
+            await m.sb.from("eventos").insert(avs.map((av: { processo_numero: string; publicacao_id: number; tipo_evento?: string | null }) => ({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "aviso_criado", dados: { texto: (av.tipo_evento || "Ato") + " (pela análise do Claude)" }, por: m.user.id })));
           }
         }
       }

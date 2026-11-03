@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bancoDosReus, nomeBonito, semAcento } from "./formato";
 import { hojeBR, isoData, paraData, somaDias } from "./prazos";
 import { analisarPublicacoes } from "./claude";
+import { pedacos } from "./emLote";
 import { avisoDaAnalise } from "./regras";
 
 export const OAB = { numero: "58547", uf: "SC" };
@@ -189,15 +190,20 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
     let clientes: { id: string; nome: string; cpf: string | null }[] | null = null;
     const carregarClientes = async () => { if (clientes) return clientes; const out: { id: string; nome: string; cpf: string | null }[] = []; for (let de = 0; ; de += 1000) { const { data } = await adm.from("clientes").select("id,nome,cpf").range(de, de + 999); out.push(...(data || [])); if (!data || data.length < 1000) break; } return (clientes = out); };
     const semFicha: string[] = [];
+    // processos já cadastrados: uma consulta para todos (antes: uma por processo)
+    const jaCadastrados = new Map<string, { numero: string; reus: string[] | null; cliente_nome: string | null; cliente_id: string | null; ultima_data: string | null }>();
+    for (const lote of pedacos([...grupos.keys()], 300)) { const { data } = await adm.from("processos").select("numero,reus,cliente_nome,cliente_id,ultima_data").in("numero", lote); for (const p of data || []) jaCadastrados.set(p.numero, p); }
+    const processosNovos: Record<string, unknown>[] = []; const eventosNovos: Record<string, unknown>[] = []; const publicacoesNovas: Record<string, any>[] = [];
     for (const [numero, its] of grupos) {
       its.sort((a, b) => (a.data_disponibilizacao || "").localeCompare(b.data_disponibilizacao || ""));
       const ult = its[its.length - 1];
-      const { data: p0 } = await adm.from("processos").select("numero,reus,cliente_nome,cliente_id,ultima_data").eq("numero", numero).maybeSingle();
+      const p0 = jaCadastrados.get(numero) || null;
       const reus = [...(p0?.reus || [])]; let autores: string[] = [];
       for (const it of its) for (const d of it.destinatarios || []) { if (d.polo === "P" && !reus.some((r) => chaveNome(r) === chaveNome(d.nome))) reus.push(d.nome); if (d.polo === "A" && !autores.includes(d.nome)) autores.push(d.nome); }
       autores = autores.map((x) => nomeBonito(x)).filter((x) => !NAO_CLIENTE.test(x));
       const ultData = (ult.data_disponibilizacao || "").slice(0, 10);
       const ultimoAto = ult.tipoDocumento && ult.tipoDocumento !== "Outros" ? ult.tipoDocumento : ult.tipoComunicacao || "";
+      let ligarCliente: string | null = null;
       if (!p0 || !p0.cliente_id) {
         // liga ao cliente pelo nome do autor: ficha igual, ou parecida se houver uma só; nome ambíguo fica para a equipe decidir
         let clienteId: string | null = p0?.cliente_id || null; const autor = autores[0] || "";
@@ -206,19 +212,19 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
           if (achado.id) clienteId = achado.id;
           else if (achado.como === "nenhum") { const { data: novo } = await adm.from("clientes").insert({ nome: autor, criado_por: null }).select("id,nome,cpf").single(); if (novo) { clienteId = novo.id; (await carregarClientes()).push(novo); } }
           else semFicha.push(`${autor} (${numero})`);
-          if (achado.como === "parecido" && p0) await adm.from("eventos").insert({ processo_numero: numero, tipo: "comentario", por: null, dados: { texto: `Processo ligado à ficha do cliente por nome parecido (no DJEN: ${autor}). Confira.` } });
+          if (achado.como === "parecido" && p0) eventosNovos.push({ processo_numero: numero, tipo: "comentario", por: null, dados: { texto: `Processo ligado à ficha do cliente por nome parecido (no DJEN: ${autor}). Confira.` } });
         }
         if (!p0) {
-          await adm.from("processos").insert({
+          processosNovos.push({
             numero, tribunal: ult.siglaTribunal || null, orgao: ult.nomeOrgao || null, classe: ult.nomeClasse || null, cliente_id: clienteId,
             cliente_nome: autores.join(" / "), reus, banco: bancoDosReus(reus) || null, ultima_data: ultData || null, ultimo_ato: ultimoAto || null,
           });
-          await adm.from("eventos").insert({ processo_numero: numero, tipo: "processo_cadastrado", dados: { texto: "Processo novo encontrado no DJEN." }, por: null });
+          eventosNovos.push({ processo_numero: numero, tipo: "processo_cadastrado", dados: { texto: "Processo novo encontrado no DJEN." }, por: null });
           res.processosNovos++;
-        } else if (clienteId) await adm.from("processos").update({ cliente_id: clienteId }).eq("numero", numero);
+        } else if (clienteId) ligarCliente = clienteId; // vai junto na mesma gravação do processo, logo abaixo
       }
       if (p0) {
-        const upd: Record<string, any> = { reus, banco: bancoDosReus(reus) || null };
+        const upd: Record<string, any> = { reus, banco: bancoDosReus(reus) || null, ...(ligarCliente ? { cliente_id: ligarCliente } : {}) };
         if (!p0.cliente_nome && autores.length) upd.cliente_nome = autores.join(" / ");
         if (!p0.ultima_data || ultData >= p0.ultima_data) Object.assign(upd, { ultima_data: ultData || null, ultimo_ato: ultimoAto || null, orgao: ult.nomeOrgao || undefined, classe: ult.nomeClasse || undefined });
         for (const k of Object.keys(upd)) if (upd[k] === undefined) delete upd[k];
@@ -230,16 +236,29 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
         return { id: +it.id, processo_numero: numero, data, tipo_com: it.tipoComunicacao || null, tipo_doc: it.tipoDocumento || null, orgao: it.nomeOrgao || null,
           texto: limparHtml(it.texto).slice(0, 60000), link: it.link || null, triagem: caixa ? "pendente" : "concluida" };
       });
+      publicacoesNovas.push(...linhas);
+    }
+    // gravação em lote (antes: um insert de processo, um evento e um upsert de publicações por processo)
+    // se um lote falhar, refaz um a um, como era antes (um registro com problema não derruba os outros)
+    for (const lote of pedacos(processosNovos, 200)) { const { error } = await adm.from("processos").insert(lote); if (error) for (const x of lote) await adm.from("processos").insert(x); }
+    for (const lote of pedacos(eventosNovos, 500)) { const { error } = await adm.from("eventos").insert(lote); if (error) for (const x of lote) await adm.from("eventos").insert(x); }
+    const gravar = async (linhas: Record<string, any>[]) => {
       const { error } = await adm.from("publicacoes").upsert(linhas, { onConflict: "id", ignoreDuplicates: true });
-      if (error) throw new ErroDjen("não consegui gravar as publicações: " + error.message);
+      if (error) return error;
       res.novas += linhas.length; res.caixa += linhas.filter((l) => l.triagem === "pendente").length;
-      novasIds.push(...linhas.filter((l) => l.triagem === "pendente").map((l) => l.id));
+      novasIds.push(...linhas.filter((l) => l.triagem === "pendente").map((l) => l.id)); return null;
+    };
+    for (const linhas of pedacos(publicacoesNovas, 200)) {
+      if (!(await gravar(linhas))) continue;
+      // lote recusado: grava processo por processo para salvar o que der e apontar o que falhou (mesmo comportamento de antes)
+      const porProc = new Map<string, Record<string, any>[]>(); for (const l of linhas) (porProc.get(l.processo_numero) || porProc.set(l.processo_numero, []).get(l.processo_numero)!).push(l);
+      for (const l of porProc.values()) { const e = await gravar(l); if (e) throw new ErroDjen("não consegui gravar as publicações: " + e.message); }
     }
     // avisa a equipe do que precisa de olho humano
     if (res.processosNovos || semFicha.length) {
       const { data: tit } = await adm.from("profiles").select("id").eq("papel", "titular").eq("ativo", true);
       const txt = [res.processosNovos ? `${res.processosNovos} processo(s) novo(s) encontrado(s) no DJEN` : "", semFicha.length ? `sem ficha certa (nome parecido com mais de um cliente): ${semFicha.slice(0, 5).join("; ")}` : ""].filter(Boolean).join(" · ");
-      for (const t of tit || []) await adm.from("notificacoes").insert({ para: t.id, de: null, tipo: "djen", texto: txt.slice(0, 500) });
+      if (tit?.length) await adm.from("notificacoes").insert(tit.map((t: { id: string }) => ({ para: t.id, de: null, tipo: "djen", texto: txt.slice(0, 500) })));
     }
     res.completa = completa;
     const erroCritico = criticasFalharam.length ? criticasFalharam.map((c) => `${c.termo}: ${c.erro}`).join("; ") : null;
@@ -273,13 +292,18 @@ export async function analisarPendentes(adm: SupabaseClient, ids: number[]): Pro
   for (let i = 0; i < lista.length; i += 10) {
     const lote = lista.slice(i, i + 10);
     const r = await analisarPublicacoes(lote);
+    const comAto: { p: (typeof lote)[number]; an: (typeof r)[string] }[] = [];
     for (const p of lote) {
       const an = r[String(p.id)]; if (!an) continue;
-      await adm.from("publicacoes").update({ analise: an }).eq("id", p.id); n++;
-      if (an.intimarCliente) {
-        const { data: ja } = await adm.from("avisos_cliente").select("id").eq("publicacao_id", p.id).maybeSingle();
-        if (!ja) await adm.from("avisos_cliente").insert({ processo_numero: p.processo_numero, publicacao_id: p.id, criado_por: null, ...avisoDaAnalise(an) });
-      }
+      await adm.from("publicacoes").update({ analise: an }).eq("id", p.id); n++; // cada uma tem a sua análise: continua uma gravação por publicação
+      if (an.intimarCliente) comAto.push({ p, an });
+    }
+    // avisos ao cliente: uma consulta para ver quais já existem e uma para criar os que faltam (antes: duas por publicação)
+    if (comAto.length) {
+      const { data: ja } = await adm.from("avisos_cliente").select("publicacao_id").in("publicacao_id", comAto.map((x) => x.p.id));
+      const tem = new Set((ja || []).map((x: { publicacao_id: number }) => x.publicacao_id));
+      const novos = comAto.filter((x) => !tem.has(x.p.id)).map(({ p, an }) => ({ processo_numero: p.processo_numero, publicacao_id: p.id, criado_por: null, ...avisoDaAnalise(an) }));
+      if (novos.length) { const { error } = await adm.from("avisos_cliente").insert(novos); if (error) for (const x of novos) await adm.from("avisos_cliente").insert(x); }
     }
   }
   return n;

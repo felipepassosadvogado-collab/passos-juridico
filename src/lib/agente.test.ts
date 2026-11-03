@@ -5,6 +5,7 @@ import { rodarAgente } from "./agente";
 type Linha = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 let db: Record<string, Linha[]>;
 let seq = 0;
+const gravacoes: string[] = []; // tabelas de cada inserção, para conferir que a equipe é avisada numa gravação só
 function q(tab: string) {
   const f: ((r: Linha) => boolean)[] = []; let acao: "select" | "update" | "insert" | "upsert" = "select"; let dados: Linha | Linha[] = {}; let lim = 0; let ord: [string, boolean] | null = null;
   const val = (v: string) => (v === "null" ? null : v);
@@ -18,7 +19,7 @@ function q(tab: string) {
     update: (d: Linha) => ((acao = "update"), (dados = d), api), insert: (d: Linha) => ((acao = "insert"), (dados = d), api), upsert: (d: Linha) => ((acao = "upsert"), (dados = d), api),
     run() {
       db[tab] ||= [];
-      if (acao === "insert" || acao === "upsert") { const l = [dados].flat().map((d) => ({ id: "x" + ++seq, ...d })); db[tab].push(...l); return l; }
+      if (acao === "insert" || acao === "upsert") { gravacoes.push(tab); const l = [dados].flat().map((d) => ({ id: "x" + ++seq, ...d })); db[tab].push(...l); return l; }
       let l = db[tab].filter((r) => f.every((g) => g(r)));
       if (acao === "update") { for (const r of l) Object.assign(r, dados); return l; }
       if (ord) { const [c, asc] = ord; l = [...l].sort((a, b) => (asc ? 1 : -1) * String(a[c]).localeCompare(String(b[c]))); }
@@ -38,6 +39,7 @@ const usar = (name: string, input: unknown) => ({ stop_reason: "tool_use", conte
 const resultado = (corpo: any) => JSON.parse(corpo.messages.at(-1).content[0].content); // eslint-disable-line @typescript-eslint/no-explicit-any
 
 beforeEach(() => {
+  gravacoes.length = 0;
   process.env.ANTHROPIC_API_KEY = "k"; process.env.AGENTE_ESPERA_MS = "0"; process.env.EVOLUTION_URL = "http://evo"; process.env.EVOLUTION_API_KEY = "k";
   db = {
     config: [{ chave: "agente", valor: { modo: "automatico", nome: "Ana" } }],
@@ -110,6 +112,7 @@ describe("assistente do WhatsApp", () => {
     await rodarAgente(adm, "w1", chega("tem um desconto no meu benefício que eu não fiz"));
     expect(db.casos[0]).toMatchObject({ nome: "JOÃO SILVA", etapa: "Primeiro atendimento", banco: "Banco Pan" });
     expect(db.notificacoes).toHaveLength(2); expect(db.notificacoes[0].tipo).toBe("whatsapp"); expect(db.wa_conversas[0].aguardando_equipe).toBe(true);
+    expect(gravacoes.filter((t) => t === "notificacoes")).toHaveLength(1); // anti N+1: 2 pessoas, 1 inserção
     await rodarAgente(adm, "w1", chega("obrigado")); expect(pedidos).toHaveLength(2);
   });
 
