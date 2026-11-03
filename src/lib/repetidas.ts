@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pedacos } from "./emLote";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export type PubComparavel = { id: number; processo_numero: string; data: string; texto: string | null; triagem?: string; analise?: any };
+export type PubComparavel = { id: number; processo_numero: string; data: string; texto: string | null; tipo_doc?: string | null; orgao?: string | null; triagem?: string; analise?: any };
 
 const DIAS_JANELA = 7; // republicação do mesmo ato costuma vir em poucos dias
 const LIMIAR = 0.9; // 90% dos trechos de 3 palavras em comum
@@ -16,9 +16,20 @@ function palavras(t: string | null) {
 function trechos(p: string[]) { const s = new Set<string>(); for (let i = 0; i + 2 < p.length; i++) s.add(p[i] + " " + p[i + 1] + " " + p[i + 2]); return s; }
 const dias = (a: string, b: string) => Math.abs(Date.parse(a + "T12:00:00Z") - Date.parse(b + "T12:00:00Z")) / 86400000;
 
-/** o texto é o mesmo ato? (igual, ou quase igual: muda só o cabeçalho do destinatário) */
+// no eproc, um julgamento da Turma Recursal/TRF gera relatório, voto e acórdão (ementa): o DJEN manda cada um como
+// uma comunicação "Acórdão", com textos diferentes. No mesmo processo, no mesmo dia e no mesmo órgão, é um julgamento só.
+const JULGAMENTO = /ac[oó]rd[aã]o|relat[oó]rio|voto|ementa/i;
+const DISPOSITIVO = /\bacordam\b|decidiu|por unanimidade|por maioria|(negar|dar|negou|deu) (parcial )?provimento/i;
+export function mesmoJulgamento(a: PubComparavel, b: PubComparavel): boolean {
+  if (a.processo_numero !== b.processo_numero || a.id === b.id || !a.data || a.data !== b.data) return false;
+  if (!JULGAMENTO.test(a.tipo_doc || "") || !JULGAMENTO.test(b.tipo_doc || "")) return false;
+  return !a.orgao || !b.orgao || a.orgao === b.orgao;
+}
+
+/** o texto é o mesmo ato? (igual, ou quase igual: muda só o cabeçalho do destinatário; ou partes do mesmo julgamento) */
 export function mesmoAto(a: PubComparavel, b: PubComparavel): boolean {
   if (a.processo_numero !== b.processo_numero || a.id === b.id) return false;
+  if (mesmoJulgamento(a, b)) return true;
   if (!a.data || !b.data || dias(a.data, b.data) > DIAS_JANELA) return false;
   const pa = palavras(a.texto), pb = palavras(b.texto);
   if (!pa.length || !pb.length) return false; // sem texto não dá para afirmar que é o mesmo ato
@@ -39,7 +50,7 @@ export function mesmoAto(a: PubComparavel, b: PubComparavel): boolean {
 export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>): { id: number; de: number }[] {
   const porProc = new Map<string, PubComparavel[]>();
   for (const p of pubs) (porProc.get(p.processo_numero) || porProc.set(p.processo_numero, []).get(p.processo_numero)!).push(p);
-  const peso = (p: PubComparavel) => [comTarefa.has(p.id) ? 0 : 1, p.triagem === "concluida" ? 0 : 1, p.analise && !p.analise.repetidaDe ? 0 : 1, p.data, p.id] as const;
+  const peso = (p: PubComparavel) => [comTarefa.has(p.id) ? 0 : 1, p.triagem === "concluida" ? 0 : 1, p.analise && !p.analise.repetidaDe ? 0 : 1, DISPOSITIVO.test((p.texto || "").slice(0, 20000)) ? 0 : 1, p.data, p.id] as const; // no julgamento, fica o acórdão (com o resultado), não o relatório
   const antes = (a: PubComparavel, b: PubComparavel) => { const x = peso(a), y = peso(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; };
   const out: { id: number; de: number }[] = [];
   for (const lista of porProc.values()) {
@@ -56,13 +67,13 @@ export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>): {
 
 /** passa na caixa (pendentes) e tira as cópias; roda a cada busca no DJEN, então também limpa as repetidas antigas */
 export async function tirarRepetidasDaCaixa(adm: SupabaseClient): Promise<number[]> {
-  const { data: pend } = await adm.from("publicacoes").select("id,processo_numero,data,texto,triagem,analise").eq("triagem", "pendente").limit(2000);
+  const { data: pend } = await adm.from("publicacoes").select("id,processo_numero,data,texto,tipo_doc,orgao,triagem,analise").eq("triagem", "pendente").limit(2000);
   if (!pend?.length) return [];
   const procs = [...new Set(pend.map((p: PubComparavel) => p.processo_numero))];
   const desde = new Date(Date.parse(pend.reduce((m: string, p: PubComparavel) => (p.data < m ? p.data : m), pend[0].data) + "T12:00:00Z") - DIAS_JANELA * 86400000).toISOString().slice(0, 10);
   const todas = new Map<number, PubComparavel>(pend.map((p: PubComparavel) => [+p.id, p]));
   for (const lote of pedacos(procs, 200)) {
-    const { data } = await adm.from("publicacoes").select("id,processo_numero,data,texto,triagem,analise").in("processo_numero", lote).eq("triagem", "concluida").gte("data", desde);
+    const { data } = await adm.from("publicacoes").select("id,processo_numero,data,texto,tipo_doc,orgao,triagem,analise").in("processo_numero", lote).eq("triagem", "concluida").gte("data", desde);
     for (const p of data || []) todas.set(+p.id, p);
   }
   const comTarefa = new Set<number>();
@@ -75,7 +86,7 @@ export async function tirarRepetidasDaCaixa(adm: SupabaseClient): Promise<number
   for (const r of rep) { // poucas por busca; cada uma guarda de qual é cópia
     const velha = todas.get(r.id)?.analise || {};
     const { error } = await adm.from("publicacoes").update({ triagem: "concluida", concluida_em: agora,
-      analise: { ...velha, repetidaDe: r.de, resumo: velha.resumo || `Publicação repetida no DJEN: é o mesmo ato da comunicação nº ${r.de}, que ficou na caixa.` } }).eq("id", r.id).eq("triagem", "pendente");
+      analise: { ...velha, repetidaDe: r.de, resumo: velha.resumo || `Publicação repetida no DJEN: é o mesmo ato (ou outra parte do mesmo julgamento: relatório, voto, acórdão) da comunicação nº ${r.de}, que ficou na caixa.` } }).eq("id", r.id).eq("triagem", "pendente");
     if (!error) feitas.push(r.id);
   }
   return feitas;

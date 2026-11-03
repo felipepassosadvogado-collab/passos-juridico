@@ -1,6 +1,6 @@
 // Publicação repetida no DJEN: o mesmo ato em duas comunicações sai da caixa; atos diferentes continuam todos.
 import { describe, expect, it } from "vitest";
-import { acharRepetidas, mesmoAto, tirarRepetidasDaCaixa } from "./repetidas";
+import { acharRepetidas, mesmoAto, mesmoJulgamento, tirarRepetidasDaCaixa } from "./repetidas";
 import { bancoContado } from "./teste/bancoContado";
 
 const N = "50170340520254047201";
@@ -48,5 +48,25 @@ describe("na busca do DJEN", () => {
     expect(p1.triagem).toBe("concluida"); expect(p1.analise.repetidaDe).toBe(2);
     expect(b.db.publicacoes.filter((p) => p.triagem === "pendente").map((p) => p.id)).toEqual([2, 3, 4]);
     expect(await tirarRepetidasDaCaixa(b.sb)).toEqual([]); // repetir não faz nada
+  });
+});
+
+describe("julgamento na Turma Recursal (relatório, voto e acórdão no mesmo dia)", () => {
+  const T = "3ª Turma Recursal de Santa Catarina";
+  const rel = { ...pub(41, "RELATÓRIO. Trata-se de recurso inominado interposto pelo Banco C6 Consignado contra sentença que declarou nulo o contrato."), tipo_doc: "Acórdão", orgao: T };
+  const voto = { ...pub(42, "VOTO. O recurso não merece provimento. O laudo pericial concluiu que a assinatura não partiu do autor."), tipo_doc: "Acórdão", orgao: T };
+  const acord = { ...pub(43, "ACÓRDÃO. A 3ª Turma Recursal decidiu, por unanimidade, NEGAR PROVIMENTO ao recurso."), tipo_doc: "Acórdão", orgao: T };
+  it("vira um só, e o que fica é o acórdão (com o resultado)", () => {
+    expect(acharRepetidas([rel, voto, acord], new Set())).toEqual([{ id: 41, de: 43 }, { id: 42, de: 43 }]);
+  });
+  it("outro dia, outro órgão ou despacho: continuam separados", () => {
+    expect(mesmoJulgamento(acord, { ...voto, data: "2026-11-10" })).toBe(false);
+    expect(mesmoJulgamento(acord, { ...voto, orgao: "1ª Turma Recursal de Santa Catarina" })).toBe(false);
+    expect(mesmoAto({ ...acord, tipo_doc: "Despacho" }, { ...voto, tipo_doc: "Despacho" })).toBe(false);
+  });
+  it("na busca: as três vindas na caixa ficam uma", async () => {
+    const b = bancoContado({ publicacoes: [rel, voto, acord].map((x) => ({ ...x })), tarefas: [] });
+    expect((await tirarRepetidasDaCaixa(b.sb)).sort()).toEqual([41, 42]);
+    expect(b.db.publicacoes.filter((p) => p.triagem === "pendente").map((p) => p.id)).toEqual([43]);
   });
 });
