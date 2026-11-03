@@ -935,3 +935,4 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .tscroll[tabindex="-1"]:focus{outline:none}
 .wa-anteriores{align-self:center;margin:8px auto}
 @media (max-width:700px){.pagin-tam{margin-left:0}.pagin-nums .btn{padding-inline:10px}}
+.cron{margin-left:6px;opacity:.75;font-size:.92em;font-variant-numeric:tabular-nums}

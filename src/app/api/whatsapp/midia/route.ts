@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -7,7 +8,7 @@ export const maxDuration = 60;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "audio/ogg": "ogg", "video/mp4": "mp4" };
 
 /** baixa a foto, áudio ou documento recebido (do servidor do WhatsApp) e guarda no Storage; devolve um link temporário */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const { id, mp4 } = await req.json().catch(() => ({})) as { id?: string; mp4?: boolean };
   const adm = await supabaseAdmin();
@@ -35,3 +36,6 @@ export async function POST(req: Request) {
   const { data: atual } = await adm.from("wa_mensagens").select("anexo_nome,anexo_mime").eq("id", msg.id).maybeSingle();
   return NextResponse.json({ url: link?.signedUrl || null, caminho, nome: atual?.anexo_nome || msg.anexo_nome, mime: atual?.anexo_mime || msg.anexo_mime });
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("whatsapp.midia", () => tratar(req), {}, (r) => ({ status: r.status })); }

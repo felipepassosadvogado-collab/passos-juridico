@@ -1,5 +1,6 @@
 "use client";
 // Avisar o cliente de perícia, audiência ou coleta de assinatura, pelo WhatsApp.
+import { Cronometro } from "./carregando";
 import { atualizarAgrupado } from "@/lib/emLote";
 import { linkSeguro } from "@/lib/link";
 import { enviarWhatsapp } from "./whatsapp";
@@ -112,7 +113,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
       </div>
       <label className="f">Mensagem<textarea rows={6} value={texto} onChange={(e) => { setTexto(e.target.value); setMexeu(true); }} /></label>
       <div className="tools">
-        <button className="btn" disabled={escrevendo} onClick={escreverClaude} title="O Claude confere o local, as orientações e a publicação e escreve a mensagem">{escrevendo ? "O Claude está escrevendo…" : "✨ Escrever mensagem com o Claude"}</button>
+        <button className="btn" disabled={escrevendo} onClick={escreverClaude} title="O Claude confere o local, as orientações e a publicação e escreve a mensagem">{escrevendo ? <>O Claude está escrevendo… <Cronometro /></> : "✨ Escrever mensagem com o Claude"}</button>
         {mexeu && <button className="reflink" onClick={() => { setMexeu(false); setTexto(padrao); setAlertas([]); }}>Voltar à mensagem padrão</button>}
       </div>
       {alertas.length > 0 && <div className="banner"><strong>O Claude pede para conferir:</strong><ul style={{ margin: "4px 0 0 18px", padding: 0 }}>{alertas.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}

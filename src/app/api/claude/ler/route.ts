@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -6,7 +7,7 @@ import { pedirJson, blocoArquivo, PROMPT_DOCS, promptExtrato, ErroClaude } from 
 export const maxDuration = 120;
 
 /** lê documentos do cliente ou o extrato do INSS (arquivos enviados antes para a pasta temporária) */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const corpo = await req.json().catch(() => null) as { tipo?: string; arquivos?: { caminho: string; mime: string }[]; banco?: string } | null;
   const arquivos = (corpo?.arquivos || []).filter((a) => typeof a.caminho === "string" && a.caminho.startsWith(`leitura/${m.user.id}/`)).slice(0, 8);
@@ -29,3 +30,6 @@ export async function POST(req: Request) {
     await adm.storage.from("documentos").remove(arquivos.map((a) => a.caminho)).catch(() => {});
   }
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("claude.ler", () => tratar(req), {}, (r) => ({ status: r.status })); }

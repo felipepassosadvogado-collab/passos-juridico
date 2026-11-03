@@ -1,6 +1,7 @@
 // Ponte com a Evolution API (servidor próprio que mantém o WhatsApp do escritório conectado pelo QR-code).
 // Só no servidor: a chave fica nas variáveis da Vercel (EVOLUTION_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCIA, WHATSAPP_WEBHOOK_SECRET).
 
+import { estourouTempo } from "./operacao";
 export const INSTANCIA = () => process.env.EVOLUTION_INSTANCIA || "escritorio";
 export const configurado = () => !!(process.env.EVOLUTION_URL && process.env.EVOLUTION_API_KEY);
 
@@ -12,8 +13,13 @@ export async function evo<T = unknown>(caminho: string, metodo: "GET" | "POST" |
   const base = process.env.EVOLUTION_URL!.replace(/\/+$/, "");
   let r: Response;
   try {
-    r = await fetch(base + caminho, { method: metodo, headers: { apikey: process.env.EVOLUTION_API_KEY!, "content-type": "application/json" }, body: corpo ? JSON.stringify(corpo) : undefined, cache: "no-store" });
-  } catch { throw new ErroWa("Não consegui falar com o servidor do WhatsApp. Ele está ligado?"); }
+    // tempo-limite: se o servidor do WhatsApp travar (ex.: VPS em manutenção), a requisição não fica presa até o fim do prazo da Vercel
+    const espera = Number(process.env.EVOLUTION_TIMEOUT_MS) || 30000 + (Number((corpo as { delay?: number } | undefined)?.delay) || 0);
+    r = await fetch(base + caminho, { method: metodo, headers: { apikey: process.env.EVOLUTION_API_KEY!, "content-type": "application/json" }, body: corpo ? JSON.stringify(corpo) : undefined, cache: "no-store", signal: AbortSignal.timeout(espera) });
+  } catch (e) {
+    if (estourouTempo(e)) { console.warn("[operacao] " + JSON.stringify({ op: "evolution", caminho: caminho.split("/").slice(0, 3).join("/"), ok: false, erro: "tempo-limite" })); throw new ErroWa("O servidor do WhatsApp não respondeu a tempo. Tente de novo em instantes.", 504); }
+    throw new ErroWa("Não consegui falar com o servidor do WhatsApp. Ele está ligado?");
+  }
   const txt = await r.text(); let j: unknown = null; try { j = txt ? JSON.parse(txt) : null; } catch { j = txt; }
   if (!r.ok) {
     const m = JSON.stringify(j).slice(0, 300);

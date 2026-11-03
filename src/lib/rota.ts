@@ -1,3 +1,4 @@
+import { logOperacao } from "./operacao";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { supabaseServidor } from "./supabase/server";
@@ -21,14 +22,15 @@ export const erro = (msg: string, status = 400) => NextResponse.json({ erro: msg
 
 /** resposta de tarefa demorada (Claude lendo um processo inteiro): manda um espaço a cada 8 s para o navegador
  *  (o Safari derruba a conexão depois de ~60 s sem receber nada) e, no fim, o JSON. Erros vão como { erro } com status 200. */
-export function respostaLonga(trabalho: () => Promise<{ status?: number; corpo: unknown }>) {
+export function respostaLonga(trabalho: () => Promise<{ status?: number; corpo: unknown }>, op = "tarefa.longa") {
   const enc = new TextEncoder();
   const corpo = new ReadableStream<Uint8Array>({
     async start(c) {
       c.enqueue(enc.encode(" "));
       const t = setInterval(() => { try { c.enqueue(enc.encode(" ")); } catch { /* já fechou */ } }, 8000);
-      try { const r = await trabalho(); c.enqueue(enc.encode(JSON.stringify(r.corpo))); }
-      catch (e) { console.warn("respostaLonga", e); c.enqueue(enc.encode(JSON.stringify({ erro: "Não consegui terminar agora. Tente de novo." }))); }
+      const t0 = Date.now();
+      try { const r = await trabalho(); c.enqueue(enc.encode(JSON.stringify(r.corpo))); logOperacao(op, t0, !(r.corpo as { erro?: string } | null)?.erro, { fim: "completo" }, (r.corpo as { erro?: string } | null)?.erro); }
+      catch (e) { logOperacao(op, t0, false, { fim: "falhou" }, e); console.warn("respostaLonga", e); c.enqueue(enc.encode(JSON.stringify({ erro: "Não consegui terminar agora. Tente de novo." }))); }
       finally { clearInterval(t); c.close(); }
     },
   });

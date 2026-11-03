@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { RESUMO_TIPO, lerMensagem, telefoneDaChave } from "@/lib/whatsapp";
 import { conversaDe, guardarEstado } from "@/lib/whatsappDb";
 import { rodarAgente } from "@/lib/agente";
+import { medir } from "@/lib/operacao";
 
 export const maxDuration = 120;
 type Adm = Awaited<ReturnType<typeof supabaseAdmin>>;
@@ -43,7 +44,7 @@ async function mensagem(adm: Adm, d: Record<string, any>) { // eslint-disable-li
   await adm.from("wa_conversas").update({ ultima_em: em, ultima_texto: (m.texto || RESUMO_TIPO[m.tipo] || "").slice(0, 200), arquivada: false,
     ...(deMim ? {} : { nao_lidas: (conv.nao_lidas || 0) + 1 }) }).eq("id", conv.id);
   const msgId = ins[0].id as string; const waId = key.id as string | undefined;
-  if (!deMim) after(() => rodarAgente(adm, conv.id, msgId));
+  if (!deMim) after(() => medir("whatsapp.agente", () => rodarAgente(adm, conv.id, msgId), { conversa: conv.id }).catch(() => { /* já registrado no log */ }));
   else if (waId) after(async () => {
     // mensagem enviada pelo celular / WhatsApp Web (não pelo sistema): a equipe assumiu, o agente fica quieto por 12 horas
     await new Promise((ok) => setTimeout(ok, 5000)); // dá tempo do sistema registrar o que ele mesmo enviou

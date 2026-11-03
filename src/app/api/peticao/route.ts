@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import JSZip from "jszip";
 import { membroDaRota, erro } from "@/lib/rota";
 import { MODELO_INICIAL_DOCX } from "@/modelos/modeloInicial";
@@ -12,7 +13,7 @@ type Pedido = {
 const xmlEsc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** gera a petição inicial em Word a partir do modelo do escritório */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const pi = await req.json().catch(() => null) as Pedido | null;
   if (!pi?.clienteId) return erro("Escolha o cliente.");
@@ -72,3 +73,6 @@ export async function POST(req: Request) {
     "content-disposition": `attachment; filename="${nome}"`, "x-nome-arquivo": encodeURIComponent(nome),
   } });
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("peticao.inicial", () => tratar(req), {}, (r) => ({ status: r.status })); }

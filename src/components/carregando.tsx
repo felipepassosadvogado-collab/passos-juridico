@@ -85,3 +85,16 @@ export function FaixaRede({ onVoltou }: { onVoltou: () => void }) {
   if (voltou) return <div className="faixa-rede ok" role="status">Conexão restabelecida. Dados atualizados.</div>;
   return null;
 }
+
+/** cronômetro "1:23" enquanto algo demorado está rodando */
+export function useCronometro(ativo: boolean) {
+  const [s, setS] = useState(0);
+  useEffect(() => { if (!ativo) { setS(0); return; } const t0 = Date.now(); const x = setInterval(() => setS(Math.floor((Date.now() - t0) / 1000)), 1000); return () => clearInterval(x); }, [ativo]);
+  return ativo ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "";
+}
+
+/** tempo decorrido ("1:23") ao lado do texto de uma operação demorada; conta a partir de quando aparece */
+export function Cronometro() {
+  const t = useCronometro(true);
+  return <span className="cron mono" aria-hidden="true">{t}</span>;
+}

@@ -1,6 +1,7 @@
 "use client";
 // Botão "Emitir kit procuração": procuração, contrato de honorários (com o percentual), declaração de
 // hipossuficiência e declaração de residência, já com os dados da ficha (lidos pelo Claude ou digitados).
+import { Cronometro } from "./carregando";
 import { useEffect, useState } from "react";
 import { useDados } from "@/lib/dados";
 import { moeda, nomeBonito } from "@/lib/formato";
@@ -77,8 +78,8 @@ export function KitProcuracao({ f, bancoSugerido = "" }: { f: ReturnType<typeof 
             {cs.length > 1 && <button type="button" className="icb" aria-label="Tirar contrato" onClick={() => setCs(cs.filter((_, j) => j !== i))}>✕</button>}
           </div>)}
           <div className="tools"><button type="button" className="reflink" onClick={() => setCs([...cs, { numero: "", averbacao: "", parcela: "" }])}>+ Contrato</button>
-            {extratos.length > 0 ? <button type="button" className="btn ghost" disabled={lendo} onClick={() => lerExtrato(extratos.map((x) => x.file))}>{lendo ? "Lendo o extrato…" : "Ler contratos do extrato anexado"}</button>
-              : <label className="btn ghost" style={{ cursor: "pointer" }}>{lendo ? "Lendo o extrato…" : "Ler contratos de um extrato (HISCON)"}<input type="file" hidden accept="application/pdf,image/*" multiple onChange={(e) => { lerExtrato(Array.from(e.target.files || [])); e.target.value = ""; }} /></label>}</div>
+            {extratos.length > 0 ? <button type="button" className="btn ghost" disabled={lendo} onClick={() => lerExtrato(extratos.map((x) => x.file))}>{lendo ? <>Lendo o extrato… <Cronometro /></> : "Ler contratos do extrato anexado"}</button>
+              : <label className="btn ghost" style={{ cursor: "pointer" }}>{lendo ? <>Lendo o extrato… <Cronometro /></> : "Ler contratos de um extrato (HISCON)"}<input type="file" hidden accept="application/pdf,image/*" multiple onChange={(e) => { lerExtrato(Array.from(e.target.files || [])); e.target.value = ""; }} /></label>}</div>
         </div>
         {faltam.length > 0 && <div className="banner">Ainda falta: {faltam.join(", ")}. Pode emitir assim mesmo; o que faltar sai entre [colchetes].</div>}
         <div className="tools"><button type="button" className="btn primary" disabled={gerando} onClick={emitir}>{gerando ? "Emitindo…" : "Emitir kit (Word)"}</button></div>

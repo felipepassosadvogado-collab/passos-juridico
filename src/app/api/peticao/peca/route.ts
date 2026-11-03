@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { membroDaRota, erro, respostaLonga } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { pedirJson, blocoArquivo, ErroClaude, MODELO_REDACAO } from "@/lib/claude";
@@ -12,7 +13,7 @@ type Pedido = { numero: string; publicacaoId?: number | null; tarefaId?: string 
 const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
 
 /** redige a peça com o Claude e devolve o Word no papel timbrado do escritório */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const pd = await req.json().catch(() => null) as Pedido | null;
   if (!pd?.numero || !pd.tipo?.trim()) return erro("Escolha o tipo de peça.");
@@ -90,5 +91,8 @@ export async function POST(req: Request) {
     console.warn("peça", e); return { corpo: { erro: "Não consegui gerar a peça agora. Tente de novo." } };
   } finally {
     if (arquivos.length) await adm.storage.from("documentos").remove(arquivos.map((a) => a.caminho)).catch(() => {});
-  } });
+  } }, "peticao.peca.redacao");
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("peticao.peca", () => tratar(req), {}, (r) => ({ status: r.status })); }

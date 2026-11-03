@@ -1,4 +1,5 @@
 // Chamadas à API da Anthropic (só no servidor; a chave fica na Vercel).
+import { estourouTempo } from "./operacao";
 import { jsonrepair } from "jsonrepair";
 import { FASES } from "./tipos";
 import { TAREFAS, TIPOS_EV } from "./regras";
@@ -45,12 +46,21 @@ async function chamarCompleto(conteudo: Bloco[], maxTokens: number, modelo: stri
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) throw new ErroClaude("Falta cadastrar a chave ANTHROPIC_API_KEY na Vercel para usar o Claude.", 503);
   let r: Response | null = null;
+  // tempo-limite: 2,5 min para respostas curtas; 13 min para as longas em streaming (abaixo do limite da rota mais longa, 800 s)
+  const espera = Number(process.env.CLAUDE_TIMEOUT_MS) || (longo ? 780000 : 150000);
   for (let i = 0; i < 3; i++) {
-    r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: modelo, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }], ...(longo ? { stream: true } : {}) }),
-    });
+    try {
+      r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: modelo, max_tokens: maxTokens, messages: [{ role: "user", content: conteudo }], ...(longo ? { stream: true } : {}) }),
+        signal: AbortSignal.timeout(espera),
+      });
+    } catch (e) {
+      // estourou o tempo: não adianta repetir (a rota acabaria antes); queda de rede: tenta de novo, a chamada não grava nada
+      if (estourouTempo(e)) throw new ErroClaude(`O Claude demorou mais de ${Math.round(espera / 60000)} minutos para responder. Tente de novo; se repetir, envie menos páginas.`, 504);
+      r = null; await new Promise((ok) => setTimeout(ok, 1500 * (i + 1))); continue;
+    }
     if (r.status !== 429 && r.status !== 529 && r.status < 500) break;
     await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
   }

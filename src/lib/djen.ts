@@ -66,7 +66,7 @@ export async function buscarProcesso(numero: string) {
   };
 }
 
-export type ResultadoSync = { novas: number; caixa: number; processosNovos: number; analisadas: number; paginas: number; erro?: string; avisos?: string[]; completa?: boolean };
+export type ResultadoSync = { novas: number; caixa: number; processosNovos: number; analisadas: number; paginas: number; erro?: string; avisos?: string[]; completa?: boolean; /** publicações novas que foram para a caixa (para analisar depois, em segundo plano) */ novasIds?: number[] };
 
 /** variações de nome e OAB que a busca cobre (Configurações → DJEN pode acrescentar outras) */
 export type Variacao = { tipo: "oab"; numero: string; uf?: string | null } | { tipo: "advogado" | "parte"; nome: string };
@@ -271,8 +271,8 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
     if (erroCritico) res.erro = erroCritico;
 
     // análise automática das novas pelo Claude (se a chave estiver cadastrada e a opção ligada)
-    const { data: geral } = await adm.from("config").select("valor").eq("chave", "geral").maybeSingle();
-    if (analisar && novasIds.length && process.env.ANTHROPIC_API_KEY && geral?.valor?.analiseAutomatica !== false) {
+    res.novasIds = novasIds;
+    if (analisar && novasIds.length && await analiseLigada(adm)) {
       try { res.analisadas = await analisarPendentes(adm, novasIds.slice(0, 40)); } catch (e) { console.warn("análise automática", e); }
     }
     return res;
@@ -284,7 +284,14 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
   }
 }
 
-/** analisa com o Claude as publicações indicadas que ainda não têm análise */
+/** a análise automática pelo Claude está ligada (chave cadastrada e opção não desligada em Configurações)? */
+export async function analiseLigada(adm: SupabaseClient): Promise<boolean> {
+  if (!process.env.ANTHROPIC_API_KEY) return false;
+  const { data: geral } = await adm.from("config").select("valor").eq("chave", "geral").maybeSingle();
+  return geral?.valor?.analiseAutomatica !== false;
+}
+
+/** analisa com o Claude as publicações indicadas que ainda não têm análise (pode repetir: as já analisadas são puladas) */
 export async function analisarPendentes(adm: SupabaseClient, ids: number[]): Promise<number> {
   const { data: pubs } = await adm.from("publicacoes").select("id,processo_numero,data,tipo_doc,tipo_com,orgao,texto,analise").in("id", ids);
   const lista = (pubs || []).filter((p) => !p.analise);

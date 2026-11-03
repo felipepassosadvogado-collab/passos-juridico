@@ -1,5 +1,6 @@
 "use client";
 // Ficha do cliente com documentos (RG, comprovante, procuração) lidos pelo Claude.
+import { Cronometro } from "./carregando";
 import { useEffect, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { cpfValido, dataBR, mascaraCpf, nomeBonito, semAcento } from "@/lib/formato";
@@ -119,7 +120,7 @@ export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCli
             <option value="">tipo…</option>{Object.entries(TIPOS_DOC).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
           <button type="button" className="btn ghost" title="Ver o documento numa caixa ao lado" onClick={() => visor.verArquivo(x.file)}>👁 Ver</button>
           <button className="btn ghost" onClick={() => f.setFiles(f.files.filter((_, j) => j !== i))}>Excluir</button></span>))}</div>}
-      {f.files.length > 0 && <div><button className="btn primary" disabled={f.lendo} onClick={f.ler}>{f.lendo ? "Lendo os documentos…" : "Ler documentos com Claude"}</button> <span className="muted" style={{ fontSize: 12.5 }}>Os arquivos são guardados na ficha ao salvar.</span></div>}
+      {f.files.length > 0 && <div><button className="btn primary" disabled={f.lendo} onClick={f.ler}>{f.lendo ? <>Lendo os documentos… <Cronometro /></> : "Ler documentos com Claude"}</button> <span className="muted" style={{ fontSize: 12.5 }}>Os arquivos são guardados na ficha ao salvar.</span></div>}
       {f.nota && <div className="ai" style={{ whiteSpace: "pre-wrap" }}>{f.nota}</div>}
     </div>
   );

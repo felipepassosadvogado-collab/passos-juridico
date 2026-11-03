@@ -332,8 +332,11 @@ async function conversar(c: Ctx, sistema: string, hist: Turno[]): Promise<string
   const chave = process.env.ANTHROPIC_API_KEY; if (!chave || !hist.length) return "";
   const mensagens: { role: string; content: unknown }[] = hist.map((m) => ({ role: m.role, content: m.content }));
   for (let volta = 0; volta < 6; volta++) {
+    // tempo-limite de 60 s por volta: sem resposta, o assistente fica quieto (como já faz quando o Claude falha) e a equipe vê a mensagem
     const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO_REDACAO, max_tokens: 2500, system: sistema, tools: FERRAMENTAS, messages: mensagens }) });
+      body: JSON.stringify({ model: MODELO_REDACAO, max_tokens: 2500, system: sistema, tools: FERRAMENTAS, messages: mensagens }), signal: AbortSignal.timeout(60000) })
+      .catch((e: unknown) => { console.warn("[operacao] " + JSON.stringify({ op: "agente.claude", ok: false, erro: String((e as Error)?.name || e) })); return null; });
+    if (!r) return "";
     if (!r.ok) { console.warn("agente claude", r.status, (await r.text()).slice(0, 300)); return ""; }
     const j = await r.json() as { content: { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }[]; stop_reason: string };
     const usos = j.content.filter((b) => b.type === "tool_use");

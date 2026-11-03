@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { analisarPublicacoes, ErroClaude } from "@/lib/claude";
@@ -6,7 +7,7 @@ import { avisoDaAnalise } from "@/lib/regras";
 export const maxDuration = 300;
 
 /** analisa publicações com o Claude e guarda a análise; cria o aviso ao cliente quando houver ato com o cliente */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const { ids } = await req.json().catch(() => ({ ids: [] }));
   const lista = (Array.isArray(ids) ? ids : []).map(Number).filter(Number.isFinite).slice(0, 30);
@@ -49,3 +50,6 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ publicacoes: atualizadas, avisos });
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("claude.analisar", () => tratar(req), {}, (r) => ({ status: r.status })); }

@@ -1,6 +1,7 @@
 "use client";
 // "Gerar petição": o Claude redige a peça a partir da publicação, do processo e dos documentos enviados,
 // e o Word sai no papel timbrado do escritório.
+import { Cronometro } from "./carregando";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { nomeBonito } from "@/lib/formato";
@@ -90,7 +91,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
   };
   return (
     <Janela largo onFechar={onFechar} titulo="Petição intermediária" sub={nomeBonito(p?.cliente_nome || "") + (p ? " · " + p.mascara : "")}
-      acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? "O Claude está redigindo…" : "Gerar Word (.docx)"}</button>}>
+      acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? <>O Claude está redigindo… <Cronometro /></> : "Gerar Word (.docx)"}</button>}>
       {onInicial && <AbasPeticao modo="intermediaria" clienteId={p?.cliente_id} numero={ctx.numero} onInicial={onInicial} onCumprimento={onCumprimento} />}
       {p && <div className="muted" style={{ fontSize: 13 }}>Dados do processo que vão para a peça: <b>Autor(a):</b> {nomeBonito(p.cliente_nome || "—")} · <b>Réus:</b> {(p.reus || []).join("; ") || "—"} · <b>Juízo:</b> {p.orgao || "—"} · <b>Processo:</b> {p.mascara}</div>}
       <div className="muted" style={{ fontSize: 13.5, maxWidth: "70ch" }}>O Claude redige a minuta a partir {pub ? "da publicação " + rotuloPub(pub) + ", " : ""}das publicações do processo e dos documentos que você anexar, no papel timbrado do escritório. O que ele não souber fica entre [colchetes] para você completar. Leva de 1 a 2 minutos.

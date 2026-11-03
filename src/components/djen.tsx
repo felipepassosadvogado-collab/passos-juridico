@@ -1,24 +1,50 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
+import { useCronometro } from "./carregando";
 import { dataBR, dataHoraBR } from "@/lib/formato";
 import { diaUtil, diferencaDias, feriadosDoAno, hojeBR, isoData, paraData, somaDias, type Foro, type Suspensao } from "@/lib/prazos";
 
-/** "Buscar no DJEN agora": a busca roda no servidor em São Paulo */
+/**
+ * "Buscar no DJEN agora": a busca roda no servidor em São Paulo.
+ * Se a resposta não chegar (conexão caiu, aba em segundo plano, tempo-limite), a busca continua no servidor:
+ * o botão passa a acompanhar o histórico de buscas (Configurações → DJEN) até ela aparecer lá, e mostra o resultado.
+ */
+const ESPERA_MS = 240000; // a rota tem até 300 s; depois disso o navegador para de esperar e passa a acompanhar pelo histórico
 export function BotaoDjen({ rotulo = "Buscar no DJEN", dias, classe = "btn primary" }: { rotulo?: string; dias?: number; classe?: string }) {
-  const { aviso, recarregar } = useDados(); const [ocupado, setOcupado] = useState(false);
+  const { aviso, recarregar, sb } = useDados(); const [ocupado, setOcupado] = useState(false); const [fase, setFase] = useState("");
+  const relogio = useCronometro(ocupado);
+  const resumo = (j: { caixa?: number; analisadas?: number; analisando?: number; avisos?: string[] }) => {
+    const extra = j.avisos?.length ? ` Atenção: ${j.avisos.length} variação(ões) com aviso (veja em Configurações).` : "";
+    if (!j.caixa) return "Busca completa: nenhuma publicação nova no DJEN." + extra;
+    const claude = j.analisando ? ` O Claude está analisando ${j.analisando} em segundo plano; as análises aparecem sozinhas na caixa.` : j.analisadas ? ` ${j.analisadas} já analisadas pelo Claude.` : "";
+    return `${j.caixa} ${j.caixa === 1 ? "publicação nova na caixa" : "publicações novas na caixa"}.${claude}${extra}`;
+  };
+  /** a resposta não veio: acompanha o histórico de buscas até a desta aparecer (até 4 min) */
+  const acompanhar = async (desde: string) => {
+    setFase("A busca continua no servidor; acompanhando o resultado…");
+    for (let i = 0; i < 48; i++) {
+      await new Promise((ok) => setTimeout(ok, 5000));
+      const { data } = await sb.from("djen_execucoes").select("ok,completa,caixa,erro,avisos").eq("origem", "manual").gte("em", desde).order("em", { ascending: false }).limit(1);
+      const x = data?.[0];
+      if (x) { await recarregar(); aviso(x.ok ? resumo({ caixa: x.caixa, avisos: x.avisos }) : "A busca no DJEN falhou: " + (x.erro || "motivo não informado") + ". Tente de novo em alguns minutos."); return; }
+    }
+    aviso("A busca ainda não terminou. O resultado vai aparecer em Configurações → DJEN (histórico das buscas) e as publicações entram na caixa sozinhas.");
+  };
   return (
-    <button className={classe} disabled={ocupado} onClick={async () => {
-      setOcupado(true);
+    <button className={classe} disabled={ocupado} aria-busy={ocupado} title={ocupado ? fase || "Buscando no DJEN" : undefined} onClick={async () => {
+      setOcupado(true); setFase(""); const inicio = new Date(Date.now() - 5000).toISOString();
       try {
-        const r = await fetch("/api/djen/sincronizar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(dias ? { dias } : {}) }); const j = await r.json().catch(() => ({}));
+        const r = await fetch("/api/djen/sincronizar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(dias ? { dias } : {}), signal: AbortSignal.timeout(ESPERA_MS) });
+        if (r.status === 504 || r.status === 502 && !(r.headers.get("content-type") || "").includes("json")) { await acompanhar(inicio); return; } // o servidor cortou a espera: a busca pode ter terminado
+        const j = await r.json().catch(() => null);
+        if (!j) { await acompanhar(inicio); return; }
         if (!r.ok) { aviso(j.erro || "A busca no DJEN falhou. Tente de novo em alguns minutos."); return; }
         await recarregar();
-        const extra = j.avisos?.length ? ` Atenção: ${j.avisos.length} variação(ões) com aviso (veja em Configurações).` : "";
-        aviso((j.caixa ? `${j.caixa} ${j.caixa === 1 ? "publicação nova na caixa" : "publicações novas na caixa"}${j.analisadas ? `, ${j.analisadas} já analisadas pelo Claude` : ""}.` : "Busca completa: nenhuma publicação nova no DJEN.") + extra);
-      } catch { aviso("A busca no DJEN falhou. Verifique a internet."); }
-      finally { setOcupado(false); }
-    }}>{ocupado ? "Buscando no DJEN…" : rotulo}</button>
+        aviso(resumo(j));
+      } catch { await acompanhar(inicio); } // conexão caiu ou passou do tempo: a busca segue no servidor
+      finally { setOcupado(false); setFase(""); }
+    }}>{ocupado ? <>{fase ? "Acompanhando a busca…" : "Buscando no DJEN…"} <span className="mono" aria-hidden="true">{relogio}</span></> : rotulo}</button>
   );
 }
 

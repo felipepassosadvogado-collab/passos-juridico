@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -8,7 +9,7 @@ export const maxDuration = 30;
 type Pedido = { conversaId?: string; telefone?: string; nome?: string; avulso?: boolean; clienteId?: string; texto?: string; anexo?: { caminho: string; nome: string; mime: string }; origem?: "equipe" | "rascunho" | "aviso" };
 
 /** envia uma mensagem pelo WhatsApp do escritório: resposta numa conversa ou mensagem nova para um cliente cadastrado */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const pd = await req.json().catch(() => null) as Pedido | null;
   const texto = String(pd?.texto || "").trim().slice(0, 4000);
@@ -55,3 +56,6 @@ export async function POST(req: Request) {
     return erro(/exists.*false|not.*exist/i.test(msg) ? "Esse número não tem WhatsApp." : msg, e instanceof ErroWa ? e.status : 500);
   }
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("whatsapp.enviar", () => tratar(req), {}, (r) => ({ status: r.status })); }

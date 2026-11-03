@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { membroDaRota, erro, respostaLonga } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { pedirJson, blocoArquivo, ErroClaude, MODELO_REDACAO } from "@/lib/claude";
@@ -39,7 +40,7 @@ Responda só com JSON, neste formato:
 Datas de competência em AAAA-MM. Valores como número com ponto decimal. Salário mínimo: 2024 = 1412; 2025 = 1518; 2026 = 1621.`;
 
 /** lê a cópia integral do processo e extrai o título executivo e os parâmetros da liquidação */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const pd = await req.json().catch(() => null) as Pedido | null;
   const numero = String(pd?.numero || "").replace(/\D/g, "");
@@ -82,5 +83,8 @@ export async function POST(req: Request) {
     } finally {
       if (arquivos.length) await adm.storage.from("documentos").remove(arquivos.map((a) => a.caminho)).catch(() => {});
     }
-  });
+  }, "cumprimento.ler.leitura");
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("cumprimento.ler", () => tratar(req), {}, (r) => ({ status: r.status })); }

@@ -1,3 +1,4 @@
+import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { pedirTexto, ErroClaude } from "@/lib/claude";
@@ -10,7 +11,7 @@ export const maxDuration = 120;
 const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
 
 /** escreve com o Claude a mensagem de WhatsApp ao cliente, a partir do aviso (local, orientações) e da publicação que o originou */
-export async function POST(req: Request) {
+async function tratar(req: Request) {
   const m = await membroDaRota(); if (!m) return erro("Entre no sistema de novo.", 401);
   const b = await req.json().catch(() => ({}));
   const { data: av } = await m.sb.from("avisos_cliente").select("*").eq("id", String(b.avisoId || "")).maybeSingle();
@@ -72,3 +73,6 @@ ${ctx}`;
     return erro("Não consegui escrever a mensagem agora. Tente de novo.", 500);
   }
 }
+
+/** registra duração e resultado no log (filtrar por "[operacao]" no painel da Vercel) */
+export async function POST(req: Request) { return medir("claude.mensagem", () => tratar(req), {}, (r) => ({ status: r.status })); }

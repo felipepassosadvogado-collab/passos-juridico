@@ -1,4 +1,5 @@
 "use client";
+import { Cronometro } from "./carregando";
 import { obterIndices } from "@/lib/indicesBcb";
 // Cumprimento de sentença: o Claude lê a cópia integral do processo e extrai o título executivo; o sistema calcula a liquidação
 // com os índices do Banco Central (critérios do título), gera a memória de cálculo em PDF e a petição no modelo do escritório,
@@ -176,7 +177,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
         <input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])].slice(0, 6)); e.target.value = ""; }} />
         {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>)}</div>}
         <label className="f">Orientações para o Claude (opcional)<input value={orient} placeholder="Ex.: considerar o extrato HISCRE atualizado anexo; os descontos cessaram em 04/2026" onChange={(e) => setOrient(e.target.value)} /></label>
-        <div className="tools"><button className="btn primary" disabled={lendo || !files.length} onClick={ler}>{lendo ? "O Claude está lendo…" : "Ler processo com o Claude"}</button></div>
+        <div className="tools"><button className="btn primary" disabled={lendo || !files.length} onClick={ler}>{lendo ? <>O Claude está lendo… <Cronometro /></> : "Ler processo com o Claude"}</button></div>
         {etapa && <div className="banner">{etapa}</div>}
         {erroMsg && <div className="banner erro">{erroMsg}</div>}
         {lido.alertas.length > 0 && <div className="banner"><strong>O Claude pede para conferir:</strong><ul style={{ margin: "4px 0 0 18px", padding: 0 }}>{lido.alertas.map((a, i) => <li key={i}>{a}</li>)}</ul></div>}

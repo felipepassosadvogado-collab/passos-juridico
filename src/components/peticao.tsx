@@ -1,4 +1,5 @@
 "use client";
+import { Cronometro } from "./carregando";
 import { obterIndices } from "@/lib/indicesBcb";
 // Petição inicial em Word a partir do modelo do escritório, com leitura do extrato do INSS pelo Claude.
 import { AbasPeticao } from "./peca";
@@ -117,7 +118,7 @@ export function JanelaInicial({ ctx, onFechar, onIntermediaria, onCumprimento }:
         <div className="av-top"><strong>Extrato de empréstimos do INSS (HISCON)</strong><span className="muted" style={{ fontSize: 12.5 }}>o Claude lê benefício, banco pagador e contratos</span></div>
         <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])]); e.target.value = ""; }} />
         {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>)}</div>}
-        {files.length > 0 && <div><button className="btn primary" disabled={lendo} onClick={lerExtrato}>{lendo ? "Lendo o extrato…" : "Ler extrato com Claude"}</button></div>}
+        {files.length > 0 && <div><button className="btn primary" disabled={lendo} onClick={lerExtrato}>{lendo ? <>Lendo o extrato… <Cronometro /></> : "Ler extrato com Claude"}</button></div>}
         {nota && <div className="ai" style={{ whiteSpace: "pre-wrap" }}>{nota}</div>}
       </section>
       <datalist id="pi-esp">{ESPECIES.map((e) => <option key={e} value={e} />)}</datalist>
