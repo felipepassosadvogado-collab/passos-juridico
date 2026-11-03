@@ -29,8 +29,9 @@ describe("qual fica na caixa", () => {
     const r = acharRepetidas([pub(10, ACORDAO), pub(11, ACORDAO), pub(12, ACORDAO)], new Set([11]));
     expect(r).toEqual([{ id: 10, de: 11 }, { id: 12, de: 11 }]);
   });
-  it("sem tarefa: fica a já tratada pela equipe, depois a mais antiga", () => {
-    expect(acharRepetidas([pub(20, ACORDAO), pub(21, ACORDAO, "2026-10-29", { triagem: "concluida" })], new Set())).toEqual([{ id: 20, de: 21 }]);
+  it("concluída sem tarefa não tira a pendente da caixa (o prazo continua aparecendo); entre pendentes, fica a mais antiga", () => {
+    expect(acharRepetidas([pub(20, ACORDAO), pub(21, ACORDAO, "2026-10-29", { triagem: "concluida" })], new Set())).toEqual([]);
+    expect(acharRepetidas([pub(20, ACORDAO), pub(22, ACORDAO), pub(21, ACORDAO, "2026-10-29", { triagem: "concluida" })], new Set())).toEqual([{ id: 22, de: 20 }]);
     expect(acharRepetidas([pub(31, ACORDAO, "2026-10-30"), pub(30, ACORDAO)], new Set())).toEqual([{ id: 31, de: 30 }]);
   });
 });
@@ -68,5 +69,21 @@ describe("julgamento na Turma Recursal (relatório, voto e acórdão no mesmo di
     const b = bancoContado({ publicacoes: [rel, voto, acord].map((x) => ({ ...x })), tarefas: [] });
     expect((await tirarRepetidasDaCaixa(b.sb)).sort()).toEqual([41, 42]);
     expect(b.db.publicacoes.filter((p) => p.triagem === "pendente").map((p) => p.id)).toEqual([43]);
+  });
+});
+
+describe("conserto da regra antiga", () => {
+  it("cópia tirada por causa de uma concluída sem tarefa volta; entre as que voltam, fica uma", async () => {
+    const T = "3ª Turma Recursal de Santa Catarina"; const marca = (de: number) => ({ repetidaDe: de, resumo: "Publicação repetida no DJEN: ..." });
+    const b = bancoContado({ tarefas: [], publicacoes: [
+      { ...pub(50, "RELATÓRIO. Trata-se de recurso."), tipo_doc: "Acórdão", orgao: T, triagem: "concluida", concluida_em: "2026-11-01T10:00:00Z" },
+      { ...pub(51, "VOTO. Nego provimento."), tipo_doc: "Acórdão", orgao: T, triagem: "concluida", concluida_em: "2026-11-03T20:00:00Z", analise: marca(50) },
+      { ...pub(52, "ACÓRDÃO. Decidiu, por unanimidade, negar provimento."), tipo_doc: "Acórdão", orgao: T, triagem: "concluida", concluida_em: "2026-11-03T20:00:00Z", analise: marca(50) },
+    ] });
+    await tirarRepetidasDaCaixa(b.sb);
+    const pend = b.db.publicacoes.filter((p) => p.triagem === "pendente").map((p) => p.id);
+    expect(pend).toEqual([52]); // o acórdão volta para a caixa; o voto continua como cópia dele
+    expect(b.db.publicacoes.find((p) => p.id === 52)!.analise).toBeNull();
+    expect(b.db.publicacoes.find((p) => p.id === 51)!.analise.repetidaDe).toBe(52);
   });
 });

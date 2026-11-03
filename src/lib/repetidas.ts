@@ -45,29 +45,60 @@ export function mesmoAto(a: PubComparavel, b: PubComparavel): boolean {
 }
 
 /**
- * Agrupa as publicações de cada processo por ato e escolhe a que fica: a que já tem tarefa, depois a que a equipe já
- * tratou, depois a já analisada, depois a mais antiga. Devolve as cópias PENDENTES (sem tarefa) que podem sair da caixa.
+ * Agrupa as publicações de cada processo por ato. Em cada grupo, uma fica "ativa" na caixa: a que já tem tarefa ou,
+ * se nenhuma tiver, a pendente mais completa (no julgamento, o acórdão com o resultado). Uma publicação concluída SEM
+ * tarefa nunca serve de motivo para tirar outra da caixa: o prazo do ato continua aparecendo.
+ * Devolve as cópias PENDENTES (sem tarefa) que podem sair da caixa.
  */
 export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>, naoRepetidas: Set<number> = new Set()): { id: number; de: number }[] {
   const porProc = new Map<string, PubComparavel[]>();
   for (const p of pubs) (porProc.get(p.processo_numero) || porProc.set(p.processo_numero, []).get(p.processo_numero)!).push(p);
-  const peso = (p: PubComparavel) => [comTarefa.has(p.id) ? 0 : 1, p.triagem === "concluida" ? 0 : 1, p.analise && !p.analise.repetidaDe ? 0 : 1, DISPOSITIVO.test((p.texto || "").slice(0, 20000)) ? 0 : 1, p.data, p.id] as const; // no julgamento, fica o acórdão (com o resultado), não o relatório
+  const ativa = (p: PubComparavel) => comTarefa.has(p.id) || p.triagem !== "concluida";
+  const peso = (p: PubComparavel) => [comTarefa.has(p.id) ? 0 : 1, ativa(p) ? 0 : 1, DISPOSITIVO.test((p.texto || "").slice(0, 20000)) ? 0 : 1, p.analise && !p.analise.repetidaDe ? 0 : 1, p.data, p.id] as const; // no julgamento, fica o acórdão (com o resultado), não o relatório
   const antes = (a: PubComparavel, b: PubComparavel) => { const x = peso(a), y = peso(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; };
   const out: { id: number; de: number }[] = [];
   for (const lista of porProc.values()) {
     if (lista.length < 2) continue;
-    lista.sort(antes); const ficam: PubComparavel[] = [];
+    lista.sort(antes); const grupos: { primeira: PubComparavel; ativa: PubComparavel | null }[] = [];
     for (const p of lista) {
-      const igual = ficam.find((k) => mesmoAto(k, p));
-      if (!igual) { ficam.push(p); continue; }
-      if (p.triagem !== "concluida" && !comTarefa.has(p.id) && !naoRepetidas.has(p.id)) out.push({ id: p.id, de: igual.id });
+      const g = grupos.find((x) => mesmoAto(x.primeira, p));
+      if (!g) { grupos.push({ primeira: p, ativa: ativa(p) ? p : null }); continue; }
+      if (!g.ativa) { if (ativa(p)) g.ativa = p; continue; }
+      if (p.triagem !== "concluida" && !comTarefa.has(p.id) && !naoRepetidas.has(p.id)) out.push({ id: p.id, de: g.ativa.id });
     }
   }
   return out;
 }
 
+/** cópias tiradas por causa de uma publicação que já estava concluída sem tarefa (regra antiga): voltam para a caixa */
+async function devolverTiradasSemMotivo(adm: SupabaseClient): Promise<number[]> {
+  const desde = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const { data: tiradas } = await adm.from("publicacoes").select("id,analise,concluida_em").not("analise->repetidaDe", "is", null).eq("triagem", "concluida").gte("data", desde).limit(2000);
+  if (!tiradas?.length) return [];
+  const ids = [...new Set(tiradas.map((t: any) => +t.analise.repetidaDe))];
+  const ficou = new Map<number, any>(); const comTarefa = new Set<number>();
+  for (const lote of pedacos(ids, 300)) {
+    const { data } = await adm.from("publicacoes").select("id,triagem,concluida_em").in("id", lote); for (const p of data || []) ficou.set(+p.id, p);
+    const { data: ts } = await adm.from("tarefas").select("publicacao_id").in("publicacao_id", lote); for (const t of ts || []) if (t.publicacao_id != null) comTarefa.add(+t.publicacao_id);
+  }
+  const voltar = tiradas.filter((t: any) => {
+    const f = ficou.get(+t.analise.repetidaDe);
+    if (!f || f.triagem !== "concluida" || comTarefa.has(+f.id)) return false;
+    return !f.concluida_em || !t.concluida_em || f.concluida_em <= t.concluida_em; // a que "ficou" já estava concluída quando a cópia saiu
+  });
+  const feitas: number[] = [];
+  for (const t of voltar) {
+    const { repetidaDe: _r, ...resto } = t.analise || {}; // eslint-disable-line @typescript-eslint/no-unused-vars
+    if (String(resto.resumo || "").startsWith("Publicação repetida no DJEN")) delete resto.resumo;
+    const { error } = await adm.from("publicacoes").update({ triagem: "pendente", concluida_em: null, concluida_por: null, analise: Object.keys(resto).length ? resto : null }).eq("id", t.id);
+    if (!error) feitas.push(+t.id);
+  }
+  return feitas;
+}
+
 /** passa na caixa (pendentes) e tira as cópias; roda a cada busca no DJEN, então também limpa as repetidas antigas */
 export async function tirarRepetidasDaCaixa(adm: SupabaseClient): Promise<number[]> {
+  await devolverTiradasSemMotivo(adm); // corrige o que a regra antiga tirou; as cópias entre si voltam a ser juntadas abaixo
   const { data: pend } = await adm.from("publicacoes").select("id,processo_numero,data,texto,tipo_doc,orgao,triagem,analise").eq("triagem", "pendente").limit(2000);
   if (!pend?.length) return [];
   const procs = [...new Set(pend.map((p: PubComparavel) => p.processo_numero))];

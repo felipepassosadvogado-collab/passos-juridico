@@ -11,7 +11,7 @@ export function bancoContado(inicial: Record<string, Linha[]> = {}) {
     const re = (pad: string) => new RegExp("^" + pad.split("").map((c) => (c === "%" ? ".*" : c === "_" ? "." : c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("") + "$", "is");
     const api: any = {
       select: () => api, eq: (c: string, v: unknown) => (f.push((r) => r[c] === v), api), neq: (c: string, v: unknown) => (f.push((r) => r[c] !== v), api),
-      in: (c: string, v: unknown[]) => (f.push((r) => v.includes(r[c])), api), not: (c: string) => (f.push((r) => r[c] != null), api), is: (c: string, v: unknown) => (f.push((r) => (r[c] ?? null) === v), api),
+      in: (c: string, v: unknown[]) => (f.push((r) => v.includes(r[c])), api), not: (c: string) => (f.push((r) => (c.includes("->") ? (r[c.split("->")[0]] as any)?.[c.split("->")[1]] : r[c]) != null), api), is: (c: string, v: unknown) => (f.push((r) => (r[c] ?? null) === v), api),
       gte: (c: string, v: string) => (f.push((r) => String(r[c]) >= v), api), lte: (c: string, v: string) => (f.push((r) => String(r[c]) <= v), api), lt: (c: string, v: string) => (f.push((r) => String(r[c]) < v), api),
       ilike: (c: string, p: string) => (f.push((r) => r[c] != null && re(p).test(String(r[c]))), api),
       order: (c: string, o?: { ascending?: boolean }) => ((ordem = [c, o?.ascending !== false]), api), limit: (n: number) => ((lim = n), api), range: (a: number, b: number) => ((ini = a), (fim = b + 1), api),
