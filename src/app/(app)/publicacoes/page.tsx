@@ -11,6 +11,7 @@ import type { Analise, Aviso, Tarefa } from "@/lib/tipos";
 import { useJanelas } from "@/components/janelas";
 import { useAnalisar } from "@/components/publicacoes";
 import { BotaoDjen } from "@/components/djen";
+import { RepetidasTiradas } from "@/components/repetidas";
 import { Ic } from "@/components/ui";
 
 function Caixa() {
@@ -56,6 +57,7 @@ function Caixa() {
             <button className="btn" disabled={ocupado.size > 0} title={re ? "Todas já têm análise: analisa de novo as 10 primeiras da lista" : "Analisa as próximas 10 sem análise"} onClick={() => analisar(alvo.slice(0, 10))}>{Ic.claude}{ocupado.size && !prog ? "Analisando…" : `${re ? "Reanalisar" : "Analisar"} ${Math.min(alvo.length, 10)} com Claude`}</button>
             <button className="btn" disabled={ocupado.size > 0} title={re ? "Analisa de novo todas as publicações da lista" : "Analisa todas as que ainda não têm análise, de 10 em 10"} onClick={() => analisarTodas(alvo)}>{Ic.claude}{prog ? `Analisando ${prog.feito} de ${prog.total}…` : `${re ? "Reanalisar" : "Analisar"} todas (${alvo.length})`}</button>
           </>}</div></div>
+      <RepetidasTiradas />
       {todos.length > 0 && <div className="pub-res">
         {([["", "Todas", todos.length, ""], ["vencidos", "Prazo vencido", cont.vencidos, "late"], ["hoje", "Vence hoje", cont.hoje, "late"], ["semana", "Vence em até 5 dias", cont.semana, "soon"], ["sem", "Sem análise", cont.sem, ""]] as const)
           .map(([k, rot, n, cor]) => (k === "" || n > 0) && <button key={k} className={"pub-chip " + cor + (filtro === k ? " on" : "")} onClick={() => setFiltro(k)}><b>{n}</b>{rot}</button>)}

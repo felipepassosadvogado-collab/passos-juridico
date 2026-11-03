@@ -33,11 +33,12 @@ export function mesmoAto(a: PubComparavel, b: PubComparavel): boolean {
   if (!a.data || !b.data || dias(a.data, b.data) > DIAS_JANELA) return false;
   const pa = palavras(a.texto), pb = palavras(b.texto);
   if (!pa.length || !pb.length) return false; // sem texto não dá para afirmar que é o mesmo ato
+  // texto curto (aviso-padrão do eproc, "intimação realizada…") nunca basta: atos diferentes têm o mesmo texto
+  if (pa.length < 30 || pb.length < 30) return false;
   if (pa.join(" ") === pb.join(" ")) return true;
   // números (evento, datas, valores, prazos) têm de ser os mesmos: intimações-padrão do eproc mudam só o nº do evento
   const nums = (p: string[]) => [...new Set(p.filter((x) => /^\d+$/.test(x)))].sort().join(" ");
   if (nums(pa) !== nums(pb)) return false;
-  if (pa.length < 12 || pb.length < 12) return false; // texto curto demais: só se for idêntico
   const ta = trechos(pa), tb = trechos(pb); let comum = 0; for (const x of ta) if (tb.has(x)) comum++;
   const menor = Math.min(ta.size, tb.size), maior = Math.max(ta.size, tb.size);
   return menor / maior >= 0.8 && comum / menor >= LIMIAR; // quase todo o texto em comum e tamanhos parecidos (muda só um cabeçalho)
@@ -47,7 +48,7 @@ export function mesmoAto(a: PubComparavel, b: PubComparavel): boolean {
  * Agrupa as publicações de cada processo por ato e escolhe a que fica: a que já tem tarefa, depois a que a equipe já
  * tratou, depois a já analisada, depois a mais antiga. Devolve as cópias PENDENTES (sem tarefa) que podem sair da caixa.
  */
-export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>): { id: number; de: number }[] {
+export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>, naoRepetidas: Set<number> = new Set()): { id: number; de: number }[] {
   const porProc = new Map<string, PubComparavel[]>();
   for (const p of pubs) (porProc.get(p.processo_numero) || porProc.set(p.processo_numero, []).get(p.processo_numero)!).push(p);
   const peso = (p: PubComparavel) => [comTarefa.has(p.id) ? 0 : 1, p.triagem === "concluida" ? 0 : 1, p.analise && !p.analise.repetidaDe ? 0 : 1, DISPOSITIVO.test((p.texto || "").slice(0, 20000)) ? 0 : 1, p.data, p.id] as const; // no julgamento, fica o acórdão (com o resultado), não o relatório
@@ -59,7 +60,7 @@ export function acharRepetidas(pubs: PubComparavel[], comTarefa: Set<number>): {
     for (const p of lista) {
       const igual = ficam.find((k) => mesmoAto(k, p));
       if (!igual) { ficam.push(p); continue; }
-      if (p.triagem !== "concluida" && !comTarefa.has(p.id)) out.push({ id: p.id, de: igual.id });
+      if (p.triagem !== "concluida" && !comTarefa.has(p.id) && !naoRepetidas.has(p.id)) out.push({ id: p.id, de: igual.id });
     }
   }
   return out;
@@ -81,7 +82,9 @@ export async function tirarRepetidasDaCaixa(adm: SupabaseClient): Promise<number
     const { data } = await adm.from("tarefas").select("publicacao_id").in("publicacao_id", lote);
     for (const t of data || []) if (t.publicacao_id != null) comTarefa.add(+t.publicacao_id);
   }
-  const rep = acharRepetidas([...todas.values()], comTarefa);
+  // as que alguém devolveu à caixa ("não é repetida") nunca saem de novo
+  const { data: cfg } = await adm.from("config").select("valor").eq("chave", "repetidas").maybeSingle();
+  const rep = acharRepetidas([...todas.values()], comTarefa, new Set(((cfg?.valor?.naoRepetidas as number[]) || []).map(Number)));
   const agora = new Date().toISOString(); const feitas: number[] = [];
   for (const r of rep) { // poucas por busca; cada uma guarda de qual é cópia
     const velha = todas.get(r.id)?.analise || {};
