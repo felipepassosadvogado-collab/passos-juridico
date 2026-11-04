@@ -64,9 +64,11 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   };
   /** manda a mensagem e, em seguida, cada anexo (o WhatsApp entrega o arquivo como documento ou imagem) */
   const enviarComAnexos = async (destino: { telefone: string; clienteId?: string; avulso?: boolean; nome?: string }): Promise<string> => {
+    setEtapaEnvio(anexos.length ? "Enviando a mensagem…" : "");
     const r0 = await enviarWhatsapp({ ...destino, texto, origem: "aviso" }); // se a mensagem falhar, o erro sobe e nada é marcado
     const enviados: string[] = []; const falhas: string[] = [];
-    for (const f of anexos) {
+    for (const [k, f] of anexos.entries()) {
+      setEtapaEnvio(`Enviando anexo ${k + 1} de ${anexos.length}…`);
       const caminho = `avisos/${av.id}/${Date.now()}-${f.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.\-]+/g, "_").slice(-80)}`;
       const up = await sb.storage.from("documentos").upload(caminho, f, { contentType: f.type || undefined });
       if (up.error) { falhas.push(f.name); continue; }
@@ -74,7 +76,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
       catch { falhas.push(f.name); }
     }
     if (enviados.length) registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: "comentario", dados: { texto: "Enviado ao cliente pelo WhatsApp junto com o aviso: " + enviados.join(", ") } });
-    setAnexos(anexos.filter((f) => falhas.includes(f.name))); // os que falharam ficam na lista para tentar de novo pela aba WhatsApp
+    setEtapaEnvio(""); setAnexos(anexos.filter((f) => falhas.includes(f.name))); // os que falharam ficam na lista para tentar de novo pela aba WhatsApp
     return falhas.length ? `A mensagem foi enviada${enviados.length ? " com " + enviados.join(", ") : ""}, mas não consegui mandar ${falhas.join(", ")}. Envie pela aba WhatsApp, na conversa do cliente.` : "";
   };
   const escreverClaude = async () => {
@@ -99,7 +101,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const wa = foneWhatsapp(fone);
   const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
   const ac = useAcompanhamentoAviso();
-  const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false); const [outro, setOutro] = useState<{ fone: string; nome: string } | null>(null);
+  const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false); const [etapaEnvio, setEtapaEnvio] = useState(""); const [outro, setOutro] = useState<{ fone: string; nome: string } | null>(null);
   const marcar = async (sim: boolean) => {
     await salvar(sim ? { status: "avisado", avisado_em: new Date().toISOString(), avisado_por: eu.id, canal: "WhatsApp", mensagem: texto } : { status: "pendente", avisado_em: null, avisado_por: null, canal: null });
     registrar({ processo_numero: av.processo_numero, publicacao_id: av.publicacao_id, tipo: sim ? "cliente_avisado" : "aviso_reaberto", dados: { texto: (av.tipo_evento || "Ato") + (av.data_evento ? " em " + dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "") } });
@@ -166,8 +168,8 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
             setEnviandoWa(true);
             try { const falha = await enviarComAnexos({ telefone: wa, clienteId: cli?.id, avulso: !cli }); await marcar(true); if (falha) aviso(falha); }
             catch (e) { aviso((e as Error).message); }
-            finally { setEnviandoWa(false); }
-          }}>{enviandoWa ? "Enviando…" : anexos.length ? `Enviar pelo WhatsApp do sistema (com ${anexos.length} anexo${anexos.length > 1 ? "s" : ""})` : "Enviar pelo WhatsApp do sistema"}</button>}
+            finally { setEnviandoWa(false); setEtapaEnvio(""); }
+          }}>{enviandoWa ? etapaEnvio || "Enviando…" : anexos.length ? `Enviar pelo WhatsApp do sistema (com ${anexos.length} anexo${anexos.length > 1 ? "s" : ""})` : "Enviar pelo WhatsApp do sistema"}</button>}
         {waSistema && <button className="btn" onClick={() => setOutro(outro ? null : { fone: "", nome: "" })}>{outro ? "Cancelar outro número" : "Enviar para outro WhatsApp"}</button>}
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
@@ -188,8 +190,8 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
             const falha = await enviarComAnexos({ telefone: d, clienteId: cli?.id, avulso: true, nome: outro.nome.trim() ? `${outro.nome.trim()}${cli ? " (" + nomeBonito(cli.nome).split(" ")[0] + ")" : ""}` : undefined });
             setOutro(null); await marcar(true); if (falha) aviso(falha);
           } catch (e) { aviso((e as Error).message); }
-          finally { setEnviandoWa(false); }
-        }}>{enviandoWa ? "Enviando…" : "Enviar e marcar como enviada"}</button></div>
+          finally { setEnviandoWa(false); setEtapaEnvio(""); }
+        }}>{enviandoWa ? etapaEnvio || "Enviando…" : "Enviar e marcar como enviada"}</button></div>
       </div>}
       <ConfirmacaoCliente av={av} />
       {!feito && av.aberto_em && <div className="muted" style={{ fontSize: 12 }}>WhatsApp aberto em {dataHoraBR(av.aberto_em)}. Depois de enviar, clique em “Mensagem enviada”.</div>}

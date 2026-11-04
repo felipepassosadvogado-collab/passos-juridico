@@ -5,6 +5,7 @@ import { bancoDosReus, nomeBonito, semAcento } from "./formato";
 import { hojeBR, isoData, paraData, somaDias } from "./prazos";
 import { analisarPublicacoes } from "./claude";
 import { tirarRepetidasDaCaixa } from "./repetidas";
+import { medir } from "./operacao";
 import { pedacos } from "./emLote";
 import { avisoDaAnalise } from "./regras";
 import { ligarAtendimentosAosNovos } from "./ligarAtendimentos";
@@ -261,7 +262,7 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
     }
     // o mesmo ato em duas comunicações (ex.: acórdão enviado uma vez por destinatário): a cópia fica gravada, mas sai da caixa
     try {
-      const repetidas = await tirarRepetidasDaCaixa(adm);
+      const repetidas = await medir("djen.repetidas", () => tirarRepetidasDaCaixa(adm), {}, (l) => ({ tiradas: l.length }));
       if (repetidas.length) {
         const fora = new Set(repetidas); const antes = novasIds.length;
         for (let k = novasIds.length - 1; k >= 0; k--) if (fora.has(novasIds[k])) novasIds.splice(k, 1);

@@ -26,14 +26,14 @@ export function FasesComClaude({ onFechar }: { onFechar: () => void }) {
     try {
       for (let i = 0; i < faltam.length && !parar.current; i += LOTE) {
         const lote = faltam.slice(i, i + LOTE);
-        const r = await fetch("/api/claude/fases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ numeros: lote.map((p) => p.numero) }) });
+        const r = await fetch("/api/claude/fases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ numeros: lote.map((p) => p.numero) }), signal: AbortSignal.timeout(290000) });
         const j = await r.text().then((t) => JSON.parse(t.trim() || "{}")).catch(() => ({ erro: "A resposta chegou incompleta. Tente de novo." }));
         if (!r.ok || j.erro) { setErroMsg(j.erro || "Não consegui analisar agora."); break; }
         const novos: Record<string, Sug> = {};
         for (const [n, s] of Object.entries(j.sugestoes || {}) as [string, Omit<Sug, "marcado">][]) novos[n] = { ...s, marcado: s.confianca !== "baixa" };
         setSug((x) => ({ ...x, ...novos })); setProg({ feito: Math.min(faltam.length, i + LOTE), total: faltam.length });
       }
-    } catch (e) { setErroMsg(/fetch|network|load failed/i.test((e as Error).message) ? "A conexão caiu. Confira a internet e clique de novo: os já analisados ficam." : (e as Error).message); }
+    } catch (e) { setErroMsg((e as Error).name === "TimeoutError" ? "O Claude demorou demais neste lote. Clique de novo: os já analisados ficam e ele continua dos que faltam." : /fetch|network|load failed/i.test((e as Error).message) ? "A conexão caiu. Confira a internet e clique de novo: os já analisados ficam." : (e as Error).message); }
     finally { setProg(null); }
   };
   const aplicarFases = async () => {

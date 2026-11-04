@@ -116,8 +116,9 @@ export async function tirarRepetidasDaCaixa(adm: SupabaseClient): Promise<number
   // as que alguém devolveu à caixa ("não é repetida") nunca saem de novo
   const { data: cfg } = await adm.from("config").select("valor").eq("chave", "repetidas").maybeSingle();
   const rep = acharRepetidas([...todas.values()], comTarefa, new Set(((cfg?.valor?.naoRepetidas as number[]) || []).map(Number)));
-  const agora = new Date().toISOString(); const feitas: number[] = [];
-  for (const r of rep) { // poucas por busca; cada uma guarda de qual é cópia
+  const agora = new Date().toISOString(); const feitas: number[] = []; const t0 = Date.now();
+  for (const r of rep) {
+    if (Date.now() - t0 > 20000) break; // tempo-limite: o resto sai na próxima busca (a limpeza pode ser repetida sem efeito colateral) // poucas por busca; cada uma guarda de qual é cópia
     const velha = todas.get(r.id)?.analise || {};
     const { error } = await adm.from("publicacoes").update({ triagem: "concluida", concluida_em: agora,
       analise: { ...velha, repetidaDe: r.de, resumo: velha.resumo || `Publicação repetida no DJEN: é o mesmo ato (ou outra parte do mesmo julgamento: relatório, voto, acórdão) da comunicação nº ${r.de}, que ficou na caixa.` } }).eq("id", r.id).eq("triagem", "pendente");
