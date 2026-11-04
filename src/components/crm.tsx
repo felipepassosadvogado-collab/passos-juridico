@@ -16,6 +16,7 @@ import { FormTarefa, TabelaTarefas } from "./tarefas";
 import { useJanelas } from "./janelas";
 import { CampoValores } from "./valores";
 import { ProtocolarCaso } from "./FichaCliente";
+import { ResponderAtendimento } from "./responderAtendimento";
 
 /** arrasto dos cartões: segue o ponteiro, rola o quadro e a coluna nas bordas, solta em qualquer ponto da coluna */
 export function useArrasto(onDrop: (id: string, coluna: string) => void) {
@@ -110,7 +111,7 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
   const { casos, clientes, tarefas, processos, sb, eu, aplicar, registrar, aviso, remover, titular, config } = useDados(); const etapas = etapasDe(colunasCrm(config)); const j = useJanelas(); const router = useRouter(); const confirmar = useConfirmar();
   const novo = id === "novo"; const c: Partial<Caso> = novo ? {} : casos.get(id) || {};
   const [ed, setEd] = useState({ cliente_id: c.cliente_id || "", nome: c.nome || "", banco: c.banco || "", contratos: c.contratos || "", etapa: c.etapa || etapaInicial(colunasCrm(config)), responsavel: c.responsavel || eu.id, obs: c.obs || "" });
-  const [tf, setTf] = useState(!!comTarefa);
+  const [tf, setTf] = useState(!!comTarefa); const [resp, setResp] = useState(false);
   if (!novo && !casos.has(id)) return <Janela onFechar={onFechar} titulo="Atendimento"><div className="empty">Atendimento não encontrado.</div></Janela>;
   const ts = novo ? [] : [...tarefas.values()].filter((t) => t.caso_id === id).sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9"));
   const cli = ed.cliente_id ? clientes.get(ed.cliente_id) : undefined;
@@ -143,6 +144,7 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
       </div>
       <div className="tools">
         <button className="btn primary" onClick={salvar}>{novo ? "Cadastrar atendimento" : "Salvar"}</button>
+        {!novo && <button className={resp ? "btn ghost" : "btn"} aria-expanded={resp} onClick={() => setResp(!resp)} title="Mandar mensagem à pessoa pelo WhatsApp do escritório, com ajuda do Claude">💬 Responder cliente</button>}
         {!novo && cli && <Link className="btn ghost" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente</Link>}
         {!novo && titular && <button className="btn ghost" onClick={async () => {
           const nts = ts.length; if (!confirmar("caso" + id, aviso, `Clique de novo em “Excluir” para confirmar.${nts ? ` As ${nts} tarefa(s) do atendimento também serão excluídas.` : ""}`)) return;
@@ -152,6 +154,7 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
         {!novo && <button className="btn" onClick={() => j.abrirInicial({ clienteId: c.cliente_id || null, banco: c.banco || "", casoId: id })}>Petição inicial e pasta para protocolo</button>}
         {!novo && c.processo_numero && processos.has(c.processo_numero) && <button className="btn" onClick={() => j.abrirProcesso(c.processo_numero!)}>Abrir processo {mascaraCnj(c.processo_numero)}</button>}
       </div>
+      {!novo && resp && <ResponderAtendimento caso={c as Caso} onFechar={() => setResp(false)} />}
       {!novo && !c.processo_numero && <ProtocolarCaso casoId={id} />}
       {!novo && <CampoValores compacto valor={c.valor_causa} pct={c.honorarios_pct} onSalvar={async (v) => {
         const { data, error } = await sb.from("casos").update(v).eq("id", id).select().single();

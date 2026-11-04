@@ -957,3 +957,10 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .colch-lista{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:13px}
 .colch-lista li{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--surface);line-height:1.45}
 .colch-lista mark{background:var(--soon-soft);color:var(--soon);font-weight:700;border-radius:4px;padding:0 3px}
+
+/* ficha do atendimento: responder o cliente pelo WhatsApp */
+.resp-at-corpo{padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.resp-at .wa-cli-corpo .chat-fio{max-height:260px}
+.resp-at-claude{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:var(--sunken)}
+.resp-at-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.resp-at-h svg{color:var(--accent)}
+.resp-at textarea{width:100%;box-sizing:border-box;resize:vertical}
