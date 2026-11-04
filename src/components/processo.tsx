@@ -10,6 +10,7 @@ import { cidadeDoJuizo, infoCnj } from "@/lib/cnj";
 import { diferencaDias, situacaoPrazo } from "@/lib/prazos";
 import { atoPub, faseCRM } from "@/lib/regras";
 import { useColunas } from "./colunasCrm";
+import { ResponderAtendimento } from "./responderAtendimento";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CampoValores } from "./valores";
@@ -119,7 +120,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
   const [aba, setAba] = useState<Aba>(foco?.aba || "tarefas");
   const [filtro, setFiltro] = useState<"todas" | "abertas" | "feitas">("todas");
   const FASES = useColunas().fases;
-  const [tf, setTf] = useState(false); const [agendar, setAgendar] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" });
+  const [tf, setTf] = useState(false); const [agendar, setAgendar] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" }); const [resp, setResp] = useState(false);
   const { analisar, ocupado } = useAnalisar(); const criarAviso = useCriarAviso(); const corpo = useRef<HTMLDivElement>(null); const rolou = useRef(false);
   useEffect(() => { if (p) setEd({ fase: faseCRM(p.fase), notas: p.notas || "" }); }, [p?.numero]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -156,9 +157,9 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           {icone("Linha do tempo (andamentos)", S('<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/>'), () => setAba("andamentos"), aba === "andamentos")}
           {icone("Nova tarefa", S('<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M10 6.5v7M6.5 10h7"/>'), () => { setAba("tarefas"); setTf(true); })}
           {icone("Agendar audiência / coleta", S('<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2.5v3M13 2.5v3M8 12.5l1.5 1.5 3-3"/>'), () => { setAba("tarefas"); setAgendar(true); })}
-          {icone("Gerar petição com o Claude", S('<path d="M10 2.5l1.7 5 5.3.1-4.2 3.2 1.5 5.1L10 12.9l-4.3 3 1.5-5.1L3 7.6l5.3-.1z"/>'), () => j.gerarPeca({ numero: p.numero }))}
-          {icone("Cumprimento de sentença (cálculo e petição)", S('<path d="M4 16.5h12M6 16.5V9.5M10 16.5V6.5M14 16.5V3.5"/>'), () => j.gerarCumprimento({ numero: p.numero }))}
-          {icone("Petição inicial (Word)", S('<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>'), () => j.abrirInicial({ clienteId: p.cliente_id, banco: p.banco, cidade: p.cidade || cidadeDoJuizo(p.orgao), numero: p.numero }))}
+          {/* um só gerador de petições (inicial, intermediária e cumprimento, em abas): abre na que combina com a fase */}
+          {icone("Gerar petição com o Claude (inicial, intermediária ou cumprimento de sentença)", S('<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>'), () => faseCRM(p.fase) === "Cumprimento de sentença" ? j.gerarCumprimento({ numero: p.numero }) : j.gerarPeca({ numero: p.numero }))}
+          {icone("Responder o cliente pelo WhatsApp (com o Claude)", S('<path d="M3.5 15.5l1-3.2A6.5 6.5 0 1 1 7.6 15z"/><path d="M7.5 9h5M7.5 11.5h3"/>'), () => { setAba("dados"); setResp(true); setTimeout(() => document.querySelector(".resp-at")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}
           {icone("Avisar o cliente", S('<path d="M5 13.5V9a5 5 0 0 1 10 0v4.5l1.5 1.5h-13z"/><path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>'), async () => { const id = await criarAviso({ processo_numero: p.numero }); if (id) j.abrirAviso(id); })}
           {cli && <Link className="icb-q" title="Ficha do cliente" aria-label="Ficha do cliente" href={"/clientes/" + cli.id} onClick={onFechar}>{S('<circle cx="10" cy="7" r="3"/><path d="M4 16.5c.8-3 3.2-4.5 6-4.5s5.2 1.5 6 4.5"/>')}</Link>}
           {emJanela && <Link className="icb-q" title="Abrir em página inteira" aria-label="Abrir em página inteira" href={"/processos/" + p.numero} onClick={onFechar}>{S('<path d="M11.5 3.5h5v5M16.5 3.5l-6 6M8.5 4.5h-4v11h11v-4"/>')}</Link>}
@@ -225,6 +226,9 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
             <label className="f full">Anotações fixas<textarea rows={3} value={ed.notas} onChange={(e) => setEd({ ...ed, notas: e.target.value })} /></label>
           </div>
           <div className="tools"><button className="btn primary" onClick={() => salvar({ fase: ed.fase || null, notas: ed.notas || null })}>Salvar</button></div>
+          {resp ? <ResponderAtendimento processo={p} onFechar={() => setResp(false)} />
+            : <div className="tools"><button className="btn primary" onClick={() => setResp(true)} title="Mensagem livre ao cliente pelo WhatsApp, escrita por você ou pelo Claude">💬 Responder cliente</button>
+              <span className="muted s">mensagem livre pelo WhatsApp, com ajuda do Claude · para perícia, audiência e outros atos com data, use “Novo aviso”</span></div>}
           <section className="panel"><div className="ph"><h3>Avisos ao cliente</h3><button className="btn ghost" onClick={async () => { const id = await criarAviso({ processo_numero: p.numero }); if (id) j.abrirAviso(id); }}>Novo aviso</button></div>
             {avs.length ? <div className="rows">{avs.map((a) => <div key={a.id} className="row click" title="Abrir o aviso ao cliente" onClick={() => j.abrirAviso(a.id)} {...teclado(() => j.abrirAviso(a.id))}>
               <span className={"pill " + (a.status === "pendente" ? "soon" : "ok")}>{a.status === "avisado" ? "mensagem enviada" : a.status === "dispensado" ? "sem aviso" : "pendente"}</span>

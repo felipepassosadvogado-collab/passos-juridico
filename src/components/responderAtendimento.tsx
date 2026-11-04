@@ -7,11 +7,18 @@ import { useDados, msgErro } from "@/lib/dados";
 import { chaveFone } from "@/lib/whatsapp";
 import { foneDaObs, primeiroFone } from "@/lib/atendimentoWa";
 import { nomeBonito } from "@/lib/formato";
-import type { Caso } from "@/lib/tipos";
+import type { Caso, Processo } from "@/lib/tipos";
 import { Ic, useConfirmar } from "./ui";
 import { FioWa, enviarWhatsapp, foneBR, useWaConversas, useWaMensagens } from "./whatsapp";
 
 /** pontos de partida para as instruções ao Claude; o advogado completa o que estiver entre colchetes */
+const MODELOS_PROCESSO: [string, string][] = [
+  ["Explicar o andamento", "Explicar em palavras simples como está o processo agora e o que vem a seguir: [o que aconteceu]."],
+  ["Responder a dúvida", "Responder a dúvida que ele mandou na conversa: [resposta]."],
+  ["Pedir documentos", "Pedir que envie por aqui, em foto legível: [quais documentos], porque o processo precisa deles agora."],
+  ["Pedir dados bancários", "Pedir que informe a chave Pix dele (no nome dele) para recebermos e repassarmos o valor do processo."],
+  ["Sem novidades", "Dizer que ainda não há novidade no processo, que está andando normalmente e que avisaremos assim que houver."],
+];
 const MODELOS: [string, string][] = [
   ["Não tem direito", "Dizer que analisamos o caso e que, pelo que foi contado, ela não tem direito a [o quê], porque [motivo]. Por isso o escritório não vai entrar com a ação. Agradecer a confiança."],
   ["Pedir documentos", "Pedir que envie por aqui, em foto legível: RG ou CNH, comprovante de residência e o extrato de empréstimos do INSS (HISCON), que dá para tirar no app Meu INSS."],
@@ -20,8 +27,13 @@ const MODELOS: [string, string][] = [
   ["Marcar uma conversa", "Convidar para uma conversa (ligação ou no escritório) para explicar o caso com calma e pedir o melhor dia e horário."],
 ];
 
-export function ResponderAtendimento({ caso, onFechar }: { caso: Caso; onFechar: () => void }) {
+/** responder a pessoa de um atendimento (pré-processual) ou o cliente de um processo */
+export function ResponderAtendimento({ caso: c0, processo, onFechar }: { caso?: Caso; processo?: Processo; onFechar: () => void }) {
   const { clientes, config, aviso, registrar } = useDados(); const { lista } = useWaConversas(); const confirmar = useConfirmar();
+  // o processo entra como um "atendimento" sem anotação de telefone: a conversa vem pela ficha do cliente
+  const caso: Pick<Caso, "id" | "cliente_id" | "nome" | "obs"> = c0 || { id: processo!.numero, cliente_id: processo!.cliente_id, nome: processo!.cliente_nome, obs: null };
+  const alvo = processo ? { processoNumero: processo.numero } : { casoId: caso.id };
+  const modelos = processo ? MODELOS_PROCESSO : MODELOS;
   const cli = caso.cliente_id ? clientes.get(caso.cliente_id) : undefined;
   const daObs = foneDaObs(caso.obs); const daFicha = primeiroFone(cli?.telefone);
   const conv = useMemo(() => {
@@ -47,7 +59,7 @@ export function ResponderAtendimento({ caso, onFechar }: { caso: Caso; onFechar:
     if (/\[[^\]]+\]/.test(instr)) { aviso("Complete o que está entre [colchetes] nas instruções."); return; }
     setEscrevendo(true); setAlertas([]);
     try {
-      const r = await fetch("/api/claude/resposta-atendimento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ casoId: caso.id, instrucoes: instr.trim(), mensagemAtual: texto }) });
+      const r = await fetch("/api/claude/resposta-atendimento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...alvo, instrucoes: instr.trim(), mensagemAtual: texto }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { aviso(j.erro || "Não consegui escrever a mensagem agora."); return; }
       setTexto(j.mensagem); setAlertas(j.alertas || []); aviso("Mensagem escrita pelo Claude. Confira antes de enviar.");
@@ -62,7 +74,7 @@ export function ResponderAtendimento({ caso, onFechar }: { caso: Caso; onFechar:
     try {
       const r = await enviarWhatsapp(conv ? { conversaId: conv.id, texto: t } : { telefone, nome, texto: t, ...(caso.cliente_id ? { clienteId: caso.cliente_id } : { avulso: true }) });
       if (conv) juntar(r.mensagem);
-      registrar({ caso_id: caso.id, tipo: "comentario", dados: { texto: "Mensagem enviada pelo WhatsApp: " + t.slice(0, 1500) } });
+      registrar({ ...(processo ? { processo_numero: processo.numero } : { caso_id: caso.id }), tipo: "comentario", dados: { texto: "Mensagem enviada pelo WhatsApp: " + t.slice(0, 1500) } });
       setTexto(""); setAlertas([]); aviso("Mensagem enviada pelo WhatsApp.");
     } catch (e) { aviso(msgErro(e, (e as Error).message)); }
     finally { setEnviando(false); }
@@ -79,9 +91,9 @@ export function ResponderAtendimento({ caso, onFechar }: { caso: Caso; onFechar:
         {conv && <div className="wa-cli wa-cli-corpo"><FioWa msgs={msgs.slice(-6)} carregando={carregando} /></div>}
 
         <div className="resp-at-claude">
-          <div className="resp-at-h">{Ic.claude}<b>Pedir ao Claude</b><span className="muted s">diga o que você decidiu; ele escreve a mensagem lendo o atendimento e a conversa</span></div>
-          <div className="wa-chips">{MODELOS.map(([r, t]) => <button key={r} type="button" className="pill" onClick={() => usarModelo(t)}>{r}</button>)}</div>
-          <textarea ref={refInstr} rows={3} value={instr} placeholder="Ex.: dizer que ela não tem direito ao auxílio-acidente porque não era segurada do INSS na época do acidente" onChange={(e) => setInstr(e.target.value)} />
+          <div className="resp-at-h">{Ic.claude}<b>Pedir ao Claude</b><span className="muted s">diga o que a mensagem deve dizer; ele escreve lendo {processo ? "o processo, os últimos andamentos" : "o atendimento"} e a conversa</span></div>
+          <div className="wa-chips">{modelos.map(([r, t]) => <button key={r} type="button" className="pill" onClick={() => usarModelo(t)}>{r}</button>)}</div>
+          <textarea ref={refInstr} rows={3} value={instr} placeholder={processo ? "Ex.: explicar que saiu a sentença favorável, que o banco ainda pode recorrer e que avisaremos do prazo" : "Ex.: dizer que ela não tem direito ao auxílio-acidente porque não era segurada do INSS na época do acidente"} onChange={(e) => setInstr(e.target.value)} />
           <div className="tools"><button className="btn" disabled={escrevendo || !instr.trim()} onClick={escrever}>{escrevendo ? "Escrevendo…" : texto.trim() ? "Reescrever com o Claude" : "Escrever com o Claude"}</button></div>
         </div>
 

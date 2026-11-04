@@ -30,6 +30,14 @@ describe("responder o cliente pela ficha do atendimento", () => {
     expect(p).toContain("Cliente: Ela tem direito?");
     expect(p).toContain("quer saber do auxílio-acidente");
   });
+  it("no processo, o pedido leva o número, a fase e os últimos andamentos", () => {
+    const p = promptRespostaAtendimento({ nome: "MARIA ONDINA", banco: "Banco C6", contratos: null, etapa: "", obs: null, instrucoes: "explicar a sentença", mensagens: [],
+      processo: { processo: "5011402-95.2025.4.04.7201", orgao: "6ª Vara Federal de Joinville", fase: "Sentença", ultimoAto: "Sentença", ultimaData: "01/11/2026", reus: ["BANCO C6 CONSIGNADO S.A.", "INSS"], notas: null, andamentos: ["01/11/2026 · Sentença: procedente"] } });
+    expect(p).toContain("processo em andamento");
+    expect(p).toContain("5011402-95.2025.4.04.7201");
+    expect(p).toContain("Sentença: procedente");
+    expect(p).not.toContain("Etapa no CRM");
+  });
   it("separa a mensagem do que conferir", () => {
     expect(lerResposta("Olá!\n\n===CONFERIR===\n- data do acidente")).toEqual({ mensagem: "Olá!", alertas: ["data do acidente"] });
   });

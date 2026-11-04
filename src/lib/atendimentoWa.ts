@@ -51,18 +51,34 @@ export async function contatoDoCaso(sb: Sb, caso: { cliente_id: string | null; o
 }
 
 /** pedido ao Claude: a resposta segue as instruções do advogado, com o caso e a conversa como contexto */
-export function promptRespostaAtendimento(o: { nome: string; banco: string | null; contratos: string | null; etapa: string; obs: string | null; instrucoes: string; mensagemAtual?: string; mensagens: MsgCurta[] }) {
+export type ProcessoResumo = { processo: string; orgao: string | null; fase: string | null; ultimoAto: string | null; ultimaData: string | null; reus: string[]; notas: string | null; andamentos: string[] };
+export function promptRespostaAtendimento(o: { nome: string; banco: string | null; contratos: string | null; etapa: string; obs: string | null; instrucoes: string; mensagemAtual?: string; mensagens: MsgCurta[]; processo?: ProcessoResumo }) {
   const primeiro = nomeBonito(o.nome || "").split(" ")[0] || "";
   const conversa = o.mensagens.filter((m) => m.texto).slice(-14)
     .map((m) => `${m.de_mim ? (m.agente ? "Escritório (assistente virtual)" : "Escritório") : "Cliente"}: ${String(m.texto).replace(/\s+/g, " ").slice(0, 500)}`).join("\n");
   const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
-  return `Você escreve, para o escritório Passos Advocacia (Joinville/SC), a mensagem de WhatsApp que o advogado pediu para uma pessoa que procurou o escritório (atendimento inicial, ainda sem processo).
+  const pr = o.processo;
+  const quem = pr ? "um cliente do escritório que tem um processo em andamento" : "uma pessoa que procurou o escritório (atendimento inicial, ainda sem processo)";
+  const sobre = pr ? `Processo:
+Cliente: ${nomeBonito(o.nome || "")}
+Número: ${pr.processo}${pr.orgao ? " · " + pr.orgao : ""}
+Réus: ${pr.reus.map((r) => nomeBonito(r)).join("; ") || "não informado"}
+Fase no CRM: ${pr.fase || "não classificada"}
+Último ato: ${pr.ultimoAto || "não informado"}${pr.ultimaData ? " (" + pr.ultimaData + ")" : ""}
+${pr.notas ? "Anotações do processo:\n" + corte(pr.notas, 2000) + "\n" : ""}${pr.andamentos.length ? "Últimos andamentos (do mais recente):\n" + pr.andamentos.map((a) => "- " + corte(a, 400)).join("\n") : ""}` : `Atendimento:
+Pessoa: ${nomeBonito(o.nome || "")}
+Banco/réu informado: ${o.banco ? bancoCurto(o.banco) + " (" + o.banco + ")" : "não informado"}
+${o.contratos ? "Contratos: " + o.contratos + "\n" : ""}Etapa no CRM: ${o.etapa}
+Anotações do atendimento:
+${corte(o.obs, 3000) || "nenhuma"}`;
+  return `Você escreve, para o escritório Passos Advocacia (Joinville/SC), a mensagem de WhatsApp que o advogado pediu para ${quem}.
 O PRINCIPAL são as INSTRUÇÕES DO ADVOGADO abaixo: a mensagem deve dizer exatamente o que ele decidiu, com essa intenção, e nada além disso.
 Regras:
 - Português simples, frases curtas, tom acolhedor e respeitoso, sem juridiquês. Muitos clientes são aposentados ou pensionistas.
 - Comece com "Olá, ${primeiro || "tudo bem"}! Aqui é do escritório Passos Advocacia." — se a conversa abaixo já estiver em andamento hoje, pode começar só com "${primeiro ? primeiro + ", " : ""}" e ir direto ao ponto.
 - Responda ao que a pessoa perguntou ou contou na conversa, quando isso tiver a ver com as instruções.
 - Se as instruções disserem que a pessoa NÃO tem direito ou que o escritório não vai assumir o caso: diga com delicadeza e clareza, explique o motivo em palavras simples usando só o que estiver nas instruções, agradeça a confiança e não deixe esperança falsa. Não indique outro advogado nem outro escritório, a não ser que as instruções peçam.
+- Ao falar do processo, explique o ato em palavras simples (o que aconteceu e o que vem agora), sem número de evento nem termos técnicos.
 - Não invente fatos, valores, prazos, chances de êxito nem promessas de resultado. Nunca garanta que a pessoa vai ganhar. Se faltar um dado que a mensagem precisa, escreva sem ele e aponte em "conferir".
 - No máximo uns 900 caracteres, 2 a 5 parágrafos curtos, no máximo 1 emoji, sem markdown.
 - Termine de forma natural, pedindo resposta quando a mensagem pedir algo à pessoa.
@@ -71,12 +87,7 @@ Formato da resposta (texto puro, sem JSON e sem comentários antes): primeiro a 
 INSTRUÇÕES DO ADVOGADO:
 ${corte(o.instrucoes, 2000)}
 
-Atendimento:
-Pessoa: ${nomeBonito(o.nome || "")}
-Banco/réu informado: ${o.banco ? bancoCurto(o.banco) + " (" + o.banco + ")" : "não informado"}
-${o.contratos ? "Contratos: " + o.contratos + "\n" : ""}Etapa no CRM: ${o.etapa}
-Anotações do atendimento:
-${corte(o.obs, 3000) || "nenhuma"}
+${sobre}
 ${conversa ? `\nÚltimas mensagens no WhatsApp (da mais antiga para a mais recente):\n${conversa}\n` : "\n(Ainda não há conversa registrada no WhatsApp do sistema.)\n"}${o.mensagemAtual?.trim() ? `\nRascunho atual (pode ser reescrito):\n${corte(o.mensagemAtual, 2000)}\n` : ""}`;
 }
 
