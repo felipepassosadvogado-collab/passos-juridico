@@ -2,6 +2,7 @@ import { membroDaRota, erro, respostaLonga } from "@/lib/rota";
 import { sugerirFasesProcessos, ErroClaude, type ProcessoParaFase } from "@/lib/claude";
 import { faseCRM } from "@/lib/regras";
 import { medir } from "@/lib/operacao";
+import { colunasCrm } from "@/lib/colunasCrm";
 
 export const maxDuration = 300;
 const corte = (s: string | null | undefined, n: number) => { const t = (s || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + " […]" : t; };
@@ -17,6 +18,8 @@ export async function POST(req: Request) {
     const semFase = (procs || []).filter((p) => !faseCRM(p.fase)); // nunca mexe em processo já classificado
     if (!semFase.length) return { corpo: { sugestoes: {} } };
     const nums = semFase.map((p) => p.numero);
+    const { data: cfg } = await m.sb.from("config").select("valor").eq("chave", "crm_colunas").maybeSingle();
+    const colunas = cfg?.valor ? colunasCrm({ crm_colunas: cfg.valor }).judicial : undefined;
     const [pubs, evs, tars] = await Promise.all([
       m.sb.from("publicacoes").select("processo_numero,data,tipo_doc,tipo_com,texto,analise").in("processo_numero", nums).order("data", { ascending: false }).limit(nums.length * 12),
       m.sb.from("eventos").select("processo_numero,tipo,dados,em").in("processo_numero", nums).order("em", { ascending: false }).limit(nums.length * 15),
@@ -30,7 +33,7 @@ export async function POST(req: Request) {
       tarefas: (tars.data || []).filter((x) => x.processo_numero === p.numero).slice(0, 6).map((x) => `${x.vencimento} [${x.status}] ${corte(x.descricao, 150)}`),
     }));
     try {
-      const sugestoes = await medir("claude.fases", () => sugerirFasesProcessos(entrada), { processos: entrada.length }, (r) => ({ sugeridas: Object.keys(r).length }));
+      const sugestoes = await medir("claude.fases", () => sugerirFasesProcessos(entrada, colunas), { processos: entrada.length }, (r) => ({ sugeridas: Object.keys(r).length }));
       return { corpo: { sugestoes } };
     } catch (e) { return { corpo: { erro: e instanceof ErroClaude ? e.message : "O Claude não respondeu agora. Tente de novo." } }; }
   }, "claude.fases");

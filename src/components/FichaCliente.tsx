@@ -7,7 +7,8 @@ import { useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, iniciais, moeda, nomeBonito } from "@/lib/formato";
 import { mascaraCnj, soDigitos } from "@/lib/cnj";
-import { ETAPAS, faseCRM } from "@/lib/regras";
+import { faseCRM } from "@/lib/regras";
+import { useColunas } from "./colunasCrm";
 import { situacaoPrazo } from "@/lib/prazos";
 import { honorarios, pctPadrao } from "@/lib/valores";
 import type { Caso, Cliente } from "@/lib/tipos";
@@ -151,7 +152,7 @@ function CartaoAtendimento({ caso: x, ordem, onSalvar, onExcluir }: { caso: Caso
   const { tarefas, nome, v } = useDados(); const j = useJanelas(); const [prot, setProt] = useState(false);
   const reus = [...(x.banco || "").split(/\s*;\s*/).map((b) => nomeBonito(b.trim())).filter(Boolean), "INSS"];
   const semBanco = !(x.banco || "").trim();
-  const ix = Math.max(0, ETAPAS.indexOf(x.etapa));
+  const ETAPAS = useColunas().etapas; const ix = Math.max(0, ETAPAS.indexOf(x.etapa));
   const abertas = useMemo(() => [...tarefas.values()].filter((t) => t.caso_id === x.id && t.status !== "feito").sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9")), [tarefas, x.id, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const prox = abertas[0]; const sp = prox ? situacaoPrazo(prox.vencimento) : null;
   return (

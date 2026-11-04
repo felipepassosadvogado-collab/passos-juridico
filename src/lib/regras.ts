@@ -45,6 +45,8 @@ export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: 
 
 const MAPA_FASE: Record<string, string> = { "Inicial / citação": "Protocolo / citação", "Contestação / réplica": "Réplica", "Perícia grafotécnica": "Perícia / instrução", "Manifestação ao laudo": "Perícia / instrução", "Audiência": "Perícia / instrução" };
 export const faseCRM = (f?: string | null) => MAPA_FASE[f || ""] || f || "";
+/** nomes gravados no banco que aparecem nessa fase do CRM (o próprio e os nomes antigos que viram ela) */
+export const gravadosDaFase = (f: string) => [f, ...Object.keys(MAPA_FASE).filter((k) => MAPA_FASE[k] === f)];
 
 /** sugestão de fase pelos dados do processo (juízo, classe e último ato) */
 export function sugerirFase(p: Pick<Processo, "orgao" | "classe" | "ultimo_ato">): string {

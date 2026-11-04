@@ -4,7 +4,8 @@
 import { useMemo, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { classificarFases } from "@/lib/acoesLote";
-import { FASES, faseCRM } from "@/lib/regras";
+import { faseCRM } from "@/lib/regras";
+import { useColunas } from "./colunasCrm";
 import { nomeBonito } from "@/lib/formato";
 import { Janela } from "./ui";
 import { Cronometro } from "./carregando";
@@ -14,7 +15,7 @@ const LOTE = 20;
 const ROT_CONF = { alta: "certeza alta", media: "certeza média", baixa: "palpite: confira" } as const;
 
 export function FasesComClaude({ onFechar }: { onFechar: () => void }) {
-  const { sb, eu, processos, aplicar, aviso } = useDados();
+  const { sb, eu, processos, aplicar, aviso } = useDados(); const FASES = useColunas().fases;
   const semFase = useMemo(() => [...processos.values()].filter((p) => !faseCRM(p.fase) && p.fase !== "Encerrado").sort((a, b) => (a.cliente_nome || "").localeCompare(b.cliente_nome || "")), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [sug, setSug] = useState<Record<string, Sug>>({}); const [prog, setProg] = useState<{ feito: number; total: number } | null>(null);
   const [erroMsg, setErroMsg] = useState(""); const [gravando, setGravando] = useState(false); const parar = useRef(false);
@@ -63,7 +64,7 @@ export function FasesComClaude({ onFechar }: { onFechar: () => void }) {
             <tr key={p.numero} style={s && !s.marcado ? { opacity: 0.6 } : undefined}>
               <td>{s && <input type="checkbox" aria-label={"Aplicar a fase em " + nomeBonito(p.cliente_nome || p.mascara)} checked={s.marcado} onChange={(e) => setSug((x) => ({ ...x, [p.numero]: { ...s, marcado: e.target.checked } }))} />}</td>
               <td><b>{nomeBonito(p.cliente_nome || "") || "—"}</b><div className="mono muted s">{p.mascara}</div><div className="muted s">{p.orgao || ""}</div></td>
-              <td>{s ? <><select aria-label={"Fase de " + nomeBonito(p.cliente_nome || p.mascara)} value={s.fase} onChange={(e) => setSug((x) => ({ ...x, [p.numero]: { ...s, fase: e.target.value, marcado: true } }))}>{FASES.map((f) => <option key={f}>{f}</option>)}</select>
+              <td>{s ? <><select aria-label={"Fase de " + nomeBonito(p.cliente_nome || p.mascara)} value={s.fase} onChange={(e) => setSug((x) => ({ ...x, [p.numero]: { ...s, fase: e.target.value, marcado: true } }))}>{[...FASES, ...(FASES.includes(s.fase) ? [] : [s.fase])].map((f) => <option key={f}>{f}</option>)}</select>
                 <div className={"s " + (s.confianca === "baixa" ? "late" : "muted")}>{ROT_CONF[s.confianca]}</div></> : <span className="muted s">{prog ? "na fila…" : "—"}</span>}</td>
               <td className="s" style={{ maxWidth: 420 }}>{s?.motivo || ""}</td>
             </tr>); })}</tbody></table></div>}

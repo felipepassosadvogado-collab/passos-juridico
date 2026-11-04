@@ -8,7 +8,8 @@ import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, nomeBonito } from "@/lib/formato";
 import { mascaraCnj } from "@/lib/cnj";
 import { situacaoPrazo } from "@/lib/prazos";
-import { BANCOS, ETAPAS } from "@/lib/regras";
+import { BANCOS } from "@/lib/regras";
+import { PROTOCOLADO, colunasCrm, etapaInicial, etapasDe } from "@/lib/colunasCrm";
 import type { Caso, Tarefa } from "@/lib/tipos";
 import { Ic, Janela, SelResp, useConfirmar } from "./ui";
 import { FormTarefa, TabelaTarefas } from "./tarefas";
@@ -78,18 +79,25 @@ export function useArrasto(onDrop: (id: string, coluna: string) => void) {
   return arrastou;
 }
 
-export function Coluna({ chave, titulo, dica, cartoes, extra }: { chave: string; titulo: string; dica?: string; cartoes: React.ReactNode[]; extra?: string }) {
+export function Coluna({ chave, titulo, dica, cartoes, extra, onEditar, vazio, classe, contar = true }: { chave: string; titulo: string; dica?: string; cartoes: React.ReactNode[]; extra?: React.ReactNode; onEditar?: () => void; vazio?: string; classe?: string; contar?: boolean }) {
   const [lim, setLim] = useState(40);
   return (
-    <section className="kcol" data-k={chave}>
-      <header className="kh"><span className="kt">{titulo}</span><span className="count">{cartoes.length}</span></header>
+    <section className={"kcol" + (classe ? " " + classe : "")} data-k={chave}>
+      <header className="kh"><span className="kt">{titulo}</span><span className="kh-dir">{contar && <span className="count">{cartoes.length}</span>}
+        {onEditar && <button type="button" className="kh-ed" title={"Editar a coluna “" + titulo + "” (nome, descrição, posição, excluir)"} aria-label={"Editar a coluna " + titulo} onClick={onEditar}>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.8 2.7l2.5 2.5L6 12.5l-3.2.7.7-3.2z" /></svg></button>}</span></header>
       {extra && <div className="kextra">{extra}</div>}
       {dica && <div className="kdica">{dica}</div>}
       <div className="kbody">{cartoes.slice(0, lim)}
         {cartoes.length > lim && <button className="btn ghost" onClick={() => setLim(lim + 40)}>Mostrar mais {Math.min(40, cartoes.length - lim)}</button>}
-        <div className={"kvazio" + (cartoes.length ? " fim" : "")}>Solte aqui</div></div>
+        <div className={"kvazio" + (cartoes.length ? " fim" : "")}>{vazio || "Solte aqui"}</div></div>
     </section>
   );
+}
+
+/** botão no fim do quadro para o titular criar uma coluna */
+export function NovaColuna({ onClick }: { onClick: () => void }) {
+  return <button type="button" className="knova" onClick={onClick} title="Criar uma coluna no fim do quadro"><span aria-hidden="true">+</span>Nova coluna</button>;
 }
 
 export function ProxTarefa({ t }: { t?: Tarefa }) {
@@ -99,9 +107,9 @@ export function ProxTarefa({ t }: { t?: Tarefa }) {
 
 /** ficha do atendimento pré-processual */
 export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; comTarefa?: boolean; onFechar: () => void; onTrocar: (id: string) => void }) {
-  const { casos, clientes, tarefas, processos, sb, eu, aplicar, registrar, aviso, remover, titular } = useDados(); const j = useJanelas(); const router = useRouter(); const confirmar = useConfirmar();
+  const { casos, clientes, tarefas, processos, sb, eu, aplicar, registrar, aviso, remover, titular, config } = useDados(); const etapas = etapasDe(colunasCrm(config)); const j = useJanelas(); const router = useRouter(); const confirmar = useConfirmar();
   const novo = id === "novo"; const c: Partial<Caso> = novo ? {} : casos.get(id) || {};
-  const [ed, setEd] = useState({ cliente_id: c.cliente_id || "", nome: c.nome || "", banco: c.banco || "", contratos: c.contratos || "", etapa: c.etapa || ETAPAS[0], responsavel: c.responsavel || eu.id, obs: c.obs || "" });
+  const [ed, setEd] = useState({ cliente_id: c.cliente_id || "", nome: c.nome || "", banco: c.banco || "", contratos: c.contratos || "", etapa: c.etapa || etapaInicial(colunasCrm(config)), responsavel: c.responsavel || eu.id, obs: c.obs || "" });
   const [tf, setTf] = useState(!!comTarefa);
   if (!novo && !casos.has(id)) return <Janela onFechar={onFechar} titulo="Atendimento"><div className="empty">Atendimento não encontrado.</div></Janela>;
   const ts = novo ? [] : [...tarefas.values()].filter((t) => t.caso_id === id).sort((a, b) => (a.vencimento || "9").localeCompare(b.vencimento || "9"));
@@ -129,7 +137,7 @@ export function JanelaCaso({ id, comTarefa, onFechar, onTrocar }: { id: string; 
         {!ed.cliente_id && <label className="f full">Nome do cliente<input value={ed.nome} onChange={(e) => setEd({ ...ed, nome: e.target.value })} /></label>}
         <label className="f">Banco réu<input list="dl-bancos" value={ed.banco} placeholder="Ex.: Banco C6 Consignado S.A." onChange={(e) => setEd({ ...ed, banco: e.target.value })} /></label>
         <label className="f">Contratos impugnados<input value={ed.contratos} placeholder="Nº dos contratos" onChange={(e) => setEd({ ...ed, contratos: e.target.value })} /></label>
-        <label className="f">Etapa<select value={ed.etapa} onChange={(e) => setEd({ ...ed, etapa: e.target.value })}>{ETAPAS.filter((e) => e !== "Protocolado" || c.processo_numero).map((e) => <option key={e}>{e}</option>)}</select></label>
+        <label className="f">Etapa<select value={ed.etapa} onChange={(e) => setEd({ ...ed, etapa: e.target.value })}>{[...etapas, ...(c.etapa && !etapas.includes(c.etapa) ? [c.etapa] : [])].filter((e) => e !== PROTOCOLADO || c.processo_numero).map((e) => <option key={e}>{e}</option>)}</select></label>
         <label className="f">Responsável pelo caso<SelResp valor={ed.responsavel} onChange={(v) => setEd({ ...ed, responsavel: v || "" })} /></label>
         <label className="f full">Observações<textarea rows={3} value={ed.obs} onChange={(e) => setEd({ ...ed, obs: e.target.value })} /></label>
       </div>

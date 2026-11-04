@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { todas, useDados, useOpcoesEquipe } from "@/lib/dados";
 import { bancoCurto, moeda, nomeBonito } from "@/lib/formato";
-import { FASES } from "@/lib/regras";
+import { useColunas } from "./colunasCrm";
 import { montarRelatorioCrm, processosParaMeta, type EventoMin, type FiltrosCrm, type PubMin } from "@/lib/relatorioCrm";
 import { mediaPlanejamento, pdfRelatorioCrm } from "@/lib/relatorioCrmPdf";
 import { pctPadrao } from "@/lib/valores";
@@ -29,11 +29,11 @@ function periodo(k: string): [string, string] {
 }
 const dataBR = (d: string) => (d ? d.split("-").reverse().join("/") : "");
 const numBR = (s: string) => Number(s.replace(/[^\d,]/g, "").replace(",", "."));
-const TODAS_FASES = ["", ...FASES];
 const rotFase = (f: string) => f || "A classificar";
 
 export function ExportarCrm({ onFechar, banco, resp }: { onFechar: () => void; banco: string; resp: string }) {
   const d = useDados(); const { processos, casos, tarefas, sb, nome, eu, aviso } = d; const ops = useOpcoesEquipe();
+  const TODAS_FASES = ["", ...useColunas().fases];
   const [extra, setExtra] = useState<{ pubs: PubMin[]; eventos: EventoMin[] } | null>(null); const [erro, setErro] = useState("");
   const [atalho, setAtalho] = useState("tudo"); const [de, setDe] = useState(""); const [ate, setAte] = useState("");
   const [fases, setFases] = useState<string[]>(TODAS_FASES.filter((f) => f !== "Encerrado"));

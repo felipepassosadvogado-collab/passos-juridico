@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoDosReus, nomeBonito, semAcento } from "@/lib/formato";
 import { cidadeDoJuizo, cnjValido, infoCnj, mascaraCnj, soDigitos } from "@/lib/cnj";
-import { ETAPAS, FASES } from "@/lib/regras";
+import { faseCRM } from "@/lib/regras";
+import { PROTOCOLADO, colunasCrm, etapaInicial, etapasDe, faseInicial, fasesDe, mesmoCliente } from "@/lib/colunasCrm";
 import { CamposCliente, EnvioDocumentos, useFichaCliente } from "./cliente";
 import { useJanelas } from "./janelas";
 import { KitProcuracao } from "./kitProcuracao";
@@ -129,7 +130,7 @@ export type CtxNovoProcesso = { clienteId?: string | null; casoId?: string | nul
 export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProcesso; onCriado: (numero: string) => void; onCaso: (id: string) => void }) {
   const j = useJanelas(); const { processos, clientes, casos, tarefas, sb, eu, aplicar, aviso, registrar, config } = useDados();
   const caso = ctx.casoId ? casos.get(ctx.casoId) : undefined;
-  const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: "Primeiro atendimento", contratos: caso?.contratos || "", classe: "", fase: "Protocolo / citação", resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "",
+  const [np, setNp] = useState({ numero: soDigitos(ctx.numero || "").slice(0, 20), orgao: "", cidade: "", cidMan: false, tribunal: "", reus: (caso ? [...(caso.banco || "").split(/\s*;\s*/).filter(Boolean), INSS] : []) as string[], modo: (ctx.casoId ? "processo" : "processo") as "processo" | "pre", etapa: etapaInicial(colunasCrm(config)), contratos: caso?.contratos || "", classe: "", fase: faseInicial(colunasCrm(config)), resp: eu.id as string | null, clienteId: ctx.clienteId || caso?.cliente_id || "", cliente: caso?.nome || "", notas: "",
     valor: caso?.valor_causa ? String(caso.valor_causa).replace(".", ",") : "", pct: caso?.honorarios_pct != null ? String(caso.honorarios_pct).replace(".", ",") : "" });
   const [pubs, setPubs] = useState<PubDjen[]>([]); const [nota, setNota] = useState(""); const [busy, setBusy] = useState(false); const [novoCli, setNovoCli] = useState(false); const [mais, setMais] = useState(false);
   const dig = soDigitos(np.numero); const info = infoCnj(dig); const valido = dig.length === 20 && cnjValido(dig); const existe = valido && processos.has(dig);
@@ -196,7 +197,9 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
   /** atendimento protocolado: liga o atendimento e as tarefas abertas dele ao processo */
   const ligarCaso = async (num: string) => {
     if (!caso) return;
-    const r = await sb.from("casos").update({ processo_numero: num, etapa: "Protocolado" }).eq("id", caso.id).select().single(); if (r.data) aplicar("casos", r.data);
+    const r = await sb.from("casos").update({ processo_numero: num, etapa: PROTOCOLADO }).eq("id", caso.id).select().single(); if (r.data) aplicar("casos", r.data);
+    const pj = processos.get(num); // já existia sem fase (em geral veio do DJEN): entra na fase de protocolo
+    if (pj && !faseCRM(pj.fase)) { const u = await sb.from("processos").update({ fase: faseInicial(colunasCrm(config)) || null }).eq("numero", num).select().single(); if (u.data) aplicar("processos", u.data); }
     const ts = [...tarefas.values()].filter((t) => t.caso_id === caso.id && !t.processo_numero && t.status !== "feito");
     if (ts.length) { const u = await sb.from("tarefas").update({ processo_numero: num }).in("id", ts.map((t) => t.id)).select(); for (const t of u.data || []) aplicar("tarefas", t); }
     registrar({ caso_id: caso.id, tipo: "fase", dados: { fase: "Protocolado: processo " + mascaraCnj(num) } });
@@ -251,8 +254,8 @@ export function FormNovoProcesso({ ctx, onCriado, onCaso }: { ctx: CtxNovoProces
         {<label className="f">Contratos impugnados (opcional){kitCli?.contratos?.length ? <span className="muted" style={{ fontWeight: 400 }}> · do kit procuração</span> : null}<input value={np.contratos} placeholder="Ex.: 010016334309; 010017220011" onChange={(e) => set({ contratos: e.target.value })} /></label>}
         <label className="f">Responsável<SelResp valor={np.resp} onChange={(v) => set({ resp: v })} /></label>
         <label className="f">Anotações gerais<textarea rows={2} value={np.notas} placeholder="Anotações, fatos e fundamentos (o Claude lê ao redigir peças)" onChange={(e) => set({ notas: e.target.value })} /></label>
-        {pre ? <label className="f">Etapa do atendimento *<select value={np.etapa} onChange={(e) => set({ etapa: e.target.value })}>{ETAPAS.filter((x) => x !== "Protocolado").map((f) => <option key={f}>{f}</option>)}</select></label>
-          : <label className="f">Fase *<select value={np.fase} onChange={(e) => set({ fase: e.target.value })}>{FASES.map((f) => <option key={f}>{f}</option>)}</select></label>}
+        {pre ? <label className="f">Etapa do atendimento *<select value={np.etapa} onChange={(e) => set({ etapa: e.target.value })}>{etapasDe(colunasCrm(config)).filter((x) => x !== PROTOCOLADO).map((f) => <option key={f}>{f}</option>)}</select></label>
+          : <label className="f">Fase *<select value={np.fase} onChange={(e) => set({ fase: e.target.value })}>{fasesDe(colunasCrm(config)).map((f) => <option key={f}>{f}</option>)}</select></label>}
         {!pre && <button className="cx-mais" onClick={() => setMais(!mais)} aria-expanded={mais}><span>{mais ? "▾" : "▸"}</span> Juízo, cidade, tribunal e classe{!mais && resumoJuizo ? <span className="muted"> · {resumoJuizo}</span> : !mais ? <span className="muted"> · preenchidos pelo DJEN</span> : null}</button>}
         {mais && !pre && <div className="form2">
           <datalist id="np-varas">{varas.map((x) => <option key={x} value={x} />)}</datalist>
@@ -299,7 +302,7 @@ export function JanelaNovoCliente({ onFechar }: { onFechar: () => void }) {
 export function useProtocoloDireto() {
   const { processos, clientes, casos, tarefas, sb, eu, aplicar, aviso, registrar, config } = useDados();
   /** confirmar = true só depois que a pessoa confirmou ligar a um processo que já estava cadastrado */
-  return async (casoId: string, numero: string, confirmar = false): Promise<boolean> => {
+  return async (casoId: string, numero: string, confirmar = false, silencioso = false): Promise<boolean> => {
     const caso = casos.get(casoId); const dig = soDigitos(numero);
     if (!caso) return false;
     if (dig.length !== 20 || !cnjValido(dig)) { aviso("O nº do processo não confere. Confira os 20 dígitos."); return false; }
@@ -315,7 +318,7 @@ export function useProtocoloDireto() {
       const pct = caso.honorarios_pct ?? (cli?.kit?.pct ? Number(cli.kit.pct) : pctPadrao(config));
       const linha: Record<string, unknown> = {
         numero: dig, tribunal: d?.tribunal || infoCnj(dig)?.tribunal || null, orgao: d?.orgao || null, cidade: cidadeDoJuizo(d?.orgao) || null, classe: d?.classe || null,
-        cliente_id: caso.cliente_id || null, cliente_nome: cli?.nome || caso.nome || "", reus, banco: bancoDosReus(reus) || null, fase: "Protocolo / citação", responsavel: eu.id,
+        cliente_id: caso.cliente_id || null, cliente_nome: cli?.nome || caso.nome || "", reus, banco: bancoDosReus(reus) || null, fase: faseInicial(colunasCrm(config)) || null, responsavel: eu.id,
         notas: caso.contratos ? "Contratos impugnados: " + caso.contratos : null, ultima_data: ult?.data || null,
         ultimo_ato: ult ? (ult.tipo_doc && ult.tipo_doc !== "Outros" ? ult.tipo_doc : ult.tipo_com) : "Protocolo da inicial", cadastro_manual: true,
         honorarios_pct: pct, ...(caso.valor_causa ? { valor_causa: caso.valor_causa } : {}),
@@ -327,20 +330,25 @@ export function useProtocoloDireto() {
       if (pubs.length) await sb.from("publicacoes").upsert(pubs.map((x) => ({ ...x, processo_numero: dig, triagem: "concluida" })), { onConflict: "id", ignoreDuplicates: true });
       await registrar({ processo_numero: dig, tipo: "processo_cadastrado", dados: { texto: "Cadastrado no protocolo da inicial." + (pubs.length ? " " + pubs.length + " publicações do DJEN importadas." : "") } });
     }
-    const rc = await sb.from("casos").update({ processo_numero: dig, etapa: "Protocolado" }).eq("id", caso.id).select().single();
+    if (ja) {
+      // processo que já existia (em geral criado pelo DJEN, sem fase): entra na fase de protocolo e herda valor, honorários e responsável do atendimento
+      const upd: Record<string, unknown> = {};
+      if (!faseCRM(ja.fase)) upd.fase = faseInicial(colunasCrm(config)) || null;
+      if (!ja.valor_causa && caso.valor_causa) upd.valor_causa = caso.valor_causa;
+      if (ja.honorarios_pct == null && caso.honorarios_pct != null) upd.honorarios_pct = caso.honorarios_pct;
+      if (!ja.responsavel && caso.responsavel) upd.responsavel = caso.responsavel;
+      if (Object.keys(upd).length) { const ru = await sb.from("processos").update(upd).eq("numero", dig).select().single(); if (ru.data) aplicar("processos", ru.data); }
+    }
+    const rc = await sb.from("casos").update({ processo_numero: dig, etapa: PROTOCOLADO }).eq("id", caso.id).select().single();
     if (rc.error) { aviso(msgErro(rc.error)); return false; }
     aplicar("casos", rc.data);
     const ts = [...tarefas.values()].filter((t) => t.caso_id === caso.id && !t.processo_numero && t.status !== "feito");
     if (ts.length) { const u = await sb.from("tarefas").update({ processo_numero: dig }).in("id", ts.map((t) => t.id)).select(); for (const t of u.data || []) aplicar("tarefas", t); }
     registrar({ caso_id: caso.id, tipo: "fase", dados: { fase: "Protocolado: processo " + mascaraCnj(dig) } });
     registrar({ processo_numero: dig, tipo: "comentario", dados: { texto: "Originado do atendimento pré-processual." } });
-    aviso("Processo " + mascaraCnj(dig) + " cadastrado e ligado ao atendimento. Agora avise o cliente.");
+    if (!silencioso) aviso("Processo " + mascaraCnj(dig) + (ja ? " ligado ao atendimento; o cartão passou para o quadro Judicial." : " cadastrado e ligado ao atendimento. Agora avise o cliente."));
     return true;
   };
 }
 
-/** o processo já cadastrado é do mesmo cliente do atendimento? (pela ficha ou, sem ficha, pelo nome) */
-export function mesmoCliente(p: { cliente_id: string | null; cliente_nome: string | null }, caso: { cliente_id: string | null; nome: string }) {
-  if (p.cliente_id && caso.cliente_id) return p.cliente_id === caso.cliente_id;
-  return semAcento(p.cliente_nome || "").trim() === semAcento(caso.nome || "").trim();
-}
+export { mesmoCliente };

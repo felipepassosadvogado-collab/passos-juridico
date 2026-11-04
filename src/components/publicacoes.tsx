@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, nomeBonito } from "@/lib/formato";
-import { ATOS_AGENDA, FASES, MODALIDADES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, prazoDaPublicacao, precisaAvisar, rotuloPub } from "@/lib/regras";
+import { colunasCrm, fasesDe } from "@/lib/colunasCrm";
+import { ATOS_AGENDA, MODALIDADES, atoPub, avisoDaAnalise, descDaAnalise, faseCRM, prazoDaPublicacao, precisaAvisar, rotuloPub } from "@/lib/regras";
 import { hojeBR } from "@/lib/prazos";
 import { situacaoPrazo } from "@/lib/prazos";
 import type { Analise, Aviso, Modalidade, Publicacao } from "@/lib/tipos";
@@ -60,7 +61,7 @@ export function CorpoPublicacao({ pub, faseEscolhida, setFase, comFase, analisan
   /** na linha do tempo o aviso aparece só como link que abre a janela do aviso */
   onAbrirAviso?: (id: string) => void;
 }) {
-  const d = useDados(); const { tarefas, avisos, processos, eu, aviso, sb, aplicar, registrar } = d;
+  const d = useDados(); const { tarefas, avisos, processos, eu, aviso, sb, aplicar, registrar } = d; const FASES = fasesDe(colunasCrm(d.config));
   const criarAviso = useCriarAviso();
   const [form, setForm] = useState(false); const [agendar, setAgendar] = useState(false);
   const a = pub.analise as Analise | null; const p = processos.get(pub.processo_numero);

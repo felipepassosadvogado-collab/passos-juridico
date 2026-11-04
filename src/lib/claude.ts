@@ -150,11 +150,14 @@ Fases (use exatamente um destes nomes):
 - "Petição nos próprios autos": só pedidos incidentais isolados que não se encaixam acima (raro).
 - "Encerrado": arquivado definitivamente, baixa, extinção sem nada a receber, acordo cumprido.
 Regras: o ato mais recente manda (ex.: acórdão recente = "Recurso", mesmo que antes tenha havido perícia; trânsito em julgado + cálculos = "Cumprimento de sentença"). Turma Recursal ou classe "RECURSO CÍVEL" indica "Recurso", salvo se o processo já baixou para execução. Não invente: se o contexto for insuficiente, dê o melhor palpite com confiança "baixa" e diga no motivo o que falta.`;
-export async function sugerirFasesProcessos(lista: ProcessoParaFase[]): Promise<Record<string, FaseSugerida>> {
-  const out = await pedirJson<unknown>([{ type: "text", text: INSTR_FASE + `\n\nResponda só com JSON: um array com um objeto por processo: {"numero": string (igual ao recebido), "fase": uma das fases, "motivo": 1 frase curta citando o ato que decidiu (com a data), "confianca": "alta" | "media" | "baixa"}\n\nProcessos:\n` + JSON.stringify(lista) }], 6000);
+/** `colunas`: as colunas do quadro judicial quando o escritório as personalizou no CRM */
+export async function sugerirFasesProcessos(lista: ProcessoParaFase[], colunas?: { nome: string; dica?: string }[]): Promise<Record<string, FaseSugerida>> {
+  const permitidas: readonly string[] = colunas?.length ? [...colunas.map((c) => c.nome), "Encerrado"] : FASES;
+  const doEscritorio = colunas?.length ? `\n\nATENÇÃO: este escritório personalizou as fases do CRM. Responda com exatamente um destes nomes, escolhendo o que corresponde à fase descrita acima:\n${colunas.map((c) => `- "${c.nome}"${c.dica ? ": " + c.dica : ""}`).join("\n")}\n- "Encerrado": arquivado definitivamente.` : "";
+  const out = await pedirJson<unknown>([{ type: "text", text: INSTR_FASE + doEscritorio + `\n\nResponda só com JSON: um array com um objeto por processo: {"numero": string (igual ao recebido), "fase": uma das fases, "motivo": 1 frase curta citando o ato que decidiu (com a data), "confianca": "alta" | "media" | "baixa"}\n\nProcessos:\n` + JSON.stringify(lista) }], 6000);
   const res: Record<string, FaseSugerida> = {};
   for (const r of (Array.isArray(out) ? out : [out]) as Record<string, unknown>[]) {
-    const fase = String(r?.fase || ""); if (!r?.numero || !(FASES as readonly string[]).includes(fase)) continue;
+    const fase = String(r?.fase || ""); if (!r?.numero || !permitidas.includes(fase)) continue;
     const c = String(r.confianca || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     res[String(r.numero)] = { fase, motivo: String(r.motivo || "").slice(0, 300), confianca: c === "alta" ? "alta" : c === "media" ? "media" : "baixa" };
   }

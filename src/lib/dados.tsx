@@ -32,6 +32,8 @@ type Ctx = Mapas & {
   nome: (id?: string | null) => string;
   aviso: (msg: string) => void;
   aplicar: (tabela: keyof Mapas, linha: Linha | null | undefined) => void;
+  /** grava na hora o valor de uma chave de configuração já salva no banco (o tempo real confirma depois) */
+  aplicarConfig: (chave: string, valor: unknown) => void;
   remover: (tabela: keyof Mapas, id: string | number) => void;
   registrar: (ev: { processo_numero?: string | null; caso_id?: string | null; tarefa_id?: string | null; publicacao_id?: number | null; tipo: string; dados?: Linha }) => Promise<any>;
   recarregar: () => Promise<void>;
@@ -211,7 +213,7 @@ export function ProvedorDados({ eu, equipeInicial, children }: { eu: Perfil; equ
   }, [v, pronto, sb, aplicar]);
 
   const valor: Ctx = {
-    ...m.current, v, pronto, erroCarga, carregou: ultimaCarga.current > 0, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, remover, registrar, recarregar: carregar,
+    ...m.current, v, pronto, erroCarga, carregou: ultimaCarga.current > 0, eu, titular: eu.papel === "titular", equipe, config, lidas, sb, nome, aviso, aplicar, aplicarConfig: (chave, valor) => setConfig((c) => ({ ...c, [chave]: valor })), remover, registrar, recarregar: carregar,
     marcarLidaLocal: (c, ate) => setLidas((x) => ({ ...x, [c]: ate })), online, lidasOutros,
   };
   return (

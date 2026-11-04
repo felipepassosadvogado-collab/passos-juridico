@@ -4,9 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDados, useOpcoesEquipe, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, iniciais, moeda, nomeBonito, semAcento } from "@/lib/formato";
 import { mascaraCnj, soDigitos } from "@/lib/cnj";
-import { DICAS_ETAPA, DICAS_FASE, ETAPAS, FASES, faseCRM } from "@/lib/regras";
+import { DICAS_FASE, faseCRM } from "@/lib/regras";
+import { A_CLASSIFICAR, ENCERRADO, PROTOCOLADO, type Quadro } from "@/lib/colunasCrm";
 import type { Tarefa } from "@/lib/tipos";
-import { Coluna, ProxTarefa, useArrasto } from "@/components/crm";
+import { Coluna, NovaColuna, ProxTarefa, useArrasto } from "@/components/crm";
+import { JanelaColuna, JanelaLigarProcessos, useAtendimentosComProcesso, useColunas } from "@/components/colunasCrm";
 import { useJanelas } from "@/components/janelas";
 import { ExportarCrm } from "@/components/exportarCrm";
 import { FasesComClaude } from "@/components/fasesClaude";
@@ -18,6 +20,9 @@ function CRM() {
   const j = useJanelas(); const router = useRouter(); const sp = useSearchParams(); const ops = useOpcoesEquipe();
   const [q, setQ] = useState({ quadro: sp.get("caso") ? "pre" : "judicial", busca: "", banco: "", resp: "" });
   const [msg] = useState(""); const [exp, setExp] = useState(false);
+  const cols = useColunas(); const orfaos = useAtendimentosComProcesso();
+  const [edCol, setEdCol] = useState<{ quadro: Quadro; nome?: string; depoisDe?: string } | null>(null);
+  const [ligar, setLigar] = useState<{ so?: string } | null>(null);
   useEffect(() => { const c = sp.get("caso"); if (c) j.abrirCaso(c); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const proxima = useMemo(() => {
     const m = new Map<string, Tarefa>();
@@ -36,7 +41,10 @@ function CRM() {
   };
   const moverCaso = async (id: string, etapa: string) => {
     const c = casos.get(id); if (!c || c.etapa === etapa) return;
-    if (etapa === "Protocolado" && !c.processo_numero) { j.abrirCaso(id); aviso("Para marcar como protocolado, cadastre o processo pela ficha do atendimento."); return; }
+    if (etapa === PROTOCOLADO && !c.processo_numero) {
+      if (orfaos.has(id)) { setLigar({ so: id }); return; }
+      j.abrirCaso(id); aviso("Cole o nº do processo na ficha do atendimento: o cartão passa para o quadro Judicial."); return;
+    }
     const { data, error } = await sb.from("casos").update({ etapa }).eq("id", id).select().single();
     if (error) { aviso(msgErro(error)); return; } aplicar("casos", data); registrar({ caso_id: id, tipo: "fase", dados: { fase: etapa } });
     if (etapa === "Elaboração da inicial" && ![...tarefas.values()].some((t) => t.caso_id === id && t.status !== "feito" && /inicial/i.test(t.descricao))) { j.abrirCaso(id, true); aviso("Crie a tarefa de elaboração da inicial."); }
@@ -57,25 +65,43 @@ function CRM() {
   let quadro;
   if (q.quadro === "judicial") {
     const procs = filtra([...processos.values()].filter((p) => faseCRM(p.fase) !== "Encerrado" || q.busca), (p) => p.cliente_nome, (p) => p.banco, (p) => p.responsavel, (p) => p.numero);
-    const cols: [string, string][] = [["", "A classificar"], ...FASES.filter((f) => f !== "Encerrado" || q.busca).map((f) => [f, f] as [string, string])];
-    const grupos = new Map(cols.map(([k]) => [k, [] as typeof procs]));
+    const colsJ: [string, string][] = [["", A_CLASSIFICAR], ...cols.judicial.map((c) => [c.nome, c.nome] as [string, string]), ...(q.busca ? [[ENCERRADO, ENCERRADO] as [string, string]] : [])];
+    const dicaJ = (k: string) => k === "" || k === ENCERRADO ? DICAS_FASE[k] : cols.judicial.find((c) => c.nome === k)?.dica;
+    const editavel = (k: string) => titular && k !== "" && k !== ENCERRADO;
+    const grupos = new Map(colsJ.map(([k]) => [k, [] as typeof procs]));
     for (const p of procs) { const f = faseCRM(p.fase); (grupos.get(grupos.has(f) ? f : "") || []).push(p); }
     visiveis = procs;
-    quadro = <div className="kanban">{cols.map(([k, t]) => <Coluna key={k} chave={"j:" + k} titulo={t} extra={(() => { const s = soma(grupos.get(k) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_FASE[k]} cartoes={(grupos.get(k) || []).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")).map((p) => (
+    quadro = <div className="kanban">{colsJ.map(([k, t]) => <Coluna key={k} chave={"j:" + k} titulo={t} onEditar={editavel(k) ? () => setEdCol({ quadro: "judicial", nome: k }) : undefined} extra={(() => { const s = soma(grupos.get(k) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={dicaJ(k)} cartoes={(grupos.get(k) || []).sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || "")).map((p) => (
       <article key={p.numero} className="kcard" data-id={p.numero} {...teclado(() => j.abrirProcesso(p.numero))} onClick={() => { if (!arrastou.current) j.abrirProcesso(p.numero); }}>
         <div className="kc1">{nomeBonito(p.cliente_nome || "—")}</div><div className="kc2">x {bancoCurto(p.banco)}{p.orgao ? " · " + p.orgao : ""}</div>
         <div className="kc3"><span className="mono">{p.mascara}</span>{av(p.responsavel)}</div>
-        {linhaValor(p)}<ProxTarefa t={proxima.get(p.numero)} />{mover(faseCRM(p.fase), [...cols, ["Encerrado", "Encerrado"]], (f) => moverProc(p.numero, f))}</article>))} />)}</div>;
+        {linhaValor(p)}<ProxTarefa t={proxima.get(p.numero)} />{mover(faseCRM(p.fase), [...colsJ.filter(([k]) => k !== ENCERRADO), [ENCERRADO, ENCERRADO]], (f) => moverProc(p.numero, f))}</article>))} />)}
+      {titular && <NovaColuna onClick={() => setEdCol({ quadro: "judicial" })} />}</div>;
   } else {
-    const cs = filtra([...casos.values()], (c) => c.nome, (c) => c.banco, (c) => c.responsavel, (c) => c.processo_numero || "");
-    const grupos = new Map(ETAPAS.map((e) => [e, [] as typeof cs])); for (const c of cs) (grupos.get(c.etapa) || grupos.get(ETAPAS[0])!).push(c);
+    // atendimento que já virou processo (tem nº) sai daqui: ele segue no quadro Judicial
+    const comProcesso = [...casos.values()].filter((c) => c.processo_numero).length;
+    const cs = filtra([...casos.values()].filter((c) => !c.processo_numero), (c) => c.nome, (c) => c.banco, (c) => c.responsavel, () => "");
+    const nomes = cols.pre.map((c) => c.nome);
+    const grupos = new Map(nomes.map((e) => [e, [] as typeof cs])); for (const c of cs) (grupos.get(c.etapa) || grupos.get(nomes[0])!).push(c);
     visiveis = cs;
+    const opcoes: [string, string][] = [...nomes.map((x) => [x, x] as [string, string]), [PROTOCOLADO, "Protocolado (informar nº do processo)"]];
     quadro = <>{!casos.size && <div className="banner">Nenhum atendimento ainda. Clique em “Novo atendimento” para cadastrar o primeiro caso, antes de virar processo.</div>}
-      <div className="kanban">{ETAPAS.map((e) => <Coluna key={e} chave={"p:" + e} titulo={e} extra={(() => { const s = soma(grupos.get(e) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={DICAS_ETAPA[e]} cartoes={(grupos.get(e) || []).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map((c) => (
+      {orfaos.size > 0 && <div className="banner">{orfaos.size === 1 ? "1 atendimento parece" : orfaos.size + " atendimentos parecem"} já ter virado processo (mesmo cliente e banco, processo cadastrado depois, muitas vezes pelo DJEN).{" "}
+        <button className="reflink" onClick={() => setLigar({})}>Revisar e ligar</button></div>}
+      <div className="kanban">{cols.pre.map((col) => <Coluna key={col.nome} chave={"p:" + col.nome} titulo={col.nome} onEditar={titular ? () => setEdCol({ quadro: "pre", nome: col.nome }) : undefined} extra={(() => { const s = soma(grupos.get(col.nome) || []); return s.h ? "hon. R$ " + curto(s.h) : undefined; })()} dica={col.dica} cartoes={(grupos.get(col.nome) || []).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map((c) => {
+        const ps = orfaos.get(c.id);
+        return (
         <article key={c.id} className="kcard" data-id={c.id} {...teclado(() => j.abrirCaso(c.id))} onClick={() => { if (!arrastou.current) j.abrirCaso(c.id); }}>
           <div className="kc1">{nomeBonito(c.nome || "—")}</div><div className="kc2">x {c.banco ? bancoCurto(c.banco) : "banco a definir"}{c.contratos ? " · " + c.contratos : ""}</div>
-          <div className="kc3">{c.processo_numero ? <span className="mono">{mascaraCnj(c.processo_numero)}</span> : <span className="muted">desde {dataBR(c.criado_em.slice(0, 10))}</span>}{av(c.responsavel)}</div>
-          {linhaValor(c)}<ProxTarefa t={proxima.get("c:" + c.id)} />{mover(c.etapa, ETAPAS.map((x) => [x, x]), (x) => moverCaso(c.id, x))}</article>))} />)}</div></>;
+          <div className="kc3"><span className="muted">desde {dataBR(c.criado_em.slice(0, 10))}</span>{av(c.responsavel)}</div>
+          {linhaValor(c)}<ProxTarefa t={proxima.get("c:" + c.id)} />
+          {ps && <button type="button" className="kc-ligar" onClick={(e) => { e.stopPropagation(); setLigar({ so: c.id }); }} title="Ligar este atendimento ao processo: o cartão passa para o quadro Judicial">
+            ⚖ {ps.length === 1 ? "Já tem processo " + mascaraCnj(ps[0].numero) + ": ligar" : ps.length + " processos possíveis: ligar"}</button>}
+          {mover(c.etapa, opcoes, (x) => moverCaso(c.id, x))}</article>); })} />)}
+        <Coluna chave={"p:" + PROTOCOLADO} titulo="Protocolado → Judicial" classe="kcol-saida" contar={false} cartoes={[]}
+          extra={comProcesso ? <button className="reflink" onClick={() => setQ({ ...q, quadro: "judicial" })}>{comProcesso} já no quadro Judicial</button> : undefined}
+          dica="Solte o cartão aqui ao protocolar: informe o nº e ele passa para o quadro Judicial" vazio="Solte aqui para protocolar" />
+        {titular && <NovaColuna onClick={() => setEdCol({ quadro: "pre", depoisDe: nomes[nomes.length - 1] })} />}</div></>;
   }
   return (
     <>
@@ -98,6 +124,8 @@ function CRM() {
         </div>; })()}
       {quadro}
       {exp && <ExportarCrm onFechar={() => setExp(false)} banco={q.banco} resp={q.resp} />}
+      {edCol && <JanelaColuna key={edCol.quadro + (edCol.nome || "+")} quadro={edCol.quadro} nome={edCol.nome} depoisDe={edCol.depoisDe} onFechar={() => setEdCol(null)} />}
+      {ligar && <JanelaLigarProcessos so={ligar.so} onFechar={() => setLigar(null)} />}
     </>
   );
 }

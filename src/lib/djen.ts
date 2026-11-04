@@ -7,6 +7,7 @@ import { analisarPublicacoes } from "./claude";
 import { tirarRepetidasDaCaixa } from "./repetidas";
 import { pedacos } from "./emLote";
 import { avisoDaAnalise } from "./regras";
+import { ligarAtendimentosAosNovos } from "./ligarAtendimentos";
 
 export const OAB = { numero: "58547", uf: "SC" };
 const BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
@@ -242,6 +243,9 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
     // gravação em lote (antes: um insert de processo, um evento e um upsert de publicações por processo)
     // se um lote falhar, refaz um a um, como era antes (um registro com problema não derruba os outros)
     for (const lote of pedacos(processosNovos, 200)) { const { error } = await adm.from("processos").insert(lote); if (error) for (const x of lote) await adm.from("processos").insert(x); }
+    let ligados = 0;
+    try { ligados = await ligarAtendimentosAosNovos(adm, processosNovos); }
+    catch (e) { console.warn("ligar atendimentos", (e as Error).message); }
     for (const lote of pedacos(eventosNovos, 500)) { const { error } = await adm.from("eventos").insert(lote); if (error) for (const x of lote) await adm.from("eventos").insert(x); }
     const gravar = async (linhas: Record<string, any>[]) => {
       const { error } = await adm.from("publicacoes").upsert(linhas, { onConflict: "id", ignoreDuplicates: true });
@@ -265,9 +269,9 @@ export async function sincronizarDjen(adm: SupabaseClient, origem: "automatica" 
       }
     } catch (e) { console.warn("repetidas", (e as Error).message); }
     // avisa a equipe do que precisa de olho humano
-    if (res.processosNovos || semFicha.length) {
+    if (res.processosNovos || semFicha.length || ligados) {
       const { data: tit } = await adm.from("profiles").select("id").eq("papel", "titular").eq("ativo", true);
-      const txt = [res.processosNovos ? `${res.processosNovos} processo(s) novo(s) encontrado(s) no DJEN` : "", semFicha.length ? `sem ficha certa (nome parecido com mais de um cliente): ${semFicha.slice(0, 5).join("; ")}` : ""].filter(Boolean).join(" · ");
+      const txt = [res.processosNovos ? `${res.processosNovos} processo(s) novo(s) encontrado(s) no DJEN` : "", ligados ? `${ligados} atendimento(s) do CRM ligado(s) ao processo automaticamente (saíram do pré-processual)` : "", semFicha.length ? `sem ficha certa (nome parecido com mais de um cliente): ${semFicha.slice(0, 5).join("; ")}` : ""].filter(Boolean).join(" · ");
       if (tit?.length) await adm.from("notificacoes").insert(tit.map((t: { id: string }) => ({ para: t.id, de: null, tipo: "djen", texto: txt.slice(0, 500) })));
     }
     res.completa = completa;

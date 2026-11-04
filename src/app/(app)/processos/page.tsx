@@ -8,12 +8,13 @@ import { useDados } from "@/lib/dados";
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "@/lib/formato";
 import { situacaoPrazo } from "@/lib/prazos";
 import { soDigitos } from "@/lib/cnj";
-import { FASES, faseCRM } from "@/lib/regras";
+import { faseCRM } from "@/lib/regras";
+import { useColunas } from "@/components/colunasCrm";
 import { useJanelas } from "@/components/janelas";
 import { Ic } from "@/components/ui";
 
 export default function Processos() {
-  const { processos, tarefas, v } = useDados(); const j = useJanelas(); const router = useRouter();
+  const { processos, tarefas, v } = useDados(); const j = useJanelas(); const router = useRouter(); const FASES = useColunas().fases;
   // busca e filtros ficam no endereço: voltar ou recarregar a página mantém o que estava escolhido
   const [q, setQ] = useFiltroUrl("q"); const [banco, setBanco] = useFiltroUrl("reu"); const [fase, setFase] = useFiltroUrl("fase"); const topo = useRef<HTMLDivElement>(null);
   const todos = useMemo(() => [...processos.values()], [processos, v]); // eslint-disable-line react-hooks/exhaustive-deps

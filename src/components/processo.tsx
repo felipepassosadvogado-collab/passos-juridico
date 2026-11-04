@@ -8,7 +8,8 @@ import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataBR, dataHoraBR, iniciais, nomeBonito } from "@/lib/formato";
 import { cidadeDoJuizo, infoCnj } from "@/lib/cnj";
 import { diferencaDias, situacaoPrazo } from "@/lib/prazos";
-import { FASES, atoPub, faseCRM } from "@/lib/regras";
+import { atoPub, faseCRM } from "@/lib/regras";
+import { useColunas } from "./colunasCrm";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CampoValores } from "./valores";
@@ -117,6 +118,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
   const { pubs, setPubs, evs, setEvs } = useHistorico(numero);
   const [aba, setAba] = useState<Aba>(foco?.aba || "tarefas");
   const [filtro, setFiltro] = useState<"todas" | "abertas" | "feitas">("todas");
+  const FASES = useColunas().fases;
   const [tf, setTf] = useState(false); const [agendar, setAgendar] = useState(false); const [nota, setNota] = useState(""); const [ed, setEd] = useState({ fase: "", notas: "" });
   const { analisar, ocupado } = useAnalisar(); const criarAviso = useCriarAviso(); const corpo = useRef<HTMLDivElement>(null); const rolou = useRef(false);
   useEffect(() => { if (p) setEd({ fase: faseCRM(p.fase), notas: p.notas || "" }); }, [p?.numero]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -218,7 +220,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
             <dt>Último ato</dt><dd>{p.ultimo_ato || "—"} {p.ultima_data ? "· " + dataBR(p.ultima_data) : ""}</dd>
           </dl>
           <div className="form2">
-            <label className="f">Fase<select value={ed.fase} onChange={(e) => setEd({ ...ed, fase: e.target.value })}><option value="">— sem fase —</option>{FASES.map((f) => <option key={f}>{f}</option>)}</select></label>
+            <label className="f">Fase<select value={ed.fase} onChange={(e) => setEd({ ...ed, fase: e.target.value })}><option value="">— sem fase —</option>{[...FASES, ...(ed.fase && !FASES.includes(ed.fase) ? [ed.fase] : [])].map((f) => <option key={f}>{f}</option>)}</select></label>
             <label className="f">Responsável pelo processo<SelResp valor={p.responsavel} onChange={(x) => salvar({ responsavel: x })} /></label>
             <label className="f full">Anotações fixas<textarea rows={3} value={ed.notas} onChange={(e) => setEd({ ...ed, notas: e.target.value })} /></label>
           </div>
