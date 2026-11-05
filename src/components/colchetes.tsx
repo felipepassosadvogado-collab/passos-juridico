@@ -37,7 +37,8 @@ export function avisarColchetes(arquivo: Blob, nome: string) {
 export function CaixaColchetes() {
   const [p, setP] = useState<Pedido | null>(null); const ok = useRef<HTMLButtonElement>(null);
   useEffect(() => { const f = (e: Event) => setP((e as CustomEvent<Pedido>).detail); window.addEventListener(EVENTO, f); return () => window.removeEventListener(EVENTO, f); }, []);
-  useEffect(() => { if (!p) return; ok.current?.focus(); const k = (e: KeyboardEvent) => { if (e.key === "Escape") setP(null); }; document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [p]);
+  useEffect(() => { if (!p) return; ok.current?.focus(); // fase de captura na janela: o Esc fecha só esta caixa, não a janela da peça que está atrás
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setP(null); } }; window.addEventListener("keydown", k, true); return () => window.removeEventListener("keydown", k, true); }, [p]);
   if (!p) return null;
   const n = p.achados?.length ?? 0;
   return createPortal(

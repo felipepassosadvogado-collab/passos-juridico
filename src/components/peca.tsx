@@ -7,13 +7,16 @@ import { useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { nomeBonito } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
-import { LIMITE_VISUAL, contarPaginas, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
+import { paginasEmPdf, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
+import { selecionarPaginas, textoSelecionado, type Pagina } from "@/lib/selecaoPaginas";
 import { PECAS, rotuloPub } from "@/lib/regras";
 import { Janela, SelResp, baixar } from "./ui";
 import { useAcoesTarefa } from "./tarefas";
 import { useVisor } from "./visor";
 import { hojeBR, isoData, paraData, proximoDiaUtil } from "@/lib/prazos";
 import type { Documento } from "@/lib/tipos";
+
+const MAX_PAGINAS = 40; const MAX_ESCANEADAS = 10; // modo econômico das petições intermediárias
 
 export type CtxPeca = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo?: string | null; orientacoes?: string };
 
@@ -59,20 +62,30 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
     if (!t) { aviso("Escolha a peça que o Claude vai redigir."); return; }
     setGerando(true); setErroMsg(""); setRes(null);
     try {
-      // PDFs grandes (cópia integral) viram texto aqui no navegador; os pequenos vão inteiros
-      const inteiros: File[] = []; const textos: TextoPdf[] = [];
+      // modo econômico: todo PDF vira texto aqui no navegador (texto custa 3 a 5 vezes menos que a página como imagem)
+      // e vão no máximo 40 páginas: começo do processo, páginas do ato que a peça enfrenta e atos mais recentes.
+      // Páginas escaneadas (sem texto) escolhidas vão como imagem, até 10. Fotos e imagens continuam indo inteiras.
+      const inteiros: File[] = []; const lidos: { f: File; tx: TextoPdf }[] = [];
       for (const f of files) {
         const ehPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
-        let grande = ehPdf && f.size > LIMITE_VISUAL.bytes;
-        if (ehPdf && !grande) { setEtapa("Abrindo " + f.name + "…"); try { grande = (await contarPaginas(f)) > LIMITE_VISUAL.paginas; } catch { grande = false; } }
-        if (!grande) { inteiros.push(f); continue; }
+        if (!ehPdf) { inteiros.push(f); continue; }
         setEtapa("Lendo " + f.name + "…");
-        let tx: TextoPdf;
-        try { tx = await textoDoPdf(f, (i, n) => setEtapa(`Lendo ${f.name}: página ${i} de ${n}`)); }
+        try { lidos.push({ f, tx: await textoDoPdf(f, (i, n) => setEtapa(`Lendo ${f.name}: página ${i} de ${n}`)) }); }
         catch { setErroMsg(`Não consegui abrir ${f.name}. Confira se é um PDF válido (sem senha).`); return; }
-        if (tx.semTexto.length >= tx.paginas * 0.9) { setErroMsg(`${f.name} parece escaneado (páginas só com imagem). Envie em separado as páginas que importam (laudo, sentença), em PDFs menores.`); return; }
-        textos.push(tx);
       }
+      const paginas: Pagina[] = lidos.flatMap(({ tx }, a) => (tx.porPagina || []).map((texto, k) => ({ arquivo: a, n: k + 1, texto })));
+      const sel = selecionarPaginas(paginas, t, MAX_PAGINAS);
+      const textos: TextoPdf[] = textoSelecionado(sel, lidos.map((x) => x.tx.nome));
+      const escaneadas = sel.escolhidas.filter((p) => p.texto == null); let vaoImagem = 0, escFora = 0;
+      for (const [a, { f }] of lidos.entries()) {
+        const nums = escaneadas.filter((p) => p.arquivo === a).map((p) => p.n); if (!nums.length) continue;
+        const vai = nums.slice(0, Math.max(0, MAX_ESCANEADAS - vaoImagem)); escFora += nums.length - vai.length;
+        if (!vai.length) continue;
+        setEtapa("Separando as páginas escaneadas de " + f.name + "…");
+        try { inteiros.push(await paginasEmPdf(f, vai)); vaoImagem += vai.length; } catch { escFora += vai.length; }
+      }
+      const avisoEco = [sel.total > sel.escolhidas.length ? `Modo econômico: foram para o Claude ${sel.escolhidas.length} de ${sel.total} páginas (${sel.motivo}).` : "",
+        escFora ? `${escFora} página(s) escaneada(s) ficaram de fora (limite de ${MAX_ESCANEADAS} como imagem).` : ""].filter(Boolean).join(" ");
       setEtapa(inteiros.length ? "Enviando os documentos…" : "");
       const arquivos = inteiros.length ? await enviarParaLeitura(sb, eu.id, inteiros) : [];
       setEtapa("O Claude está lendo e redigindo (1 a 3 minutos)…");
@@ -86,7 +99,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       const arq = new File([blob], j.nome, { type: blob.type }); let doc: Documento | null = null;
       if (tarefa) { setEtapa("Anexando a minuta na tarefa…"); doc = (await acoes.anexar(tarefa, [arq]))?.[0] || null; }
       const anexada = !!doc; setMinuta({ arq, doc, editada: false });
-      setRes({ nome: j.nome, pendencias: j.pendencias || [], titulo: j.titulo, tipo: t, aviso: textos.filter((x) => x.semTexto.length).map((x) => `Em ${x.nome}, ${x.semTexto.length} de ${x.paginas} páginas eram só imagem e não foram lidas.`).join(" ") || undefined, anexada }); setEnviada(false); aviso(anexada ? "Minuta baixada e anexada na tarefa." : "Minuta pronta e baixada. Revise no Word antes de protocolar.");
+      setRes({ nome: j.nome, pendencias: j.pendencias || [], titulo: j.titulo, tipo: t, aviso: avisoEco || undefined, anexada }); setEnviada(false); aviso(anexada ? "Minuta baixada e anexada na tarefa." : "Minuta pronta e baixada. Revise no Word antes de protocolar.");
     } catch (e) { setErroMsg(/load failed|failed to fetch|network/i.test((e as Error).message) ? "A conexão caiu enquanto o Claude trabalhava. Confira a internet e tente de novo." : (e as Error).message || "Não consegui gerar a peça agora."); }
     finally { setGerando(false); setEtapa(""); }
   };
@@ -107,7 +120,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
         <input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])].slice(0, 6)); e.target.value = ""; }} />
         {etapa && <div className="banner">{etapa}</div>}
         {files.length > 0 && <div className="anexos">{files.map((f, i) => <span key={i} className="anexo"><span className="an">{f.name}</span><button className="btn ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>Excluir</button></span>)}</div>}
-        <div className="muted" style={{ fontSize: 12.5 }}>A publicação do DJEN costuma trazer só o despacho. Anexe o laudo ou a sentença baixados do eproc, ou a cópia integral do processo: PDFs grandes (mais de 80 páginas ou 12 MB) são lidos só pelo texto, então páginas escaneadas como imagem não entram. Em processos muito longos, o meio pode ser resumido, e o começo e os atos mais recentes têm prioridade.</div>
+        <div className="muted" style={{ fontSize: 12.5 }}>A publicação do DJEN costuma trazer só o despacho. <b>Para economizar, anexe só o que a peça enfrenta</b> (o laudo, a sentença, a contestação), baixado do eproc. <b>Modo econômico:</b> os PDFs são lidos pelo texto e vão para o Claude no máximo {MAX_PAGINAS} páginas — o começo do processo, as páginas do ato da peça e os atos mais recentes. Páginas escaneadas (sem texto) vão como imagem, até {MAX_ESCANEADAS}.</div>
       </section>
       {erroMsg && <div className="banner erro">{erroMsg}</div>}
       {res && <div className="banner ok"><strong>{res.titulo}</strong> — o arquivo {res.nome} foi baixado.{res.aviso ? " " + res.aviso : ""}
