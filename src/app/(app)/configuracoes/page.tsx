@@ -9,6 +9,7 @@ import { CopiaSeguranca } from "@/components/backup";
 import { PainelConexao } from "@/components/whatsapp";
 import { ConfigAgente } from "@/components/agente";
 import { baixar } from "@/components/ui";
+import { PainelConsumo } from "@/components/consumo";
 
 export default function Configuracoes() {
   const { config, titular, sb, aviso, processos, clientes, tarefas, casos, avisos } = useDados();
@@ -35,6 +36,8 @@ export default function Configuracoes() {
             Analisar sozinho cada publicação nova que chegar do DJEN</label>
           <div className="muted" style={{ fontSize: 13 }}>O Claude lê o ato, sugere a tarefa, o prazo em dias úteis e a fase, e já marca para avisar o cliente quando houver perícia, audiência ou coleta. Quem decide continua sendo a equipe. Usa a chave ANTHROPIC_API_KEY cadastrada na Vercel.</div>
         </div></section>
+      <section className="panel"><div className="ph"><h3>Consumo do Claude</h3><span className="muted" style={{ fontSize: 12.5 }}>quanto cada função do sistema gastou na API</span></div>
+        <PainelConsumo /></section>
       <section className="panel"><div className="ph"><h3>Honorários contratuais</h3></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: "72ch" }}>
           <p style={{ margin: 0 }}>Percentual padrão sobre o valor da causa, usado no CRM e na ficha quando o processo não tem um percentual próprio.</p>

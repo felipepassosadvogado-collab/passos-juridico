@@ -1,7 +1,8 @@
 // Agente do WhatsApp: atende os clientes com o Claude, consultando os processos no sistema.
 // Só fala do processo com o cliente identificado: pelo telefone da ficha (ou conversa ligada à ficha), ou CPF + data de nascimento.
 // Modos (config "agente"): desligado · rascunho (sugere a resposta, a equipe envia) · automatico (responde sozinho).
-import { MODELO_REDACAO } from "./claude";
+import { MODELO } from "./claude";
+import { registrarUso } from "./consumo";
 import { INSTANCIA, evo } from "./whatsapp";
 import { dataBR, idade, nomeBonito } from "./formato";
 import { enviarTextoNaConversa, fichasComFone, foneBate, type Adm } from "./whatsappDb";
@@ -333,12 +334,15 @@ async function conversar(c: Ctx, sistema: string, hist: Turno[]): Promise<string
   const mensagens: { role: string; content: unknown }[] = hist.map((m) => ({ role: m.role, content: m.content }));
   for (let volta = 0; volta < 6; volta++) {
     // tempo-limite de 60 s por volta: sem resposta, o assistente fica quieto (como já faz quando o Claude falha) e a equipe vê a mensagem
+    // conversa com cliente: Sonnet (rápido e mais barato); o Opus fica para redigir peças
+    const t0 = Date.now();
     const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO_REDACAO, max_tokens: 2500, system: sistema, tools: FERRAMENTAS, messages: mensagens }), signal: AbortSignal.timeout(60000) })
+      body: JSON.stringify({ model: MODELO, max_tokens: 2500, system: sistema, tools: FERRAMENTAS, messages: mensagens }), signal: AbortSignal.timeout(60000) })
       .catch((e: unknown) => { console.warn("[operacao] " + JSON.stringify({ op: "agente.claude", ok: false, erro: String((e as Error)?.name || e) })); return null; });
     if (!r) return "";
     if (!r.ok) { console.warn("agente claude", r.status, (await r.text()).slice(0, 300)); return ""; }
-    const j = await r.json() as { content: { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }[]; stop_reason: string };
+    const j = await r.json() as { content: { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }[]; stop_reason: string; usage?: Record<string, number> };
+    await registrarUso(MODELO, j.usage, Date.now() - t0, "whatsapp.agente");
     const usos = j.content.filter((b) => b.type === "tool_use");
     if (j.stop_reason !== "tool_use" || !usos.length) return j.content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
     mensagens.push({ role: "assistant", content: j.content });

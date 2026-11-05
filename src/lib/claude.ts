@@ -1,5 +1,6 @@
 // Chamadas à API da Anthropic (só no servidor; a chave fica na Vercel).
 import { estourouTempo } from "./operacao";
+import { registrarUso, type Uso } from "./consumo";
 import { jsonrepair } from "jsonrepair";
 import { FASES } from "./tipos";
 import { TAREFAS, TIPOS_EV } from "./regras";
@@ -45,7 +46,7 @@ async function chamarCompleto(conteudo: Bloco[], maxTokens: number, modelo: stri
   const longo = maxTokens > 8000; // respostas longas vêm em streaming (a API exige para limites altos e não corta por tempo)
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) throw new ErroClaude("Falta cadastrar a chave ANTHROPIC_API_KEY na Vercel para usar o Claude.", 503);
-  let r: Response | null = null;
+  let r: Response | null = null; const t0 = Date.now();
   // tempo-limite: 2,5 min para respostas curtas; 13 min para as longas em streaming (abaixo do limite da rota mais longa, 800 s)
   const espera = Number(process.env.CLAUDE_TIMEOUT_MS) || (longo ? 780000 : 150000);
   for (let i = 0; i < 3; i++) {
@@ -74,11 +75,11 @@ async function chamarCompleto(conteudo: Bloco[], maxTokens: number, modelo: stri
     throw new ErroClaude("O Claude não respondeu agora. Tente de novo em instantes.");
   }
   if (!longo) {
-    const j = await r.json();
+    const j = await r.json(); await registrarUso(modelo, j.usage, Date.now() - t0);
     return { texto: (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n"), parada: j.stop_reason || "" };
   }
   // streaming (SSE): junta os pedaços de texto e guarda o motivo da parada
-  let texto = "", parada = "", resto = "";
+  let texto = "", parada = "", resto = ""; const uso: Uso = {};
   const leitor = r.body!.getReader(); const dec = new TextDecoder();
   for (;;) {
     const { value, done } = await leitor.read(); if (done) break;
@@ -86,13 +87,16 @@ async function chamarCompleto(conteudo: Bloco[], maxTokens: number, modelo: stri
     const linhas = resto.split("\n"); resto = linhas.pop() || "";
     for (const l of linhas) {
       if (!l.startsWith("data:")) continue;
-      let ev: { type?: string; delta?: { type?: string; text?: string; stop_reason?: string }; error?: { message?: string } };
+      let ev: { type?: string; delta?: { type?: string; text?: string; stop_reason?: string }; error?: { message?: string }; message?: { usage?: Uso }; usage?: Uso };
       try { ev = JSON.parse(l.slice(5)); } catch { continue; }
+      if (ev.type === "message_start" && ev.message?.usage) Object.assign(uso, ev.message.usage);
+      if (ev.type === "message_delta" && ev.usage) Object.assign(uso, Object.fromEntries(Object.entries(ev.usage).filter(([, v]) => v != null)));
       if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") texto += ev.delta.text || "";
       else if (ev.type === "message_delta" && ev.delta?.stop_reason) parada = ev.delta.stop_reason;
       else if (ev.type === "error") { console.warn("claude stream", ev.error); throw new ErroClaude(/overload/i.test(ev.error?.message || "") ? "O Claude está sobrecarregado agora. Tente de novo em instantes." : "O Claude não respondeu agora. Tente de novo em instantes."); }
     }
   }
+  await registrarUso(modelo, uso, Date.now() - t0);
   return { texto, parada };
 }
 
