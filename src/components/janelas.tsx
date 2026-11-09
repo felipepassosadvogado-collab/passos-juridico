@@ -1,4 +1,5 @@
 "use client";
+import { Protecao } from "./carregando";
 import { teclado } from "@/components/ui";
 // Janelas abertas por cima de qualquer tela: publicação, aviso ao cliente, nova tarefa,
 // atendimento do CRM e petição inicial. Uma abre por cima da outra; "Fechar" volta à anterior.
@@ -42,6 +43,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
   return (
     <C.Provider value={v}>
       {children}
+      <Protecao key={topo ? JSON.stringify(topo).slice(0, 200) : "nada"} janela onFechar={fechar}>
       {topo?.k === "pub" && <JanelaPublicacao key="pub" id={topo.id} onFechar={fechar} onTrocar={(id) => trocar(id == null ? null : { k: "pub", id })} />}
       {topo?.k === "aviso" && <JanelaAviso id={topo.id} onFechar={fechar} />}
       {topo?.k === "tarefa" && <JanelaNovaTarefa numero={topo.numero} ato={topo.ato} autonoma={topo.autonoma} onFechar={fechar} />}
@@ -54,6 +56,7 @@ export function ProvedorJanelas({ children }: { children: React.ReactNode }) {
       {topo?.k === "cliente" && <JanelaCliente key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "verTarefa" && <JanelaTarefa key={topo.id} id={topo.id} onFechar={fechar} />}
       {topo?.k === "processo" && <JanelaProcesso key={topo.numero} numero={topo.numero} foco={topo.foco} onFechar={fechar} />}
+      </Protecao>
     </C.Provider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 // Retorno visual enquanto o sistema trabalha: esqueleto da página, barra de progresso entre páginas,
 // "Salvando…" no topo, aviso de falta de internet e tela de erro com "Tentar de novo".
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { instalarAtividade, ouvirAtividade, type Atividade } from "@/lib/atividade";
 
@@ -97,4 +97,25 @@ export function useCronometro(ativo: boolean) {
 export function Cronometro() {
   const t = useCronometro(true);
   return <span className="cron mono" aria-hidden="true">{t}</span>;
+}
+
+/**
+ * Protege um pedaço da tela: se algo dentro dele quebrar, mostra o aviso com "Tentar de novo" ali mesmo,
+ * em vez de derrubar o sistema inteiro ("Application error").
+ */
+export class Protecao extends Component<{ children: ReactNode; onFechar?: () => void; janela?: boolean }, { erro: Error | null }> {
+  state = { erro: null as Error | null };
+  static getDerivedStateFromError(erro: Error) { return { erro }; }
+  componentDidCatch(erro: Error, info: ErrorInfo) { console.error("[tela] erro capturado:", erro, info.componentStack); }
+  render() {
+    if (!this.state.erro) return this.props.children;
+    const caixa = (
+      <div className="panel" role="alert" style={{ padding: 20, maxWidth: 520, margin: this.props.janela ? 0 : "24px auto" }}>
+        <h3 style={{ marginTop: 0 }}>Esta parte da tela teve um problema</h3>
+        <p className="muted">Nada foi perdido. Tente de novo; se continuar, feche e abra outra vez. Detalhe técnico: {this.state.erro.message}</p>
+        <div className="tools"><button className="btn primary" onClick={() => this.setState({ erro: null })}>Tentar de novo</button>
+          {this.props.onFechar && <button className="btn ghost" onClick={() => { this.setState({ erro: null }); this.props.onFechar!(); }}>Fechar</button>}</div>
+      </div>);
+    return this.props.janela ? <><div className="drawer-bg" onClick={this.props.onFechar} /><aside className="drawer" role="dialog" aria-modal="true">{caixa}</aside></> : caixa;
+  }
 }

@@ -1,0 +1,45 @@
+// O assistente do WhatsApp nunca manda marcação de ferramenta ao cliente; a chamada escrita como texto é executada.
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { chamadasEmTexto, extrairResposta } from "./agente";
+import { bancoContado } from "./teste/bancoContado";
+
+const FABRICIO = `Entendi, Fabricio.\n<invoke name="transferir_para_equipe">\n<parameter name="motivo">cliente quer falar com o advogado</parameter>\n<parameter name="resumo">pergunta sobre valores</parameter>\n</invoke>`;
+
+describe("marcação de ferramenta no texto", () => {
+  it("separa a chamada e devolve só o texto normal", () => {
+    const r = chamadasEmTexto(FABRICIO);
+    expect(r.limpo).toBe("Entendi, Fabricio.");
+    expect(r.chamadas).toEqual([{ nome: "transferir_para_equipe", args: { motivo: "cliente quer falar com o advogado", resumo: "pergunta sobre valores" } }]);
+  });
+  it("só marcação: texto vazio; chamada cortada no fim também é reconhecida", () => {
+    expect(chamadasEmTexto('<invoke name="transferir_para_equipe"><parameter name="motivo">x</parameter>').limpo).toBe("");
+    expect(chamadasEmTexto("<function_calls><invoke name=\"anotar_para_equipe\"><parameter name=\"texto\">a</parameter></invoke></function_calls>").chamadas[0].nome).toBe("anotar_para_equipe");
+  });
+  it("última barreira: parte com marcação nunca vira mensagem", () => {
+    expect(extrairResposta(FABRICIO)).toEqual([]);
+    expect(extrairResposta("<resposta>Olá, tudo bem?\n---\n<invoke name=\"x\"></invoke></resposta>")).toEqual(["Olá, tudo bem?"]);
+  });
+});
+
+describe("Escrever com o Claude no painel de WhatsApp", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.resetModules(); vi.doUnmock("@/lib/rota"); });
+  it("lê a conversa e o processo mais recente do cliente", async () => {
+    const b = bancoContado({
+      wa_conversas: [{ id: "cv1", nome: "Teresinha", telefone: "5547999996278", cliente_id: "c1" }],
+      wa_mensagens: [{ conversa_id: "cv1", de_mim: false, texto: "Eu quero o numero do meu processo", tipo: "texto", em: "2026-11-07T14:23:00Z", agente: false }],
+      clientes: [{ id: "c1", nome: "TERESINHA DO AMARAL" }],
+      processos: [{ numero: "50199160220254047201", mascara: "5019916-02.2025.4.04.7201", cliente_id: "c1", cliente_nome: "TERESINHA", banco: "C6", reus: ["C6", "INSS"], orgao: "3ª Turma Recursal de SC", fase: "Recurso", ultimo_ato: "Custas", ultima_data: "2026-08-10", notas: null }],
+      publicacoes: [],
+    });
+    vi.doMock("@/lib/rota", async (orig) => ({ ...(await orig() as object), membroDaRota: async () => ({ sb: b.sb, user: { id: "u1" } }) }));
+    vi.stubEnv("ANTHROPIC_API_KEY", "k"); vi.spyOn(console, "info").mockImplementation(() => {});
+    let pedido = "";
+    vi.stubGlobal("fetch", vi.fn(async (_u: unknown, init?: { body?: string }) => { pedido = String(init?.body || "");
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "<mensagem>Olá, Teresinha! O número do seu processo é 5019916-02.2025.4.04.7201.</mensagem>" }], stop_reason: "end_turn" }), { headers: { "content-type": "application/json" } }); }));
+    const { POST } = await import("@/app/api/claude/resposta-atendimento/route");
+    const r = await POST(new Request("http://x", { method: "POST", body: JSON.stringify({ conversaId: "cv1", instrucoes: "Informar o número do processo." }) }));
+    const j = await r.json();
+    expect(r.status).toBe(200); expect(j.mensagem).toContain("5019916-02.2025.4.04.7201");
+    expect(pedido).toContain("5019916-02.2025.4.04.7201"); expect(pedido).toContain("Eu quero o numero do meu processo"); expect(pedido).toContain("Informar o número do processo");
+  });
+});

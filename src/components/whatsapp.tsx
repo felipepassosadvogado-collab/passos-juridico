@@ -5,6 +5,8 @@ import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
 import { useVisor } from "./visor";
+import { Ic } from "./ui";
+import { Cronometro } from "./carregando";
 
 export type WaConversa = { id: string; jid: string; telefone: string | null; nome: string | null; cliente_id: string | null; ultima_em: string; ultima_texto: string | null; nao_lidas: number; arquivada: boolean;
   atendimento?: "agente" | "equipe"; equipe_ate?: string | null; aguardando_equipe?: boolean; resumo?: string | null; rascunho?: string | null; rascunho_em?: string | null; saudado_em?: string | null };
@@ -66,7 +68,9 @@ export function useWaMensagens(conversaId: string | null) {
       if (error) { setErro(msgErro(error, "Não consegui carregar as mensagens.")); setCarregando(false); return; }
       setMsgs((data || []).sort((a, b) => a.em.localeCompare(b.em))); setTemMais((data || []).length === PAGINA_MSG); setCarregando(false);
     }, (e: unknown) => { if (vivo) { setErro(msgErro(e, "Não consegui carregar as mensagens.")); setCarregando(false); } });
-    const ch = sb.channel("wa-msg-" + conversaId).on("postgres_changes", { event: "*", schema: "public", table: "wa_mensagens", filter: `conversa_id=eq.${conversaId}` }, (p: { eventType: string; new: WaMensagem }) => {
+    // nome único: a mesma conversa pode estar aberta em dois lugares (painel de WhatsApp e janela do processo);
+    // o Supabase não deixa duas telas assinarem o mesmo canal e derrubava a página
+    const ch = sb.channel("wa-msg-" + conversaId + "-" + Math.random().toString(36).slice(2, 8)).on("postgres_changes", { event: "*", schema: "public", table: "wa_mensagens", filter: `conversa_id=eq.${conversaId}` }, (p: { eventType: string; new: WaMensagem }) => {
       if (p.eventType === "DELETE") return;
       setMsgs((l) => { const i = l.findIndex((x) => x.id === p.new.id); if (i >= 0) { const n = [...l]; n[i] = p.new; return n; } return [...l, p.new].sort((a, b) => a.em.localeCompare(b.em)); });
     }).subscribe();
@@ -255,8 +259,12 @@ export function FioWa({ msgs, carregando, temMais, maisCarregando, onAnteriores,
   );
 }
 
-export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, onEnviada, desativado }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; clienteId?: string; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string }) {
-  const { sb, eu, aviso } = useDados(); const [t, setT] = useState(""); const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
+export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, onEnviada, desativado, rascunho, onTexto }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; clienteId?: string; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string;
+  /** texto escrito pelo Claude: entra na caixa para a pessoa conferir e enviar (n muda a cada nova versão) */ rascunho?: { texto: string; n: number }; onTexto?: (t: string) => void }) {
+  const { sb, eu, aviso } = useDados(); const [t, setT0] = useState(""); const caixa = useRef<HTMLTextAreaElement>(null);
+  const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
+  const setT = (v: string) => { setT0(v); onTexto?.(v); };
+  useEffect(() => { if (!rascunho?.n) return; setT(rascunho.texto); setTimeout(() => { const el = caixa.current; if (el) { el.focus(); el.style.height = "auto"; el.style.height = Math.min(320, Math.max(40, el.scrollHeight + 4)) + "px"; } }, 60); }, [rascunho?.n]); // eslint-disable-line react-hooks/exhaustive-deps const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
   const envia = async () => {
     const x = t.trim(); if ((!x && !arq) || enviando || desativado) return;
     setEnviando(true);
@@ -279,7 +287,7 @@ export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, on
       <label className="icb" title="Anexar foto ou documento" aria-label="Anexar foto ou documento" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.click(); } }}><span aria-hidden="true">📎</span><input type="file" hidden onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} /></label>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
         {arq && <span className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" title="Tirar o anexo da mensagem" aria-label={"Tirar o anexo " + arq.name} onClick={() => setArq(null)}>Tirar</button></span>}
-        <textarea rows={1} value={t} disabled={!!desativado} placeholder={desativado || "Mensagem pelo WhatsApp do escritório… (Enter envia, Shift+Enter quebra linha)"} onChange={(e) => setT(e.target.value)}
+        <textarea ref={caixa} rows={1} value={t} disabled={!!desativado} placeholder={desativado || "Mensagem pelo WhatsApp do escritório… (Enter envia, Shift+Enter quebra linha)"} onChange={(e) => setT(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envia(); } }} style={{ resize: "vertical", minHeight: 40 }} />
       </div>
       <button className="btn primary" title="Enviar pelo WhatsApp do escritório (ou tecle Enter)" disabled={enviando || !!desativado || (!t.trim() && !arq)} onClick={envia}>{enviando ? "Enviando…" : "Enviar"}</button>
@@ -322,6 +330,47 @@ export function WhatsappDoCliente({ clienteId, inicioAberto }: { clienteId: stri
         {conv ? <FioWa msgs={msgs.slice(-8)} carregando={carregando} /> : <div className="muted s" style={{ padding: 8 }}>{cli.telefone ? "Ainda não há conversa com este cliente. A mensagem abaixo abre a conversa." : "Cadastre o telefone na ficha do cliente para conversar."}</div>}
         {(conv || cli.telefone) && <CompositorWa conversaId={conv?.id || null} telefone={cli.telefone} desativado={!ligado ? "WhatsApp do sistema desconectado." : undefined} onEnviada={(m) => { if (conv) juntar(m); }} />}
       </div>}
+    </div>
+  );
+}
+
+/** painel de WhatsApp: pedir ao Claude a resposta ("explique que o processo está na Turma Recursal e peça paciência");
+ *  ele lê a conversa e, se for cliente, o processo; o texto vai para a caixa de mensagem para conferir e enviar */
+const PEDIDOS_RAPIDOS: [string, string][] = [
+  ["Responder a última mensagem", "Responder a última mensagem do cliente de forma clara e cordial."],
+  ["Explicar o andamento", "Explicar em palavras simples como está o processo agora e o que vem a seguir."],
+  ["Informar o nº do processo", "Informar o número do processo e onde ele tramita, em uma mensagem curta."],
+  ["Pedir documentos", "Pedir que envie por aqui, em foto legível: [quais documentos]."],
+  ["Sem novidades", "Dizer que ainda não há novidade no processo, que ele está andando normalmente e que avisaremos assim que houver."],
+];
+export function ClaudeNaConversa({ conversaId, textoAtual, onEscrito }: { conversaId: string; textoAtual: string; onEscrito: (t: string) => void }) {
+  const { aviso } = useDados(); const [aberto, setAberto] = useState(false); const [instr, setInstr] = useState(""); const [escrevendo, setEscrevendo] = useState(false);
+  const [alertas, setAlertas] = useState<string[]>([]); const ref = useRef<HTMLTextAreaElement>(null);
+  const usar = (t: string) => { setInstr(t); setTimeout(() => { const el = ref.current; if (!el) return; el.focus(); const i = t.indexOf("["); if (i >= 0) el.setSelectionRange(i, t.indexOf("]", i) + 1); }, 0); };
+  const escrever = async () => {
+    const x = instr.trim(); if (!x || escrevendo) return;
+    if (/\[[^\]]+\]/.test(x)) { aviso("Complete o que está entre [colchetes] no pedido ao Claude."); return; }
+    setEscrevendo(true); setAlertas([]);
+    try {
+      const r = await fetch("/api/claude/resposta-atendimento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversaId, instrucoes: x, mensagemAtual: textoAtual }), signal: AbortSignal.timeout(110000) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.mensagem) { aviso(j.erro || "Não consegui escrever a mensagem agora. Tente de novo."); return; }
+      onEscrito(j.mensagem); setAlertas(j.alertas || []); aviso("O Claude escreveu a mensagem na caixa abaixo. Confira e clique em Enviar.");
+    } catch (e) { aviso((e as Error).name === "TimeoutError" ? "O Claude demorou demais. Tente de novo." : msgErro(e, "Não consegui falar com o Claude agora.")); }
+    finally { setEscrevendo(false); }
+  };
+  if (!aberto) return <div className="wa-claude-f"><button className="btn ghost" onClick={() => { setAberto(true); setTimeout(() => ref.current?.focus(), 0); }} title="O Claude escreve a resposta lendo a conversa e o processo do cliente; você confere antes de enviar (usa créditos do Claude)">{Ic.claude}Escrever com o Claude</button></div>;
+  return (
+    <div className="wa-claude">
+      <div className="wa-claude-h">{Ic.claude}<b>O que o Claude deve escrever?</b><span className="muted s">ele lê a conversa e, se for cliente, o processo · a mensagem vai para a caixa abaixo para você conferir</span>
+        <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setAberto(false)}>Fechar</button></div>
+      <div className="wa-chips">{PEDIDOS_RAPIDOS.map(([r, t]) => <button key={r} type="button" className="pill" onClick={() => usar(t)}>{r}</button>)}</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <textarea ref={ref} rows={2} value={instr} aria-label="Instruções para o Claude" placeholder="Ex.: explique que o processo está na Turma Recursal aguardando julgamento, sem data marcada, e informe o número do processo"
+          onChange={(e) => setInstr(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); escrever(); } }} style={{ flex: 1, resize: "vertical" }} />
+        <button className="btn primary" disabled={escrevendo || !instr.trim()} onClick={escrever}>{escrevendo ? <>Escrevendo… <Cronometro /></> : textoAtual.trim() ? "Reescrever" : "Escrever"}</button>
+      </div>
+      {alertas.length > 0 && <div className="banner" style={{ marginTop: 6 }}><b>Confira antes de enviar:</b> {alertas.join(" · ")}</div>}
     </div>
   );
 }

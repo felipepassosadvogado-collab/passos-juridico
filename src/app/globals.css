@@ -964,3 +964,8 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .resp-at-claude{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:var(--sunken)}
 .resp-at-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.resp-at-h svg{color:var(--accent)}
 .resp-at textarea{width:100%;box-sizing:border-box;resize:vertical}
+/* painel de WhatsApp: pedir a resposta ao Claude */
+.wa-claude-f{padding:6px 14px 0;display:flex}
+.wa-claude-f .btn{font-size:13px;gap:6px}
+.wa-claude{margin:8px 14px 0;padding:10px 12px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;gap:6px}
+.wa-claude-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}

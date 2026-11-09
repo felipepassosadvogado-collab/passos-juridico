@@ -268,7 +268,8 @@ export function extrairResposta(texto: string) {
   const m = texto.match(/<resposta>([\s\S]*?)(<\/resposta>|$)/i);
   const r = (m ? m[1] : texto.replace(/<analise>[\s\S]*?<\/analise>/i, "")).trim();
   if (!r || /^\[?\s*SEM[_ ]RESPOSTA\s*\]?$/i.test(r)) return [];
-  return r.split(/\n\s*-{3,}\s*\n/).map((s) => s.replace(/\*\*/g, "").replace(/<\/?(analise|resposta)>/gi, "").trim()).filter(Boolean).slice(0, 4);
+  return r.split(/\n\s*-{3,}\s*\n/).map((s) => s.replace(/\*\*/g, "").replace(/<\/?(analise|resposta)>/gi, "").trim())
+    .filter((s) => s && !/<\/?(invoke|parameter|function_calls)\b/i.test(s)).slice(0, 4); // marcação de ferramenta nunca vai para o cliente
 }
 
 /** roda o agente na conversa (chamado pelo webhook depois de uma mensagem do cliente) */
@@ -328,6 +329,32 @@ export async function rodarAgente(adm: Adm, conversaId: string, msgId: string) {
   finally { await adm.from("wa_conversas").update({ agente_lock: null }).eq("id", conversaId); }
 }
 
+/** executa uma ferramenta do assistente */
+async function executar(c: Ctx, nome: string, a: Record<string, string>): Promise<unknown> {
+  return nome === "identificar_cliente" ? identificar(c, a.cpf, a.data_nascimento)
+    : nome === "consultar_processo" ? consultar(c, a.numero)
+    : nome === "transferir_para_equipe" ? transferir(c, a.motivo, a.resumo)
+    : nome === "confirmar_aviso" ? confirmarAviso(c, a.aviso_id, a.observacao)
+    : nome === "anotar_para_equipe" ? anotar(c, a.texto, a.processo)
+    : nome === "registrar_novo_atendimento" ? novoAtendimento(c, a as unknown as { nome: string; cidade?: string; banco?: string; resumo_do_caso: string })
+    : { erro: "ferramenta desconhecida" };
+}
+
+/** separa do texto as chamadas de ferramenta escritas como marcação e devolve o texto limpo */
+export function chamadasEmTexto(texto: string): { limpo: string; chamadas: { nome: string; args: Record<string, string> }[] } {
+  const chamadas: { nome: string; args: Record<string, string> }[] = [];
+  for (const m of texto.matchAll(/<invoke\s+name="([\w-]+)"\s*>([\s\S]*?)(?:<\/invoke>|$)/gi)) {
+    const args: Record<string, string> = {};
+    for (const p of m[2].matchAll(/<parameter\s+name="([\w-]+)"[^>]*>([\s\S]*?)<\/parameter>/gi)) args[p[1]] = p[2].trim();
+    chamadas.push({ nome: m[1], args });
+  }
+  const limpo = texto
+    .replace(/<(?:antml:)?function_calls>[\s\S]*?(?:<\/(?:antml:)?function_calls>|$)/gi, "")
+    .replace(/<invoke\s+name="[\w-]+"\s*>[\s\S]*?(?:<\/invoke>|$)/gi, "")
+    .replace(/<\/?(?:invoke|parameter|function_calls)[^>]*>/gi, "").trim();
+  return { limpo, chamadas };
+}
+
 /** laço de conversa com ferramentas (Messages API) */
 async function conversar(c: Ctx, sistema: string, hist: Turno[]): Promise<string> {
   const chave = process.env.ANTHROPIC_API_KEY; if (!chave || !hist.length) return "";
@@ -344,21 +371,21 @@ async function conversar(c: Ctx, sistema: string, hist: Turno[]): Promise<string
     const j = await r.json() as { content: { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }[]; stop_reason: string; usage?: Record<string, number> };
     await registrarUso(MODELO, j.usage, Date.now() - t0, "whatsapp.agente");
     const usos = j.content.filter((b) => b.type === "tool_use");
-    if (j.stop_reason !== "tool_use" || !usos.length) return j.content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+    if (j.stop_reason !== "tool_use" || !usos.length) {
+      // às vezes o modelo escreve a chamada da ferramenta como TEXTO (<invoke name="transferir_para_equipe">…);
+      // isso nunca vai para o cliente: a chamada é executada de verdade e só o texto normal segue
+      const texto = j.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+      const { limpo, chamadas } = chamadasEmTexto(texto);
+      for (const ch of chamadas) { try { await executar(c, ch.nome, ch.args); } catch (e) { console.warn("agente: ferramenta em texto", ch.nome, (e as Error).message); } }
+      if (chamadas.length) console.warn("[agente] ferramenta escrita como texto, executada:", chamadas.map((x) => x.nome).join(", "));
+      if (!limpo && chamadas.some((x) => x.nome === "transferir_para_equipe")) return "<resposta>Já deixei o recado para a equipe. Alguém vai falar com você por aqui assim que possível, no horário de atendimento.</resposta>";
+      return limpo;
+    }
     mensagens.push({ role: "assistant", content: j.content });
     const resultados = [];
     for (const u of usos) {
       let res: unknown;
-      try {
-        const a = u.input || {};
-        res = u.name === "identificar_cliente" ? await identificar(c, a.cpf, a.data_nascimento)
-          : u.name === "consultar_processo" ? await consultar(c, a.numero)
-          : u.name === "transferir_para_equipe" ? await transferir(c, a.motivo, a.resumo)
-          : u.name === "confirmar_aviso" ? await confirmarAviso(c, a.aviso_id, a.observacao)
-          : u.name === "anotar_para_equipe" ? await anotar(c, a.texto, a.processo)
-          : u.name === "registrar_novo_atendimento" ? await novoAtendimento(c, a as unknown as { nome: string; cidade?: string; banco?: string; resumo_do_caso: string })
-          : { erro: "ferramenta desconhecida" };
-      } catch (e) { res = { erro: (e as Error).message }; }
+      try { res = await executar(c, u.name || "", u.input || {}); } catch (e) { res = { erro: (e as Error).message }; }
       resultados.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify(res).slice(0, 60000) });
     }
     mensagens.push({ role: "user", content: resultados });
