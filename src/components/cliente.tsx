@@ -83,19 +83,38 @@ export function useFichaCliente(c?: Cliente) {
         const { data, error } = r;
         if (error) { aviso(msgErro(error)); return null; } aplicar("clientes", data); id = data.id as string;
       }
-      let n = 0;
-      for (const f of files) {
-        const caminho = `clientes/${id}/${Date.now().toString(36)}-${f.file.name.replace(/[^\w.\-]+/g, "_")}`;
+      let n = 0; const falhas: string[] = []; const ficam: Arq[] = [];
+      for (const [k, f] of files.entries()) {
+        if (f.file.size > LIMITE_ARQUIVO) { falhas.push(`${f.file.name} tem ${mb(f.file.size)}; o limite é ${mb(LIMITE_ARQUIVO)} (divida o PDF ou baixe só as partes necessárias)`); ficam.push(f); continue; }
+        if (files.length > 1) aviso(`Guardando ${k + 1} de ${files.length}: ${f.file.name} (${mb(f.file.size)})…`);
+        const caminho = `clientes/${id}/${Date.now().toString(36)}-${f.file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.\-]+/g, "_")}`;
         const up = await sb.storage.from("documentos").upload(caminho, f.file, { contentType: f.file.type || undefined });
-        if (up.error) { aviso("Não foi possível guardar " + f.file.name + "."); continue; }
-        await sb.from("documentos").insert({ cliente_id: id, tipo: f.tipo || "outro", nome: f.file.name, caminho, tamanho: f.file.size, mime: f.file.type || null }); n++;
+        if (up.error) { falhas.push(`${f.file.name}: ${motivoUpload(up.error.message, f.file.size)}`); ficam.push(f); continue; }
+        const { error: e2 } = await sb.from("documentos").insert({ cliente_id: id, tipo: f.tipo || "outro", nome: f.file.name, caminho, tamanho: f.file.size, mime: f.file.type || null });
+        if (e2) { falhas.push(`${f.file.name}: o arquivo subiu, mas não consegui registrar na ficha (${msgErro(e2)})`); ficam.push(f); continue; }
+        n++;
       }
-      setFiles([]);
-      aviso((c?.id ? "Ficha salva" : "Cliente cadastrado") + (n ? ", " + n + (n === 1 ? " documento guardado." : " documentos guardados.") : "."));
+      setFiles(ficam); // o que não foi guardado continua na tela para tentar de novo
+      const ok = (c?.id ? "Ficha salva" : "Cliente cadastrado") + (n ? ", " + n + (n === 1 ? " documento guardado." : " documentos guardados.") : ".");
+      aviso(falhas.length ? `${ok} Não foi guardado: ${falhas.join(" · ")}` : ok);
       return id!;
     } finally { setSalvando(false); }
   };
   return { ed, setEd, files, setFiles, nota, lendo, salvando, ler, salvar, extra, kit, guardarKit };
+}
+
+/** limite por arquivo da pasta de documentos (etapa 0027: 50 MB, o máximo do plano gratuito do Supabase) */
+export const LIMITE_ARQUIVO = 50 * 1024 * 1024;
+const mb = (b: number) => (b / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB";
+/** explica em português por que o Storage recusou o arquivo */
+export function motivoUpload(msg: string, tamanho: number): string {
+  if (/exceeded the maximum allowed size|payload too large|413|too large/i.test(msg)) return tamanho > 20 * 1048576
+    ? `o arquivo (${mb(tamanho)}) passa do limite da pasta de documentos. Rode a etapa 0027 no Supabase para aceitar até 50 MB`
+    : `o arquivo (${mb(tamanho)}) passa do limite da pasta de documentos`;
+  if (/mime type|invalid_mime/i.test(msg)) return "esse tipo de arquivo não é aceito (use PDF, JPG, PNG ou WEBP)";
+  if (/row-level security|unauthorized|403/i.test(msg)) return "sem permissão para guardar (entre de novo no sistema)";
+  if (/fetch|network|timeout/i.test(msg)) return "a conexão caiu durante o envio; tente de novo";
+  return msg;
 }
 
 export function CamposCliente({ f, so }: { f: ReturnType<typeof useFichaCliente>; so?: (keyof Cliente)[] }) {
@@ -115,7 +134,7 @@ export function EnvioDocumentos({ f, texto }: { f: ReturnType<typeof useFichaCli
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <label className="f">{texto}<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { f.setFiles([...f.files, ...Array.from(e.target.files || []).map((file) => ({ file, tipo: "" }))]); e.target.value = ""; }} /></label>
       {f.files.length > 0 && <div className="anexos">{f.files.map((x, i) => (
-        <span key={i} className="anexo"><span className="ext">{x.file.type === "application/pdf" ? "PDF" : "IMG"}</span><span className="an">{x.file.name}</span>
+        <span key={i} className="anexo"><span className="ext">{x.file.type === "application/pdf" ? "PDF" : "IMG"}</span><span className="an">{x.file.name}</span><span className={"s " + (x.file.size > LIMITE_ARQUIVO ? "late" : "muted")} title={x.file.size > LIMITE_ARQUIVO ? "Maior que o limite de 50 MB: divida o PDF ou baixe só as partes necessárias" : undefined}>{mb(x.file.size)}{x.file.size > LIMITE_ARQUIVO ? " · acima do limite" : ""}</span>
           <select value={x.tipo} onChange={(e) => f.setFiles(f.files.map((y, j) => (j === i ? { ...y, tipo: e.target.value } : y)))} style={{ padding: "2px 4px", fontSize: 12 }}>
             <option value="">tipo…</option>{Object.entries(TIPOS_DOC).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
           <button type="button" className="btn ghost" title="Ver o documento numa caixa ao lado" onClick={() => visor.verArquivo(x.file)}>👁 Ver</button>

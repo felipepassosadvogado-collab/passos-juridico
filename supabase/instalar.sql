@@ -1181,3 +1181,8 @@ alter table public.uso_claude enable row level security;
 drop policy if exists titular_le_uso on public.uso_claude;
 create policy titular_le_uso on public.uso_claude for select to authenticated using (public.eh_titular());
 revoke insert, update, delete on public.uso_claude from anon, authenticated;
+
+-- Passos Juridico - etapa 0027: arquivos de ate 50 MB na pasta de documentos (antes: 20 MB).
+-- 50 MB e o maximo por arquivo no plano gratuito do Supabase. Pode rodar mais de uma vez sem problema.
+update storage.buckets set file_size_limit = 52428800 where id = 'documentos';
+select id, file_size_limit / 1048576 as limite_mb from storage.buckets where id = 'documentos';

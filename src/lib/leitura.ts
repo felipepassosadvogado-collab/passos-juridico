@@ -26,7 +26,8 @@ export async function enviarParaLeitura(sb: SB, usuario: string, files: File[]):
     const mime = ehPdf ? "application/pdf" : blob.type || "image/jpeg";
     const caminho = `leitura/${usuario}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}.${ehPdf ? "pdf" : "jpg"}`;
     const up = await sb.storage.from("documentos").upload(caminho, blob, { contentType: mime });
-    if (up.error) throw new Error("Não consegui enviar " + f.name + " para leitura.");
+    if (up.error) throw new Error("Não consegui enviar " + f.name + " para leitura: " + (/maximum allowed size|too large|413/i.test(up.error.message)
+      ? `o arquivo (${(f.size / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB) passa do limite da pasta de documentos (rode a etapa 0027 para aceitar até 50 MB).` : up.error.message));
     out.push({ caminho, nome: f.name, mime });
   }
   return out;
