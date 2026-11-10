@@ -3,32 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { todas, useDados, msgErro } from "@/lib/dados";
 import { hojeBR } from "@/lib/prazos";
-import { NOME_MODELO, PRECOS_PADRAO, resumirConsumo, type LinhaUso, type Preco } from "@/lib/consumoResumo";
+import { NOME_MODELO, PERIODOS_CONSUMO, PRECOS_PADRAO, custo, nomeFuncao, periodoConsumo, resumirConsumo, umDia, type LinhaUso, type Preco } from "@/lib/consumoResumo";
 
 const usd = (v: number) => "US$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mil = (n: number) => n >= 1e6 ? (n / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi" : n >= 1e3 ? Math.round(n / 1e3).toLocaleString("pt-BR") + " mil" : String(n);
-const PERIODOS = [["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["mes", "Este mês"], ["mes_passado", "Mês passado"]] as const;
-
-function inicioFim(p: string): [string, string] {
-  const h = hojeBR(); const [y, m] = h.split("-").map(Number);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (p === "mes") return [`${h.slice(0, 7)}-01`, ""];
-  if (p === "mes_passado") return [iso(new Date(Date.UTC(y, m - 2, 1))), `${h.slice(0, 7)}-01`];
-  const d = new Date(h + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - (+p - 1)); return [iso(d), ""];
-}
-
 export function PainelConsumo() {
   const { sb, config, aviso } = useDados();
-  const [per, setPer] = useState("30"); const [linhas, setLinhas] = useState<LinhaUso[] | null>(null); const [erro, setErro] = useState(""); const [editar, setEditar] = useState(false);
+  const [per, setPer] = useState("30"); const [dia, setDia] = useState(hojeBR()); const [deP, setDeP] = useState(""); const [ateP, setAteP] = useState(""); const [linhas, setLinhas] = useState<LinhaUso[] | null>(null); const [erro, setErro] = useState(""); const [editar, setEditar] = useState(false);
   const salvos = (config.consumo_precos as Record<string, Preco> | undefined) || {};
   const [precos, setPrecos] = useState<Record<string, Preco>>({ ...PRECOS_PADRAO, ...salvos });
   useEffect(() => {
     setLinhas(null); setErro("");
-    const [de, ate] = inicioFim(per);
+    const [de, ate] = periodoConsumo(per, hojeBR(), { dia, de: deP, ate: ateP });
     todas(() => { let q = sb.from("uso_claude").select("em,operacao,modelo,entrada,saida,cache_leitura,cache_escrita").gte("em", de + "T03:00:00Z"); if (ate) q = q.lt("em", ate + "T03:00:00Z"); return q.order("id"); })
       .then((l) => setLinhas(l as LinhaUso[]))
       .catch((e) => { setErro(/uso_claude|does not exist|schema cache/i.test(String((e as Error).message)) ? "Falta rodar a etapa 0026 no Supabase (SQL Editor) para o painel começar a registrar." : msgErro(e)); setLinhas([]); });
-  }, [per]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [per, dia, deP, ateP]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [deAtual, ateAtual] = periodoConsumo(per, hojeBR(), { dia, de: deP, ate: ateP }); const soUmDia = umDia(deAtual, ateAtual);
+  const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
   const r = useMemo(() => linhas ? resumirConsumo(linhas, precos) : null, [linhas, precos]);
   const salvarPrecos = async () => {
     const { error } = await sb.from("config").upsert({ chave: "consumo_precos", valor: precos }, { onConflict: "chave" });
@@ -38,7 +30,11 @@ export function PainelConsumo() {
   return (
     <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="tools" style={{ justifyContent: "space-between" }}>
-        <select aria-label="Período do consumo" value={per} onChange={(e) => setPer(e.target.value)}>{PERIODOS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+        <div className="tools">
+          <select aria-label="Período do consumo" value={per} onChange={(e) => setPer(e.target.value)}>{PERIODOS_CONSUMO.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+          {per === "dia" && <input type="date" aria-label="Dia do consumo" value={dia} max={hojeBR()} onChange={(e) => e.target.value && setDia(e.target.value)} />}
+          {per === "periodo" && <><input type="date" aria-label="Consumo a partir de" value={deP} max={hojeBR()} onChange={(e) => setDeP(e.target.value)} /><span className="muted s">até</span><input type="date" aria-label="Consumo até" value={ateP} max={hojeBR()} onChange={(e) => setAteP(e.target.value)} /></>}
+        </div>
         <button className="reflink" onClick={() => setEditar(!editar)}>{editar ? "Fechar preços" : "Ajustar preços por milhão de tokens"}</button>
       </div>
       {editar && <div className="triage">
@@ -60,7 +56,14 @@ export function PainelConsumo() {
             <tr key={g.nome}><td><b>{g.nome}</b></td><td style={{ textAlign: "right" }}>{g.chamadas}</td><td style={{ textAlign: "right" }}>{usd(g.custo)}</td><td style={{ textAlign: "right" }} className="muted">{usd(g.custo / g.chamadas)}</td>
               <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ height: 8, borderRadius: 4, background: "var(--accent)", width: `${Math.max(2, p * 100)}%` }} /><span className="s muted">{Math.round(p * 100)}%</span></div></td></tr>); })}</tbody></table>
         <div className="muted s">Por modelo: {r.porModelo.map((g) => `${g.nome}: ${usd(g.custo)} (${g.chamadas} chamadas)`).join(" · ")}</div>
-        {r.porDia.length > 1 && <div>
+        {soUmDia && linhas && <div>
+          <div className="s" style={{ fontWeight: 600, margin: "4px 0 6px" }}>Chamadas do dia {deAtual.split("-").reverse().join("/")}</div>
+          <div className="tscroll" style={{ maxHeight: 320, overflowY: "auto" }}><table className="grid"><caption className="sr-only">Cada chamada ao Claude no dia</caption>
+            <thead><tr><th>Hora</th><th>Função</th><th>Modelo</th><th style={{ textAlign: "right" }}>Tokens (entrada / saída)</th><th style={{ textAlign: "right" }}>Custo</th></tr></thead>
+            <tbody>{[...linhas].reverse().map((l, k) => <tr key={k}><td className="mono">{hora(l.em)}</td><td>{nomeFuncao(l.operacao)}</td><td className="muted">{NOME_MODELO[l.modelo] || l.modelo}</td>
+              <td style={{ textAlign: "right" }} className="muted">{mil(l.entrada + l.cache_leitura + l.cache_escrita)} / {mil(l.saida)}</td><td style={{ textAlign: "right" }}>{usd(custo(l, precos))}</td></tr>)}</tbody></table></div>
+        </div>}
+        {!soUmDia && r.porDia.length > 1 && <div>
           <div className="s" style={{ fontWeight: 600, marginBottom: 6 }}>Por dia</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 90 }} role="img" aria-label={"Custo por dia: " + r.porDia.map((d) => `${d.dia.slice(8)}/${d.dia.slice(5, 7)} ${usd(d.custo)}`).join(", ")}>
             {r.porDia.map((d) => <div key={d.dia} title={`${d.dia.split("-").reverse().join("/")}: ${usd(d.custo)} · ${d.chamadas} chamadas`} style={{ flex: 1, minWidth: 4, height: `${Math.max(3, (d.custo / maxDia) * 100)}%`, background: "var(--accent)", borderRadius: "3px 3px 0 0", opacity: 0.8 }} />)}

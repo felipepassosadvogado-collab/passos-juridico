@@ -31,3 +31,18 @@ describe("registro de cada chamada", () => {
     expect(reg).toHaveBeenCalledWith("claude-sonnet-5-5", { input_tokens: 120, output_tokens: 30 }, expect.any(Number));
   });
 });
+
+import { periodoConsumo, umDia } from "./consumoResumo";
+describe("períodos do painel de consumo", () => {
+  const h = "2026-11-10";
+  it("hoje, ontem, um dia, período e meses (fim exclusivo)", () => {
+    expect(periodoConsumo("hoje", h)).toEqual(["2026-11-10", "2026-11-11"]);
+    expect(periodoConsumo("ontem", h)).toEqual(["2026-11-09", "2026-11-10"]);
+    expect(periodoConsumo("dia", h, { dia: "2026-11-05" })).toEqual(["2026-11-05", "2026-11-06"]);
+    expect(periodoConsumo("periodo", h, { de: "2026-11-01", ate: "2026-11-05" })).toEqual(["2026-11-01", "2026-11-06"]);
+    expect(periodoConsumo("7", h)).toEqual(["2026-11-04", ""]);
+    expect(periodoConsumo("mes_passado", h)).toEqual(["2026-10-01", "2026-11-01"]);
+    expect(periodoConsumo("mes_passado", "2026-01-15")).toEqual(["2025-12-01", "2026-01-01"]);
+    expect(umDia(...periodoConsumo("hoje", h))).toBe(true); expect(umDia(...periodoConsumo("7", h))).toBe(false);
+  });
+});

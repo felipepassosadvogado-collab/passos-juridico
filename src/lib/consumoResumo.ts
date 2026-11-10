@@ -40,3 +40,22 @@ export function resumirConsumo(linhas: LinhaUso[], precos: Record<string, Preco>
   return { total: soma("Total", linhas), porFuncao: agrupa((l) => nomeFuncao(l.operacao)), porModelo: agrupa((l) => NOME_MODELO[l.modelo] || l.modelo),
     porDia: [...porDiaMap].map(([d, x]) => ({ dia: d, ...x })).sort((a, b) => a.dia.localeCompare(b.dia)) };
 }
+
+/** períodos do painel: [início, fim exclusivo] em datas de Brasília (AAAA-MM-DD); fim "" = até agora */
+export const PERIODOS_CONSUMO = [["hoje", "Hoje"], ["ontem", "Ontem"], ["dia", "Escolher um dia…"], ["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["mes", "Este mês"], ["mes_passado", "Mês passado"], ["periodo", "Escolher período…"]] as const;
+export function periodoConsumo(p: string, hoje: string, o: { dia?: string; de?: string; ate?: string } = {}): [string, string] {
+  const [y, m] = hoje.split("-").map(Number);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const mais = (s: string, n: number) => { const d = new Date(s + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+  switch (p) {
+    case "hoje": return [hoje, mais(hoje, 1)];
+    case "ontem": return [mais(hoje, -1), hoje];
+    case "dia": return o.dia ? [o.dia, mais(o.dia, 1)] : [hoje, mais(hoje, 1)];
+    case "mes": return [`${hoje.slice(0, 7)}-01`, ""];
+    case "mes_passado": return [iso(new Date(Date.UTC(y, m - 2, 1))), `${hoje.slice(0, 7)}-01`];
+    case "periodo": return [o.de || hoje, o.ate ? mais(o.ate, 1) : ""];
+    default: return [mais(hoje, -(Number(p) - 1 || 0)), ""];
+  }
+}
+/** o período é um dia só? (aí o painel lista as chamadas uma a uma) */
+export const umDia = (de: string, ate: string) => !!ate && Date.parse(ate) - Date.parse(de) === 86400000;
