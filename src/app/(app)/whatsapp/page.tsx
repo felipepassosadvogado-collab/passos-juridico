@@ -6,6 +6,7 @@ import { bancoCurto, dataHoraBR, iniciais, nomeBonito, semAcento } from "@/lib/f
 import { hojeBR } from "@/lib/prazos";
 import { useJanelas } from "@/components/janelas";
 import { AgenteNaConversa } from "@/components/agente";
+import { Ic } from "@/components/ui";
 import { BuscaCliente, ClaudeNaConversa, CompositorWa, FioWa, PainelConexao, foneBR, useConexaoWa, useNomeConversa, useWaConversas, useWaMensagens, type WaConversa } from "@/components/whatsapp";
 
 type Filtro = "todas" | "naolidas" | "equipe" | "clientes" | "sem";
@@ -15,7 +16,8 @@ function WhatsApp() {
   const { lista, semTabela, atualizar, carregado: loaded, temMais: maisConvs, maisCarregando: carregandoConvs, carregarMais: maisConversas } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
   const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
-  const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [rascunho, setRascunho] = useState<{ texto: string; n: number; conv: string } | null>(null); const [textoCx, setTextoCx] = useState(""); const [buscaNova, setBuscaNova] = useState(false);
+  const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [claudeAberto, setClaudeAberto] = useState(false); const [rascunho, setRascunho] = useState<{ texto: string; n: number; conv: string } | null>(null); const [textoCx, setTextoCx] = useState(""); const [buscaNova, setBuscaNova] = useState(false);
+  useEffect(() => { setClaudeAberto(false); }, [ativa]); // trocar de conversa fecha o pedido ao Claude
   // veio de um link do cliente (?cliente=ID): abre a conversa que já existe ou começa uma nova com ele
   const pedidoCli = sp.get("cliente"); const [feito, setFeito] = useState("");
   useEffect(() => {
@@ -124,8 +126,8 @@ function WhatsApp() {
             </header>
             {conv && <AgenteNaConversa conv={conv} onAtualizar={atualizar} onEnviada={juntar} />}
             {conv ? <FioWa msgs={msgs} carregando={carregando} temMais={temMais} maisCarregando={maisCarregando} onAnteriores={anteriores} erro={erroMsgs} onTentar={tentar} /> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Nova conversa com {titulo}. Escreva abaixo.</div></div>}
-            {conv && <ClaudeNaConversa key={conv.id} conversaId={conv.id} textoAtual={textoCx} onEscrito={(t) => setRascunho((x) => ({ texto: t, n: (x?.n || 0) + 1, conv: conv.id }))} />}
-            <CompositorWa key={conv?.id || "nova"} rascunho={rascunho && rascunho.conv === conv?.id ? rascunho : undefined} onTexto={setTextoCx} conversaId={conv?.id || null} telefone={nova?.telefone || cli?.telefone} nome={nova?.nome} avulso={!cli || !!nova?.outroNumero} clienteId={nova?.clienteId} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
+            {conv && claudeAberto && <ClaudeNaConversa key={conv.id} conversaId={conv.id} textoAtual={textoCx} onFechar={() => setClaudeAberto(false)} onEscrito={(t) => setRascunho((x) => ({ texto: t, n: (x?.n || 0) + 1, conv: conv.id }))} />}
+            <CompositorWa key={conv?.id || "nova"} acaoExtra={conv && <button type="button" className={"icb wa-claude-bt" + (claudeAberto ? " on" : "")} aria-pressed={claudeAberto} title="Escrever com o Claude: ele lê a conversa e o processo do cliente; você confere antes de enviar (usa créditos)" aria-label="Escrever com o Claude" onClick={() => setClaudeAberto(!claudeAberto)}>{Ic.claude}</button>} rascunho={rascunho && rascunho.conv === conv?.id ? rascunho : undefined} onTexto={setTextoCx} conversaId={conv?.id || null} telefone={nova?.telefone || cli?.telefone} nome={nova?.nome} avulso={!cli || !!nova?.outroNumero} clienteId={nova?.clienteId} desativado={!conectado ? "WhatsApp desconectado: conecte em Configurações para enviar." : undefined}
               onEnviada={(m, id) => { if (!conv) { sb.from("wa_conversas").select("*").eq("id", id).single().then(({ data }: { data: WaConversa | null }) => { if (data) atualizar(data); setNova(null); setAtiva(id); }); } else juntar(m); }} />
           </> : <div className="chat-fio"><div className="muted" style={{ margin: "auto" }}>Escolha uma conversa.</div></div>}
         </section>

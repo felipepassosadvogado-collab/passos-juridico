@@ -1,6 +1,6 @@
 "use client";
 // WhatsApp do escritório dentro do sistema: conversas, mensagens em tempo real, envio e conexão pelo QR-code.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataHoraBR, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
@@ -259,8 +259,9 @@ export function FioWa({ msgs, carregando, temMais, maisCarregando, onAnteriores,
   );
 }
 
-export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, onEnviada, desativado, rascunho, onTexto }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; clienteId?: string; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string;
-  /** texto escrito pelo Claude: entra na caixa para a pessoa conferir e enviar (n muda a cada nova versão) */ rascunho?: { texto: string; n: number }; onTexto?: (t: string) => void }) {
+export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, onEnviada, desativado, rascunho, onTexto, acaoExtra }: { conversaId: string | null; telefone?: string | null; nome?: string; avulso?: boolean; clienteId?: string; onEnviada: (m: WaMensagem, conversaId: string) => void; desativado?: string;
+  /** texto escrito pelo Claude: entra na caixa para a pessoa conferir e enviar (n muda a cada nova versão) */ rascunho?: { texto: string; n: number }; onTexto?: (t: string) => void;
+  /** botão extra ao lado do 📎 (ex.: escrever com o Claude) */ acaoExtra?: ReactNode }) {
   const { sb, eu, aviso } = useDados(); const [t, setT0] = useState(""); const caixa = useRef<HTMLTextAreaElement>(null);
   const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
   const setT = (v: string) => { setT0(v); onTexto?.(v); };
@@ -285,6 +286,7 @@ export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, on
   return (
     <div className="chat-comp-w"><div className="chat-comp">
       <label className="icb" title="Anexar foto ou documento" aria-label="Anexar foto ou documento" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.click(); } }}><span aria-hidden="true">📎</span><input type="file" hidden onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} /></label>
+      {acaoExtra}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
         {arq && <span className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" title="Tirar o anexo da mensagem" aria-label={"Tirar o anexo " + arq.name} onClick={() => setArq(null)}>Tirar</button></span>}
         <textarea ref={caixa} rows={1} value={t} disabled={!!desativado} placeholder={desativado || "Mensagem pelo WhatsApp do escritório… (Enter envia, Shift+Enter quebra linha)"} onChange={(e) => setT(e.target.value)}
@@ -343,8 +345,8 @@ const PEDIDOS_RAPIDOS: [string, string][] = [
   ["Pedir documentos", "Pedir que envie por aqui, em foto legível: [quais documentos]."],
   ["Sem novidades", "Dizer que ainda não há novidade no processo, que ele está andando normalmente e que avisaremos assim que houver."],
 ];
-export function ClaudeNaConversa({ conversaId, textoAtual, onEscrito }: { conversaId: string; textoAtual: string; onEscrito: (t: string) => void }) {
-  const { aviso } = useDados(); const [aberto, setAberto] = useState(false); const [instr, setInstr] = useState(""); const [escrevendo, setEscrevendo] = useState(false);
+export function ClaudeNaConversa({ conversaId, textoAtual, onEscrito, onFechar }: { conversaId: string; textoAtual: string; onEscrito: (t: string) => void; onFechar: () => void }) {
+  const { aviso } = useDados(); const [instr, setInstr] = useState(""); const [escrevendo, setEscrevendo] = useState(false);
   const [alertas, setAlertas] = useState<string[]>([]); const ref = useRef<HTMLTextAreaElement>(null);
   const usar = (t: string) => { setInstr(t); setTimeout(() => { const el = ref.current; if (!el) return; el.focus(); const i = t.indexOf("["); if (i >= 0) el.setSelectionRange(i, t.indexOf("]", i) + 1); }, 0); };
   const escrever = async () => {
@@ -359,11 +361,11 @@ export function ClaudeNaConversa({ conversaId, textoAtual, onEscrito }: { conver
     } catch (e) { aviso((e as Error).name === "TimeoutError" ? "O Claude demorou demais. Tente de novo." : msgErro(e, "Não consegui falar com o Claude agora.")); }
     finally { setEscrevendo(false); }
   };
-  if (!aberto) return <div className="wa-claude-f"><button className="btn ghost" onClick={() => { setAberto(true); setTimeout(() => ref.current?.focus(), 0); }} title="O Claude escreve a resposta lendo a conversa e o processo do cliente; você confere antes de enviar (usa créditos do Claude)">{Ic.claude}Escrever com o Claude</button></div>;
+  useEffect(() => { ref.current?.focus(); }, []);
   return (
     <div className="wa-claude">
       <div className="wa-claude-h">{Ic.claude}<b>O que o Claude deve escrever?</b><span className="muted s">ele lê a conversa e, se for cliente, o processo · a mensagem vai para a caixa abaixo para você conferir</span>
-        <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setAberto(false)}>Fechar</button></div>
+        <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={onFechar}>Fechar</button></div>
       <div className="wa-chips">{PEDIDOS_RAPIDOS.map(([r, t]) => <button key={r} type="button" className="pill" onClick={() => usar(t)}>{r}</button>)}</div>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea ref={ref} rows={2} value={instr} aria-label="Instruções para o Claude" placeholder="Ex.: explique que o processo está na Turma Recursal aguardando julgamento, sem data marcada, e informe o número do processo"
