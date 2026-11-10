@@ -1,4 +1,5 @@
 "use client";
+import { substituidasPorProtocolo } from "@/lib/tarefasAtivas";
 import { teclado } from "@/components/ui";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +40,7 @@ function Painel() {
   const vai = (id: string) => { if (rec.includes(id)) gravarRec(rec.filter((x) => x !== id)); setTimeout(() => ir(id), 30); };
   const partesTxt = (t: { processo_numero: string | null; caso_id: string | null; descricao: string; tipo: string | null }) => semAcento([t.descricao, t.tipo, t.processo_numero ? processos.get(t.processo_numero)?.cliente_nome : ""].join(" ")).toLowerCase();
   const x = useMemo(() => {
-    const t = hojeBR(); const abertas = [...tarefas.values()].filter((y) => y.status !== "feito");
+    const t = hojeBR(); const sub = substituidasPorProtocolo(tarefas.values()); const abertas = [...tarefas.values()].filter((y) => y.status !== "feito" && !sub.has(y.id));
     const minhas = abertas.filter((y) => y.responsavel === eu.id);
     const flag = abertas.filter((y) => y.importante || y.urgente);
     return {

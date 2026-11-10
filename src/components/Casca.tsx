@@ -1,4 +1,5 @@
 "use client";
+import { substituidasPorProtocolo } from "@/lib/tarefasAtivas";
 import { AlertaDjen } from "./djen";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
 import { useWaConversas } from "@/components/whatsapp";
@@ -37,7 +38,7 @@ const ICONES: Record<string, string> = {
 function Menu() {
   const p = usePathname(); const { tarefas, caixa, processos, clientes, notificacoes, avisos, eu, titular, v } = useDados(); const { total } = useChat(); const wa = useWaConversas();
   const c = useMemo(() => {
-    const hoje = hojeBR(); const abertas = [...tarefas.values()].filter((t) => t.status !== "feito");
+    const hoje = hojeBR(); const sub = substituidasPorProtocolo(tarefas.values()); const abertas = [...tarefas.values()].filter((t) => t.status !== "feito" && !sub.has(t.id));
     const minhas = abertas.filter((t) => t.responsavel === eu.id || (t.status === "revisao" && t.revisor === eu.id));
     return {
       abertas: abertas.length, vencidas: abertas.some((t) => t.vencimento && t.vencimento <= hoje),

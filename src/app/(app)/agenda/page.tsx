@@ -1,6 +1,7 @@
 "use client";
 // Agenda: tarefas (e correções), intimações do DJEN, audiências e coletas e avisos a clientes,
 // por mês, semana ou dia, com filtros por tipo, situação e responsável.
+import { substituidasPorProtocolo } from "@/lib/tarefasAtivas";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDados } from "@/lib/dados";
@@ -69,7 +70,9 @@ function Agenda() {
       if (numero) { const p = processos.get(numero); return { cli: nomeBonito(p?.cliente_nome || "—"), reu: bancoCurto(p?.banco), resp: p?.responsavel || null }; }
       const c = casoId ? casos.get(casoId) : undefined; return { cli: nomeBonito(c?.nome || "—"), reu: c?.banco ? bancoCurto(c.banco) + " · pré-processual" : "pré-processual", resp: c?.responsavel || null };
     };
+    const jaComProtocolo = substituidasPorProtocolo(tarefas.values());
     for (const t of tarefas.values() as Iterable<Tarefa>) {
+      if (jaComProtocolo.has(t.id)) continue; // a tarefa "Protocolar" criada na aprovação é que aparece, no prazo dela
       const feito = t.status === "feito"; const dia = f.base === "conclusao" ? (feito ? diaLocal(t.feito_em) : t.vencimento) : ((t.status === "revisao" || t.status === "ajustes") && t.correcao_ate) || t.vencimento; if (!dia) continue;
       const correcao = ["revisao", "ajustes", "aprovada"].includes(t.status);
       const pt = partes(t.processo_numero, t.caso_id);
@@ -99,7 +102,9 @@ function Agenda() {
   const lista = useMemo(() => {
     if (f.modo !== "lista") return [] as Tarefa[];
     const qq = semAcento(q.trim()), dg = soDigitos(q);
+    const sub = substituidasPorProtocolo(tarefas.values());
     const l = ([...tarefas.values()] as Tarefa[]).filter((t) => {
+      if (sub.has(t.id)) return false;
       const correcao = ["revisao", "ajustes", "aprovada"].includes(t.status); if (!f.tipos.includes(correcao ? "correcao" : "tarefa")) return false;
       const sit: Sit = t.status === "feito" ? "conc" : t.vencimento && t.vencimento < hoje ? "atras" : "pend"; if (!f.sits.includes(sit)) return false;
       const resp = correcao && t.status === "revisao" ? t.revisor : t.responsavel; if (f.resp && (f.resp === "none" ? !!resp : resp !== f.resp)) return false;
