@@ -969,3 +969,4 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .wa-claude-bt.on{background:var(--accent-soft);border-color:var(--accent)}
 .wa-claude{margin:8px 14px 0;padding:10px 12px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;gap:6px}
 .wa-claude-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.djen-hist-t{padding:4px 0;text-align:left;font-size:14px;color:var(--fg)}

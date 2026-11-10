@@ -88,6 +88,10 @@ export function PainelDjen() {
   const [novo, setNovo] = useState<{ tipo: Variacao["tipo"]; valor: string; uf: string }>({ tipo: "advogado", valor: "", uf: "SC" });
   const [execs, setExecs] = useState<Exec[] | null>(null); const [porDia, setPorDia] = useState<Record<string, number>>({}); const [semTabela, setSemTabela] = useState(false);
   const [aberta, setAberta] = useState<number | null>(null);
+  // histórico recolhido por padrão (a escolha fica neste navegador)
+  const [histAberto, setHistAberto] = useState(false); const [histMais, setHistMais] = useState(false);
+  useEffect(() => { try { setHistAberto(localStorage.getItem("djen.historico.aberto") === "1"); } catch { /* sem armazenamento */ } }, []);
+  const abrirHist = (v: boolean) => { setHistAberto(v); try { localStorage.setItem("djen.historico.aberto", v ? "1" : "0"); } catch { /* sem armazenamento */ } };
   const hoje = hojeBR(); const inicio = isoData(somaDias(paraData(hoje), -30));
   useEffect(() => {
     sb.from("djen_execucoes").select("*").order("em", { ascending: false }).limit(60).then(({ data, error }: { data: Exec[] | null; error: { message: string } | null }) => { if (error) setSemTabela(true); setExecs(data || []); });
@@ -137,10 +141,13 @@ export function PainelDjen() {
             <b>{x.d.slice(8, 10)}/{x.d.slice(5, 7)}</b><span>{x.n}</span></span>)}</div>}
         <div className="tools" style={{ marginTop: 8 }}><BotaoDjen rotulo="Varrer os últimos 30 dias de novo" dias={30} classe="btn" /><span className="muted s">use se algum dia ficou vermelho ou amarelo</span></div></div>
 
-      <div><div style={{ fontWeight: 600, marginBottom: 6 }}>Histórico das buscas</div>
-        {execs == null ? <div className="muted">Carregando…</div> : !execs.length ? <div className="muted">{semTabela ? "" : "Ainda não há buscas registradas (começa a partir desta atualização)."}</div> :
+      <div><button className="reflink djen-hist-t" aria-expanded={histAberto} onClick={() => abrirHist(!histAberto)}>
+          <span aria-hidden="true">{histAberto ? "▾" : "▸"}</span> <b>Histórico das buscas</b>
+          {!histAberto && ultima && <span className="muted s"> · última: {dataHoraBR(ultima.em)} · {ultima.completa ? "completa" : ultima.ok ? "parcial" : "falhou"} · {ultima.novas} nova(s){execs && execs.length > 1 ? ` · ${execs.length} buscas` : ""}</span>}
+        </button>
+        {!histAberto ? null : execs == null ? <div className="muted">Carregando…</div> : !execs.length ? <div className="muted">{semTabela ? "" : "Ainda não há buscas registradas (começa a partir desta atualização)."}</div> :
           <div className="tscroll"><table className="grid"><thead><tr><th>Quando</th><th>Origem</th><th>Período</th><th>Resultado</th><th className="num">Novas</th><th className="num">Na caixa</th><th /></tr></thead>
-            <tbody>{execs.slice(0, 25).map((e) => <Fragment key={e.id}><tr>
+            <tbody>{execs.slice(0, histMais ? 25 : 5).map((e) => <Fragment key={e.id}><tr>
               <td className="mono">{dataHoraBR(e.em)}</td><td>{e.origem}</td><td className="mono">{e.desde ? dataBR(e.desde) + " a " + dataBR(e.ate) : "—"}</td>
               <td>{e.completa ? <span className="pill ok">completa</span> : e.ok ? <span className="pill soon">parcial</span> : <span className="pill late">falhou</span>}{e.avisos?.length ? <span className="muted s"> · {e.avisos.length} aviso(s)</span> : null}</td>
               <td className="num">{e.novas}</td><td className="num">{e.caixa}</td><td><button className="reflink" onClick={() => setAberta(aberta === e.id ? null : e.id)}>{aberta === e.id ? "fechar" : "detalhes"}</button></td></tr>
@@ -149,6 +156,7 @@ export function PainelDjen() {
                 {(e.consultas || []).map((c, i) => <div key={i}>{c.ok ? "✓" : "✗"} {c.termo}: o DJEN informou {c.count}, vieram {c.baixadas}{c.validas !== c.baixadas ? `, ${c.validas} nossas` : ""}{c.erro ? ` — ${c.erro}` : ""}</div>)}
                 {(e.avisos || []).map((a, i) => <div key={"a" + i} className="muted">• {a}</div>)}
               </div></td></tr>}</Fragment>)}</tbody></table></div>}
+        {histAberto && execs && execs.length > 5 && <button className="reflink" style={{ marginTop: 6 }} onClick={() => setHistMais(!histMais)}>{histMais ? "mostrar só as 5 últimas" : `mostrar mais (${Math.min(25, execs.length) - 5})`}</button>}
         {ultima && !ultima.completa && <div className="banner erro" style={{ marginTop: 8 }}>A última busca não foi completa. O período dela será buscado de novo automaticamente na próxima rodada.</div>}
       </div>
     </div>
