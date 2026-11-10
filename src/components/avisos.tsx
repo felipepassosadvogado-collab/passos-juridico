@@ -35,13 +35,6 @@ export function useCriarAviso() {
   };
 }
 
-/** endereço do Atende Direito com os dados do cliente no lugar de {cpf}, {nome}, {telefone} e {processo} */
-export function urlAtende(modelo: string, d: { cpf?: string | null; nome?: string | null; telefone?: string; processo?: string }) {
-  if (!modelo) return "";
-  return modelo.replace(/\{cpf\}/g, encodeURIComponent((d.cpf || "").replace(/\D/g, ""))).replace(/\{nome\}/g, encodeURIComponent(d.nome || ""))
-    .replace(/\{processo\}/g, encodeURIComponent(d.processo || "")).replace(/\{telefone\}/g, encodeURIComponent(d.telefone || ""));
-}
-
 export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boolean }) {
   const { sb, processos, clientes, config, aplicar, registrar, aviso, nome, eu } = useDados();
   const p = processos.get(av.processo_numero); const cli = p?.cliente_id ? clientes.get(p.cliente_id) : undefined;
@@ -99,7 +92,6 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   };
   const resumo = [av.tipo_evento || "Ato a definir", av.data_evento ? dataBR(av.data_evento) + (av.hora ? " às " + av.hora.slice(0, 5) : "") : "", av.local].filter(Boolean).join(" · ");
   const wa = foneWhatsapp(fone);
-  const atende = urlAtende(config.geral?.atendeUrl || "", { cpf: cli?.cpf, nome: cli?.nome || p?.cliente_nome, telefone: wa, processo: p?.mascara });
   const ac = useAcompanhamentoAviso();
   const waSistema = (config.whatsapp as { estado?: string } | undefined)?.estado === "open"; const [enviandoWa, setEnviandoWa] = useState(false); const [etapaEnvio, setEtapaEnvio] = useState(""); const [outro, setOutro] = useState<{ fone: string; nome: string } | null>(null);
   const marcar = async (sim: boolean) => {
@@ -174,7 +166,6 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
         <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(texto); aviso("Mensagem copiada."); } catch { aviso("Selecione o texto da mensagem e copie."); } }}>Copiar mensagem</button>
-        {linkSeguro(atende) && <a className="btn" href={linkSeguro(atende)} target="_blank" rel="noopener noreferrer">Abrir no Atende Direito ↗</a>}
         {feito || dispensado ? <button className="btn" onClick={() => marcar(false)}>↺ Voltar para não enviada</button>
           : <><button className="btn primary" onClick={() => marcar(true)}>✓ Mensagem enviada</button><button className="btn ghost" onClick={dispensar} title="Para quando o ato não exige avisar o cliente">Não precisa avisar</button></>}
       </div>

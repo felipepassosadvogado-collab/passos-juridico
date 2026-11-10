@@ -14,7 +14,7 @@ import { PainelConsumo } from "@/components/consumo";
 export default function Configuracoes() {
   const { config, titular, sb, aviso, processos, clientes, tarefas, casos, avisos } = useDados();
   const g = config.geral || {}; const dj = config.djen || {};
-  const [url, setUrl] = useState(g.atendeUrl || ""); const [pct, setPct] = useState(String(g.honorariosPct ?? PCT_PADRAO));
+  const [pct, setPct] = useState(String(g.honorariosPct ?? PCT_PADRAO));
   if (!titular) return <div className="empty">As configurações são do titular do escritório.</div>;
   const salvarGeral = async (campos: Record<string, unknown>, ok: string) => {
     const { error } = await sb.from("config").upsert({ chave: "geral", valor: { ...g, ...campos } }, { onConflict: "chave" });
@@ -22,7 +22,7 @@ export default function Configuracoes() {
   };
   return (
     <>
-      <div className="head"><div><h2>Configurações</h2><div className="sub">DJEN, Claude, Atende Direito e cópia de segurança</div></div></div>
+      <div className="head"><div><h2>Configurações</h2><div className="sub">DJEN, Claude, WhatsApp e cópia de segurança</div></div></div>
       <section className="panel"><div className="ph"><h3>Busca no DJEN</h3><BotaoDjen rotulo="Buscar agora" /></div>
         <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: "72ch" }}>
           <div>OAB/SC 58.547 e as variações abaixo · busca automática às 7h, 10h, 13h, 16h e 19h dos dias úteis, sábado às 9h e domingo às 9h (varredura dos últimos 30 dias), feita pelo servidor em São Paulo.</div>
@@ -43,12 +43,6 @@ export default function Configuracoes() {
           <p style={{ margin: 0 }}>Percentual padrão sobre o valor da causa, usado no CRM e na ficha quando o processo não tem um percentual próprio.</p>
           <div className="tools"><input style={{ width: 110 }} inputMode="decimal" aria-label="Percentual padrão de honorários contratuais" value={pct} onChange={(e) => setPct(e.target.value)} /><span>%</span>
             <button className="btn primary" onClick={() => { const v = parseFloat(pct.replace(",", ".")); if (!(v > 0 && v <= 100)) { aviso("Informe um percentual entre 0 e 100."); return; } salvarGeral({ honorariosPct: v }, "Percentual salvo."); }} title="Salvar o percentual padrão de honorários">Salvar</button></div>
-        </div></section>
-      <section className="panel"><div className="ph"><h3>Atende Direito</h3></div>
-        <div className="pb" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <p style={{ margin: 0, maxWidth: "70ch" }}>Endereço que o botão “Abrir no Atende Direito” abre a partir de um aviso ao cliente. Pode usar {"{cpf}"}, {"{nome}"}, {"{telefone}"} e {"{processo}"}, que o sistema troca pelos dados do cliente.</p>
-          <div className="tools"><input style={{ flex: 1, minWidth: 240 }} aria-label="Endereço do Atende Direito" value={url} placeholder="Ex.: https://seusite.com.br/clientes?cpf={cpf}" onChange={(e) => setUrl(e.target.value)} />
-            <button className="btn primary" title="Salvar o endereço do Atende Direito" onClick={() => { const v = url.trim(); if (v && !/^https:\/\//.test(v)) { aviso("Use um endereço que comece com https://"); return; } salvarGeral({ atendeUrl: v }, "Endereço salvo."); }}>Salvar</button></div>
         </div></section>
       <section className="panel"><div className="ph"><h3>WhatsApp do escritório</h3><span className="muted" style={{ fontSize: 12.5 }}>conexão pelo QR-code (aparelhos conectados)</span></div>
         <div className="pb"><PainelConexao /></div></section>
