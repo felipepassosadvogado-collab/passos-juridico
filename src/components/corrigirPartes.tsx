@@ -11,7 +11,7 @@ import type { Processo } from "@/lib/tipos";
 const ETAPA_VOLTA = "Pronto para protocolar";
 
 export function CorrigirPartes({ p }: { p: Processo }) {
-  const { sb, clientes, casos, aplicar, aviso, registrar } = useDados();
+  const { sb, clientes, casos, tarefas, aplicar, aviso, registrar } = useDados();
   const [aberto, setAberto] = useState(false); const [ocupado, setOcupado] = useState(false);
   const [semFicha, setSemFicha] = useState(""); const [reus, setReus] = useState(p.reus.join("; ")); const [banco, setBanco] = useState(p.banco || "");
   useEffect(() => { setReus(p.reus.join("; ")); setBanco(p.banco || ""); }, [p.reus, p.banco]); // depois de gravar, mostra o que ficou
@@ -46,9 +46,12 @@ export function CorrigirPartes({ p }: { p: Processo }) {
       const { data, error } = await sb.from("casos").update({ processo_numero: null, etapa: ETAPA_VOLTA }).eq("id", casoId).select().single();
       if (error) { aviso(msgErro(error)); return; }
       aplicar("casos", data);
+      // as tarefas que o atendimento levou para o processo quando foi "protocolado" voltam para o atendimento
+      const ts = [...tarefas.values()].filter((t) => t.caso_id === casoId && t.processo_numero === p.numero);
+      if (ts.length) { const u = await sb.from("tarefas").update({ processo_numero: null }).in("id", ts.map((t) => t.id)).select(); for (const t of u.data || []) aplicar("tarefas", t); }
       await registrar({ caso_id: casoId, tipo: "comentario", dados: { texto: `Correção: desligado do processo ${p.mascara}, que não é deste atendimento. Voltou para “${ETAPA_VOLTA}” para protocolar com o número certo.` } });
       await registrar({ processo_numero: p.numero, tipo: "comentario", dados: { texto: `Correção: desligado do atendimento de ${nomeBonito(c.nome)} (o número não era desse atendimento).` } });
-      aviso(`Atendimento de ${nomeBonito(c.nome)} desligado. Ele voltou para “${ETAPA_VOLTA}” no CRM pré-processual.`);
+      aviso(`Atendimento de ${nomeBonito(c.nome)} desligado${ts.length ? ` e ${ts.length} tarefa(s) dele voltaram para o atendimento` : ""}. Ele voltou para “${ETAPA_VOLTA}” no CRM pré-processual.`);
     } finally { setOcupado(false); }
   };
 
