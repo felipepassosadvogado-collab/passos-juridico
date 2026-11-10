@@ -11,6 +11,7 @@ import { diferencaDias, situacaoPrazo } from "@/lib/prazos";
 import { atoPub, faseCRM } from "@/lib/regras";
 import { useColunas } from "./colunasCrm";
 import { ResponderAtendimento } from "./responderAtendimento";
+import { CorrigirPartes } from "./corrigirPartes";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
 import { FormTarefa, ListaAnexos } from "./tarefas";
 import { CampoValores } from "./valores";
@@ -210,6 +211,7 @@ export function PainelProcesso({ numero, foco, emJanela, onFechar }: { numero: s
           {cli ? <div className="tools"><Link className="btn" href={"/clientes/" + cli.id} onClick={onFechar}>Ficha do cliente: {nomeBonito(cli.nome)}</Link></div>
             : <label className="f">Vincular a um cliente<select value="" onChange={(e) => e.target.value && salvar({ cliente_id: e.target.value })}><option value="">— escolher —</option>
               {[...clientes.values()].sort((a, b) => a.nome.localeCompare(b.nome)).map((c) => <option key={c.id} value={c.id}>{nomeBonito(c.nome)}</option>)}</select></label>}
+          <CorrigirPartes key={p.numero} p={p} />
           <CampoValores compacto valor={p.valor_causa} pct={p.honorarios_pct} onSalvar={(c) => salvar(c)} />
           <dl className="kv">
             <dt>Autor(a)</dt><dd>{nomeBonito(p.cliente_nome) || "—"}</dd>
