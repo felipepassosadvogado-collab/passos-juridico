@@ -56,7 +56,14 @@ export function AgenteNaConversa({ conv, onAtualizar, onEnviada }: { conv: WaCon
   if (modo === "desligado" || conv.atendimento === undefined) return null;
   const pausado = conv.atendimento === "equipe" && (!conv.equipe_ate || new Date(conv.equipe_ate) > new Date());
   const assumir = () => mudar({ atendimento: "equipe", equipe_ate: new Date(Date.now() + 12 * 3600e3).toISOString(), aguardando_equipe: false, rascunho: null }, "Você assumiu: o assistente fica quieto nesta conversa por 12 horas.");
-  const devolver = () => mudar({ atendimento: "agente", equipe_ate: null, aguardando_equipe: false }, "O assistente volta a atender esta conversa.");
+  const devolver = async () => {
+    try {
+      const r = await fetch("/api/whatsapp/retomar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversaId: conv.id }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.erro || "Não consegui devolver ao assistente.");
+      onAtualizar(j.conversa); aviso(j.responde ? "O assistente voltou e já vai responder a última mensagem do cliente." : "O assistente volta a atender esta conversa.");
+    } catch (e) { aviso(msgErro(e, (e as Error).message)); }
+  };
   const enviarRascunho = async () => {
     const partes = (editando ?? conv.rascunho ?? "").split(/\n\s*-{3,}\s*\n/).map((s) => s.trim()).filter(Boolean); if (!partes.length) return;
     setEnviando(true);

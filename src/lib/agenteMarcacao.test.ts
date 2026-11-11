@@ -63,3 +63,12 @@ describe("assistente não manda código ao cliente", () => {
     expect(equipeFalouHaPouco([{ ...equipe, em: "2026-11-10T13:00:00Z" }], agora)).toBe(false);
   });
 });
+
+describe("devolver ao assistente", () => {
+  it("mensagens da equipe anteriores à devolução não seguram o assistente", () => {
+    const agora = new Date("2026-11-11T13:55:00Z");
+    const equipe = { de_mim: true, agente: false, enviado_por: "felipe", bruto: { origem: "equipe" }, em: "2026-11-11T13:28:00Z" };
+    expect(equipeFalouHaPouco([equipe], agora, "2026-11-11T13:50:00Z")).toBe(false);
+    expect(equipeFalouHaPouco([{ ...equipe, em: "2026-11-11T13:52:00Z" }], agora, "2026-11-11T13:50:00Z")).toBe(true);
+  });
+});

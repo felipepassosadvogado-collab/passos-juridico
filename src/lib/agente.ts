@@ -279,18 +279,19 @@ export function pareceMarcacao(s: string) {
     || /^\s*(<\/?[\w:-]+[^>]*>\s*)+$/.test(s); // só etiquetas, sem texto
 }
 
-/** última mensagem escrita por alguém da equipe pelo sistema (não aviso automático, não assistente) há menos de 12 h */
-export function equipeFalouHaPouco(msgs: { de_mim: boolean; agente?: boolean | null; enviado_por?: string | null; bruto?: { origem?: string } | null; em: string }[], agora: Date) {
-  const limite = agora.getTime() - 12 * 3600e3;
+/** alguém da equipe escreveu pelo sistema (não aviso automático, não assistente) há menos de 12 h? */
+export function equipeFalouHaPouco(msgs: { de_mim: boolean; agente?: boolean | null; enviado_por?: string | null; bruto?: { origem?: string } | null; em: string }[], agora: Date, devolvidoEm?: string | null) {
+  // depois de "Devolver ao assistente", só contam as mensagens da equipe escritas depois da devolução
+  const limite = Math.max(agora.getTime() - 12 * 3600e3, devolvidoEm ? new Date(devolvidoEm).getTime() : 0);
   return msgs.some((m) => m.de_mim && !m.agente && !!m.enviado_por && m.bruto?.origem === "equipe" && new Date(m.em).getTime() > limite);
 }
 
 /** roda o agente na conversa (chamado pelo webhook depois de uma mensagem do cliente) */
-export async function rodarAgente(adm: Adm, conversaId: string, msgId: string) {
+export async function rodarAgente(adm: Adm, conversaId: string, msgId: string, op: { esperaMs?: number } = {}) {
   const { data: cfgRow } = await adm.from("config").select("valor").eq("chave", "agente").maybeSingle();
   const cfg = (cfgRow?.valor || {}) as ConfigAgente; const modo = cfg.modo || "desligado";
   if (modo === "desligado") return;
-  await espera(Number(process.env.AGENTE_ESPERA_MS ?? 7000)); // o cliente costuma mandar várias mensagens seguidas: espera ele terminar
+  await espera(op.esperaMs ?? Number(process.env.AGENTE_ESPERA_MS ?? 7000)); // o cliente costuma mandar várias mensagens seguidas: espera ele terminar
   const { data: ultima } = await adm.from("wa_mensagens").select("id").eq("conversa_id", conversaId).eq("de_mim", false).order("em", { ascending: false }).limit(1).maybeSingle();
   if (ultima && ultima.id !== msgId) return; // chegou outra depois: aquela chamada responde
   // trava simples para não rodar duas vezes ao mesmo tempo
@@ -306,7 +307,7 @@ export async function rodarAgente(adm: Adm, conversaId: string, msgId: string) {
     const { data: ms } = await adm.from("wa_mensagens").select("id,de_mim,texto,tipo,anexo_nome,anexo_mime,em,agente,enviado_por,bruto").eq("conversa_id", conv.id).order("em", { ascending: false }).limit(40);
     const msgs = ((ms || []) as Msg[]).reverse();
     // a equipe escreveu nas últimas 12 h (pelo sistema): o assistente não entra na conversa, mesmo que a pausa não tenha sido gravada
-    if (equipeFalouHaPouco(msgs, agora)) return;
+    if (equipeFalouHaPouco(msgs, agora, conv.agente_estado?.devolvido_em)) return;
     const jaFalamos = msgs.some((m) => m.de_mim);
     // identificação pelo telefone: a conversa ligada a uma ficha, ou um único cliente com este telefone na ficha
     const clis = await fichasComFone<{ id: string; nome: string; telefone: string }>(adm, conv.telefone, "id,nome,telefone");
