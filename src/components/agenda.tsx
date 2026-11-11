@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, nomeBonito } from "@/lib/formato";
 import { diferencaDias, hojeBR } from "@/lib/prazos";
-import { ATOS_AGENDA, MODALIDADES, ehAgenda } from "@/lib/regras";
+import { ATOS_AGENDA, MODALIDADES, TIPOS_AUDIENCIA, ehAgenda, ehAudiencia, tipoAudienciaDoTexto } from "@/lib/regras";
 import type { Analise, Aviso, Modalidade, Publicacao } from "@/lib/tipos";
 import { PillConfirmacao, useCriarAviso } from "./avisos";
 import { useJanelas } from "./janelas";
@@ -19,7 +19,9 @@ export const resumoAto = (a: Pick<Aviso, "tipo_evento" | "modalidade" | "hora" |
 export function FormAgendar({ numero, pub, av, onFim }: { numero: string; pub?: Publicacao; av?: Aviso; onFim: (id?: string) => void }) {
   const { processos, sb, aplicar, registrar, aviso } = useDados(); const criarAviso = useCriarAviso();
   const p = processos.get(numero); const ev = (pub?.analise as Analise | null)?.evento;
-  const tipoIni = av?.tipo_evento && ATOS_AGENDA.includes(av.tipo_evento) ? av.tipo_evento : ev?.tipo && ATOS_AGENDA.includes(ev.tipo) ? ev.tipo : /coleta|padr[aã]o|grafot/i.test(pub?.texto || "") ? ATOS_AGENDA[1] : ATOS_AGENDA[0];
+  const tipoBase = av?.tipo_evento && (ATOS_AGENDA.includes(av.tipo_evento) || ehAudiencia(av.tipo_evento)) ? av.tipo_evento : ev?.tipo && ATOS_AGENDA.includes(ev.tipo) ? ev.tipo : /coleta|padr[aã]o|grafot/i.test(pub?.texto || "") ? ATOS_AGENDA[1] : ATOS_AGENDA[0];
+  // audiência: conciliação ou instrução (do que já estava salvo, ou do texto da intimação)
+  const tipoIni = tipoBase === "Audiência" && pub?.texto ? tipoAudienciaDoTexto(pub.texto) : tipoBase;
   const modIni = (av?.modalidade || (ev?.modalidade && ev.modalidade in MODALIDADES ? ev.modalidade : "")) as Modalidade | "";
   const [f, setF] = useState({
     tipo: tipoIni, modalidade: modIni, data: av?.data_evento || (/^\d{4}-\d\d-\d\d$/.test(ev?.data || "") ? ev!.data! : ""),
@@ -50,7 +52,8 @@ export function FormAgendar({ numero, pub, av, onFim }: { numero: string; pub?: 
   const m = f.modalidade;
   return (
     <div className="agendar" onClick={(e) => e.stopPropagation()}>
-      <div className="seg" role="radiogroup" aria-label="Ato">{ATOS_AGENDA.map((t) => <button key={t} type="button" role="radio" aria-checked={f.tipo === t} className={f.tipo === t ? "on" : ""} onClick={() => setF({ ...f, tipo: t })}>{t === ATOS_AGENDA[0] ? "Audiência" : "Coleta de padrão grafotécnico"}</button>)}</div>
+      <div className="seg" role="radiogroup" aria-label="Ato">{ATOS_AGENDA.map((t) => { const on = t === ATOS_AGENDA[0] ? ehAudiencia(f.tipo) : f.tipo === t; return <button key={t} type="button" role="radio" aria-checked={on} className={on ? "on" : ""} onClick={() => setF({ ...f, tipo: t === ATOS_AGENDA[0] && ehAudiencia(f.tipo) ? f.tipo : t })}>{t === ATOS_AGENDA[0] ? "Audiência" : "Coleta de padrão grafotécnico"}</button>; })}</div>
+      {ehAudiencia(f.tipo) && <div className="seg" role="radiogroup" aria-label="Tipo de audiência">{[...TIPOS_AUDIENCIA, "Audiência"].map((t) => <button key={t} type="button" role="radio" aria-checked={f.tipo === t} className={f.tipo === t ? "on" : ""} onClick={() => setF({ ...f, tipo: t })}>{t === "Audiência" ? "Não informado" : t.replace("Audiência de ", "").replace(/^./, (c) => c.toUpperCase())}</button>)}</div>}
       <div className="mods" role="radiogroup" aria-label="Como vai ser">{(Object.keys(MODALIDADES) as Modalidade[]).map((k) => (
         <button key={k} type="button" role="radio" aria-checked={m === k} className={"mod" + (m === k ? " on" : "")} onClick={() => setF({ ...f, modalidade: k })}>
           <span className="mod-ic">{k === "video" ? "▶" : k === "jf_agendado" ? "⏱" : "🏛"}</span><span>{MODALIDADES[k].nome}</span></button>))}</div>
@@ -84,14 +87,14 @@ function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean;
   const { processos, nome } = useDados(); const j = useJanelas(); const realizado = useRealizado();
   const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null; const balcao = a.modalidade === "jf_balcao";
   const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";
-  const avisado = a.status === "avisado";
+  const avisado = a.status === "avisado"; const aud = ehAudiencia(a.tipo_evento); const encerrado = !a.realizado_em && dias != null && dias < 0;
   const quem = (comCliente ? nomeBonito(p?.cliente_nome || "") : a.tipo_evento || "ato") + (a.data_evento ? " em " + dataBR(a.data_evento) : "");
-  return <div className={"row ag-row" + (a.realizado_em ? " feito" : "")}>
-    <div className="date">{a.data_evento ? <><b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
+  return <div className={"row ag-row" + (a.realizado_em ? " feito" : "") + (aud ? " ag-aud" : "")}>
+    <div className={"date" + (encerrado ? " ag-venc" : "")} title={encerrado ? (balcao ? "Prazo encerrado" : "Data já passou") : undefined}>{a.data_evento ? <>{balcao && <span className="ag-ate">até</span>}<b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
     <div className="main">{comCliente ? <div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
         : <div className="t">{a.tipo_evento || "Ato"}</div>}
       <div className="s">{comCliente ? resumoAto(a) : [a.modalidade ? MODALIDADES[a.modalidade].curto : "", balcao ? (a.data_evento ? "até " + dataBR(a.data_evento) : "") : [a.data_evento ? dataBR(a.data_evento) : "", (a.hora || "").slice(0, 5)].filter(Boolean).join(" às ")].filter(Boolean).join(" · ")}{a.modalidade === "video" && (linkSeguro(a.link) ? <> · <a href={linkSeguro(a.link)} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
-      <div className="ag-tags">{a.realizado_em ? <span className="pill ok">✓ REALIZADO · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
+      <div className="ag-tags">{aud && <span className="pill ag-tipo"><span aria-hidden="true">⚖</span> {a.tipo_evento === "Audiência" ? "Audiência (tipo não informado)" : a.tipo_evento}{a.hora ? " · " + a.hora.slice(0, 5) : ""}</span>}{a.realizado_em ? <span className="pill ok">✓ REALIZADO · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
         : <span className={"pill " + (dias != null && dias < 0 ? "late" : dias != null && dias <= 3 ? "late" : dias != null && dias <= 7 ? "soon" : "acc")}>{rel}</span>}
         {avisado ? <span className="pill ok">✓ mensagem enviada · {nome(a.avisado_por).split(" ")[0]} · {dataHoraBR(a.avisado_em).slice(0, 5)}</span> : a.status === "dispensado" ? <span className="pill">sem aviso ao cliente</span> : <span className="pill late">mensagem não enviada</span>}
         {avisado && <PillConfirmacao av={a} />}</div></div>

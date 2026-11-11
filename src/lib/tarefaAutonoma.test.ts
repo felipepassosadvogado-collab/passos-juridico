@@ -13,3 +13,18 @@ describe("tarefa autônoma que se repete", () => {
     expect(datasRepeticao("2026-11-03", "2026-12-18", "nao")).toEqual(["2026-11-03"]);
   });
 });
+
+import { ehAgenda, ehAudiencia, tipoAudienciaDoTexto } from "./regras";
+describe("tipo de audiência", () => {
+  it("pelo texto da intimação", () => {
+    expect(tipoAudienciaDoTexto("Designo audiência de conciliação para o dia 20/11")).toBe("Audiência de conciliação");
+    expect(tipoAudienciaDoTexto("audiência de instrução e julgamento, com depoimento pessoal")).toBe("Audiência de instrução");
+    expect(tipoAudienciaDoTexto("audiência de conciliação, instrução e julgamento")).toBe("Audiência de conciliação e instrução");
+    expect(tipoAudienciaDoTexto("designo audiência")).toBe("Audiência");
+  });
+  it("audiência com tipo continua na caixa Audiências e coletas", () => {
+    expect(ehAudiencia("Audiência de instrução")).toBe(true);
+    expect(ehAgenda({ tipo_evento: "Audiência de conciliação", modalidade: null })).toBe(true);
+    expect(ehAgenda({ tipo_evento: "Perícia", modalidade: null })).toBe(false);
+  });
+});

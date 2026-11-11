@@ -430,6 +430,12 @@ html.arrastando,html.arrastando *{cursor:grabbing!important;user-select:none}
 .panel.agenda{border-color:var(--accent)}
 .ag-row{grid-template-columns:auto minmax(0,1fr) auto!important;align-items:center}
 .ag-row.feito{opacity:.75}
+/* audiência: mais visível que a coleta (faixa à esquerda, nome em destaque e o tipo: conciliação/instrução) */
+.ag-row.ag-aud{background:var(--accent-soft);box-shadow:inset 4px 0 0 var(--accent)}
+.ag-row.ag-aud .date b{font-size:15px}
+.pill.ag-tipo{background:var(--accent);color:#fff;font-weight:700;letter-spacing:.01em}
+.date .ag-ate{display:block;font-size:10px;text-transform:lowercase;color:var(--muted);letter-spacing:.02em}
+.date.ag-venc,.date.ag-venc .ag-ate{color:var(--late)}
 .ag-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
 .ag-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .reflink.forte{font-weight:700;color:var(--fg);font-size:inherit}

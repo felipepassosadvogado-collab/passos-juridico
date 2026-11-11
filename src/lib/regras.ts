@@ -40,7 +40,12 @@ export const MODALIDADES: Record<Modalidade, { nome: string; curto: string }> = 
   jf_agendado: { nome: "Na Justiça Federal, com dia e hora marcados", curto: "na JF · horário marcado" },
   jf_balcao: { nome: "Na Justiça Federal, no horário de atendimento ao público", curto: "na JF · atendimento ao público" },
 };
-export const ehAgenda = (a: Pick<Aviso, "tipo_evento" | "modalidade">) => !!a.modalidade || ATOS_AGENDA.includes(a.tipo_evento || "");
+/** tipos de audiência (o tipo_evento guarda o nome completo; "Audiência" sozinho = tipo não informado) */
+export const TIPOS_AUDIENCIA = ["Audiência de conciliação", "Audiência de instrução", "Audiência de conciliação e instrução"];
+export const ehAudiencia = (t?: string | null) => /^audi[eê]ncia/i.test(t || "");
+/** tipo de audiência pelo texto da intimação (quando ele diz) */
+export const tipoAudienciaDoTexto = (t: string) => { const c = /concilia/i.test(t), i = /instru[cç][aã]o|oitiva|depoimento|testemunh/i.test(t); return c && i ? TIPOS_AUDIENCIA[2] : i ? TIPOS_AUDIENCIA[1] : c ? TIPOS_AUDIENCIA[0] : "Audiência"; };
+export const ehAgenda = (a: Pick<Aviso, "tipo_evento" | "modalidade">) => !!a.modalidade || ATOS_AGENDA.includes(a.tipo_evento || "") || ehAudiencia(a.tipo_evento);
 export const TIPOS_DOC: Record<string, string> = { rg: "RG / CNH", comprovante: "Comprovante de residência", procuracao: "Procuração", hipo: "Declaração de hipossuficiência", contrato: "Contrato de honorários", proc_hipo_contrato: "Procuração, hipo e contrato (juntos)", extrato: "Extrato de empréstimos (HISCON)", extrato_pagamento: "Extrato de pagamento (HISCRE)", inicial: "Petição inicial", calculo: "Cálculo da causa", outro: "Outro" };
 
 const MAPA_FASE: Record<string, string> = { "Inicial / citação": "Protocolo / citação", "Contestação / réplica": "Réplica", "Perícia grafotécnica": "Perícia / instrução", "Manifestação ao laudo": "Perícia / instrução", "Audiência": "Perícia / instrução" };
