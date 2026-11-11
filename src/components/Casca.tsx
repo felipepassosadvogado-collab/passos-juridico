@@ -16,6 +16,7 @@ import { soDigitos } from "@/lib/cnj";
 import { useJanelas } from "./janelas";
 import { Avatar } from "./ui";
 import { useChat, ChatFlutuante } from "./chat";
+import { AguardandoResposta } from "./aguardando";
 
 const I = (d: string) => <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: d }} />;
 const ICONES: Record<string, string> = {
@@ -241,6 +242,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
         </div></main>
       </div>
       <ChatFlutuante />
+      <AguardandoResposta />
       <CaixaColchetes />
       <Inatividade />
     </>
