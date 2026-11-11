@@ -85,7 +85,7 @@ function Painel() {
       <div className="head"><div><h2>Olá, {eu.nome.split(/[\s.]/)[0]}</h2><div className="sub">{dia.charAt(0).toUpperCase() + dia.slice(1)} · o que está com você e com a equipe</div></div><div className="tools"><BotaoDjen /></div></div>
       <div className="stats">
         <Link className="stat" href="/publicacoes"><span className="n">{x.cx.length}</span><span className="l">intimações para ler</span></Link>
-        <button className={"stat" + (x.venc ? " late" : "")} onClick={() => vai("sec-minhas")}><span className="n">{x.minhas.length}</span><span className="l">{x.venc ? `${x.minhas.length} minhas, ${x.venc} vencendo ou vencidas` : "tarefas minhas em aberto"}</span></button>
+        <button className={"stat" + (x.venc ? " late" : "")} onClick={() => vai("sec-minhas")}><span className="n">{x.minhas.length}</span><span className="l">{x.venc ? (x.venc === x.minhas.length ? `minhas tarefas em aberto, ${x.venc === 1 ? "vencendo ou vencida" : "todas vencendo ou vencidas"}` : `minhas tarefas em aberto, ${x.venc} vencendo ou vencidas`) : "minhas tarefas em aberto"}</span></button>
         <button className={"stat" + (x.eqVenc ? " late" : "")} onClick={() => vai("sec-equipe")}><span className="n">{x.equipe.length}</span><span className="l">{x.eqVenc ? `prazos da equipe na semana, ${x.eqVenc} vencendo ou vencidos` : "prazos da equipe nos próximos 7 dias"}</span></button>
         <button className="stat" onClick={() => vai("sec-corrigir")}><span className="n">{x.corrigir.length}</span><span className="l">peças para eu corrigir</span></button>
       </div>
