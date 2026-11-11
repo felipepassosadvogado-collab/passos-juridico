@@ -84,14 +84,18 @@ export function useRealizado() {
 
 /** uma linha de audiência/coleta: data, situação, aviso ao cliente e o botão de realizado */
 function LinhaAto({ a, comCliente, onEditar }: { a: Aviso; comCliente?: boolean; onEditar?: () => void }) {
-  const { processos, nome } = useDados(); const j = useJanelas(); const realizado = useRealizado();
+  const { processos, nome, aviso } = useDados(); const j = useJanelas(); const realizado = useRealizado();
   const p = processos.get(a.processo_numero); const dias = a.data_evento ? diferencaDias(a.data_evento, hojeBR()) : null; const balcao = a.modalidade === "jf_balcao";
   const rel = dias == null ? "sem data" : dias < 0 ? (balcao ? "prazo encerrado" : "já passou") : dias === 0 ? (balcao ? "último dia" : "é hoje") : dias === 1 ? (balcao ? "até amanhã" : "amanhã") : (balcao ? "faltam " : "em ") + dias + " dias";
   const avisado = a.status === "avisado"; const aud = ehAudiencia(a.tipo_evento); const encerrado = !a.realizado_em && dias != null && dias < 0;
   const quem = (comCliente ? nomeBonito(p?.cliente_nome || "") : a.tipo_evento || "ato") + (a.data_evento ? " em " + dataBR(a.data_evento) : "");
   return <div className={"row ag-row" + (a.realizado_em ? " feito" : "") + (aud ? " ag-aud" : "")}>
     <div className={"date" + (encerrado ? " ag-venc" : "")} title={encerrado ? (balcao ? "Prazo encerrado" : "Data já passou") : undefined}>{a.data_evento ? <>{balcao && <span className="ag-ate">até</span>}<b>{a.data_evento.slice(8, 10)}</b>{MES[+a.data_evento.slice(5, 7) - 1]}</> : "—"}</div>
-    <div className="main">{comCliente ? <div className="t"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button></div>
+    <div className="main">{comCliente ? <div className="t ag-nome"><button className="reflink forte" onClick={() => j.abrirProcesso(a.processo_numero, { aba: "intimacoes", alvo: a.publicacao_id ? "pub-" + a.publicacao_id : undefined })}>{nomeBonito(p?.cliente_nome || "—")}</button>
+          <span className="ag-proc mono">{p?.mascara || a.processo_numero}</span>
+          <button className="icb-q mini" title="Copiar o número do processo (para colar no eproc)" aria-label={"Copiar o número do processo de " + nomeBonito(p?.cliente_nome || "")}
+            onClick={async () => { const n = p?.mascara || a.processo_numero; try { await navigator.clipboard.writeText(n); aviso("Número copiado: " + n); } catch { aviso(n); } }}>
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="6.5" y="6.5" width="10" height="10" rx="2" /><path d="M13.5 6.5V4.5a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2" /></svg></button></div>
         : <div className="t">{a.tipo_evento || "Ato"}</div>}
       <div className="s">{comCliente ? resumoAto(a) : [a.modalidade ? MODALIDADES[a.modalidade].curto : "", balcao ? (a.data_evento ? "até " + dataBR(a.data_evento) : "") : [a.data_evento ? dataBR(a.data_evento) : "", (a.hora || "").slice(0, 5)].filter(Boolean).join(" às ")].filter(Boolean).join(" · ")}{a.modalidade === "video" && (linkSeguro(a.link) ? <> · <a href={linkSeguro(a.link)} target="_blank" rel="noopener noreferrer">link da sala ↗</a></> : " · sem link ainda")}{a.modalidade !== "video" && a.local ? " · " + a.local : ""}</div>
       <div className="ag-tags">{aud && <span className="pill ag-tipo"><span aria-hidden="true">⚖</span> {a.tipo_evento === "Audiência" ? "Audiência (tipo não informado)" : a.tipo_evento}{a.hora ? " · " + a.hora.slice(0, 5) : ""}</span>}{a.realizado_em ? <span className="pill ok">✓ REALIZADO · {nome(a.realizado_por)} · {dataHoraBR(a.realizado_em)}</span>
