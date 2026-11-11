@@ -28,3 +28,13 @@ describe("tipo de audiência", () => {
     expect(ehAgenda({ tipo_evento: "Perícia", modalidade: null })).toBe(false);
   });
 });
+
+import { temTutela } from "./tutela";
+describe("aviso de tutela na peça", () => {
+  it("reconhece pedido de tutela/liminar no texto", () => {
+    expect(temTutela("Requer a concessão de TUTELA DE URGÊNCIA para suspender os descontos")).toBe(true);
+    expect(temTutela("defere-se liminarmente a suspensão")).toBe(true);
+    expect(temTutela("nos termos do art. 300 do CPC")).toBe(true);
+    expect(temTutela("Manifesta-se sobre o laudo pericial, que concluiu pela falsidade da assinatura.")).toBe(false);
+  });
+});
