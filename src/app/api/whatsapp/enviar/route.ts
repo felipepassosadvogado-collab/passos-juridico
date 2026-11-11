@@ -45,7 +45,7 @@ async function tratar(req: Request) {
     } else r = await evo(`/message/sendText/${INSTANCIA()}`, "POST", { number: numero, text: texto });
     const em = new Date().toISOString();
     const { data: msg } = await adm.from("wa_mensagens").upsert({ conversa_id: conv.id, wa_id: r?.key?.id || null, de_mim: true, texto: texto || null, tipo,
-      anexo: pd?.anexo?.caminho || null, anexo_nome: pd?.anexo?.nome || null, anexo_mime: pd?.anexo?.mime || null, status: "enviada", enviado_por: m.user.id, agente: pd?.origem === "rascunho", bruto: { key: r?.key || null }, em },
+      anexo: pd?.anexo?.caminho || null, anexo_nome: pd?.anexo?.nome || null, anexo_mime: pd?.anexo?.mime || null, status: "enviada", enviado_por: m.user.id, agente: pd?.origem === "rascunho", bruto: { key: r?.key || null, origem: pd?.origem || "equipe" }, em },
       { onConflict: "wa_id" }).select().single();
     await adm.from("wa_conversas").update({ ultima_em: em, ultima_texto: (texto || RESUMO_TIPO[tipo] || "").slice(0, 200), nao_lidas: 0, arquivada: false,
       // resposta escrita pela equipe: o agente para por 12 horas; rascunho aprovado ou aviso não mudam quem atende

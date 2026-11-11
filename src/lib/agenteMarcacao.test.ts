@@ -43,3 +43,23 @@ describe("Escrever com o Claude no painel de WhatsApp", () => {
     expect(pedido).toContain("5019916-02.2025.4.04.7201"); expect(pedido).toContain("Eu quero o numero do meu processo"); expect(pedido).toContain("Informar o número do processo");
   });
 });
+
+import { equipeFalouHaPouco } from "./agente";
+describe("assistente não manda código ao cliente", () => {
+  it("<tool_call> sozinho ou com JSON nunca vira mensagem, e a ferramenta é executada", () => {
+    expect(extrairResposta("<tool_call>")).toEqual([]);
+    expect(extrairResposta("<tool_call>\n</tool_call>")).toEqual([]);
+    const r = chamadasEmTexto('<tool_call>{"name": "anotar_para_equipe", "arguments": {"texto": "campanha expirou"}}</tool_call>');
+    expect(r.limpo).toBe(""); expect(r.chamadas).toEqual([{ nome: "anotar_para_equipe", args: { texto: "campanha expirou" } }]);
+    expect(chamadasEmTexto("Obrigado pelo retorno!\n<tool_call>\n<invoke name=\"anotar_para_equipe\">").limpo).toBe("Obrigado pelo retorno!");
+    expect(extrairResposta('{"name": "transferir_para_equipe", "arguments": {}}')).toEqual([]);
+    expect(extrairResposta("Combinado, obrigado!")).toEqual(["Combinado, obrigado!"]);
+  });
+  it("fica quieto quando a equipe escreveu pelo sistema nas últimas 12 h (aviso automático não conta)", () => {
+    const agora = new Date("2026-11-11T13:39:00Z");
+    const equipe = { de_mim: true, agente: false, enviado_por: "amanda", bruto: { origem: "equipe" }, em: "2026-11-11T13:14:00Z" };
+    expect(equipeFalouHaPouco([equipe], agora)).toBe(true);
+    expect(equipeFalouHaPouco([{ ...equipe, bruto: { origem: "aviso" } }], agora)).toBe(false);
+    expect(equipeFalouHaPouco([{ ...equipe, em: "2026-11-10T13:00:00Z" }], agora)).toBe(false);
+  });
+});

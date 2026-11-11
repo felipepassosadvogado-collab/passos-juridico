@@ -11,7 +11,7 @@ import { padraoDigitos } from "./lista";
 export type ConfigAgente = { modo?: "desligado" | "rascunho" | "automatico"; nome?: string; horario?: string; avisoGolpe?: string; instrucoes?: string };
 export const AVISO_GOLPE_PADRAO = "Atenção ao golpe do falso advogado: este é o único WhatsApp oficial do escritório, (47) 99642-4673. Nós nunca pedimos pagamento, PIX ou depósito para liberar valores de processo. Se alguém entrar em contato em nome do escritório pedindo dinheiro, não pague e fale com a gente por aqui.";
 type Conv = { id: string; jid: string; telefone: string | null; nome: string | null; cliente_id: string | null; atendimento: string; equipe_ate: string | null; aguardando_equipe: boolean; agente_estado: Record<string, any>; saudado_em: string | null; agente_lock: string | null }; // eslint-disable-line @typescript-eslint/no-explicit-any
-type Msg = { id: string; de_mim: boolean; texto: string | null; tipo: string; anexo_nome: string | null; anexo_mime: string | null; em: string; agente: boolean; enviado_por: string | null; bruto: { key?: Record<string, unknown> } | null };
+type Msg = { id: string; de_mim: boolean; texto: string | null; tipo: string; anexo_nome: string | null; anexo_mime: string | null; em: string; agente: boolean; enviado_por: string | null; bruto: { key?: Record<string, unknown>; origem?: string } | null };
 const soDig = (s?: string | null) => String(s || "").replace(/\D/g, "");
 const corte = (s: string | null | undefined, n: number) => ((s || "").length > n ? (s || "").slice(0, n) + " […]" : s || "");
 const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
@@ -269,7 +269,20 @@ export function extrairResposta(texto: string) {
   const r = (m ? m[1] : texto.replace(/<analise>[\s\S]*?<\/analise>/i, "")).trim();
   if (!r || /^\[?\s*SEM[_ ]RESPOSTA\s*\]?$/i.test(r)) return [];
   return r.split(/\n\s*-{3,}\s*\n/).map((s) => s.replace(/\*\*/g, "").replace(/<\/?(analise|resposta)>/gi, "").trim())
-    .filter((s) => s && !/<\/?(invoke|parameter|function_calls)\b/i.test(s)).slice(0, 4); // marcação de ferramenta nunca vai para o cliente
+    .filter((s) => s && !pareceMarcacao(s)).slice(0, 4); // marcação de ferramenta nunca vai para o cliente
+}
+
+/** trecho com cara de chamada de ferramenta ou etiqueta técnica (<tool_call>, <invoke>, {"name": …}) e não de mensagem */
+export function pareceMarcacao(s: string) {
+  return /<\/?(?:antml:)?(invoke|parameter|function_calls?|tool_calls?|tool_use|tool_result)\b/i.test(s)
+    || /^\s*\{\s*"(name|tool|function)"\s*:/.test(s)
+    || /^\s*(<\/?[\w:-]+[^>]*>\s*)+$/.test(s); // só etiquetas, sem texto
+}
+
+/** última mensagem escrita por alguém da equipe pelo sistema (não aviso automático, não assistente) há menos de 12 h */
+export function equipeFalouHaPouco(msgs: { de_mim: boolean; agente?: boolean | null; enviado_por?: string | null; bruto?: { origem?: string } | null; em: string }[], agora: Date) {
+  const limite = agora.getTime() - 12 * 3600e3;
+  return msgs.some((m) => m.de_mim && !m.agente && !!m.enviado_por && m.bruto?.origem === "equipe" && new Date(m.em).getTime() > limite);
 }
 
 /** roda o agente na conversa (chamado pelo webhook depois de uma mensagem do cliente) */
@@ -292,6 +305,8 @@ export async function rodarAgente(adm: Adm, conversaId: string, msgId: string) {
     if (conv.atendimento === "equipe") await adm.from("wa_conversas").update({ atendimento: "agente", equipe_ate: null }).eq("id", conv.id);
     const { data: ms } = await adm.from("wa_mensagens").select("id,de_mim,texto,tipo,anexo_nome,anexo_mime,em,agente,enviado_por,bruto").eq("conversa_id", conv.id).order("em", { ascending: false }).limit(40);
     const msgs = ((ms || []) as Msg[]).reverse();
+    // a equipe escreveu nas últimas 12 h (pelo sistema): o assistente não entra na conversa, mesmo que a pausa não tenha sido gravada
+    if (equipeFalouHaPouco(msgs, agora)) return;
     const jaFalamos = msgs.some((m) => m.de_mim);
     // identificação pelo telefone: a conversa ligada a uma ficha, ou um único cliente com este telefone na ficha
     const clis = await fichasComFone<{ id: string; nome: string; telefone: string }>(adm, conv.telefone, "id,nome,telefone");
@@ -348,10 +363,20 @@ export function chamadasEmTexto(texto: string): { limpo: string; chamadas: { nom
     for (const p of m[2].matchAll(/<parameter\s+name="([\w-]+)"[^>]*>([\s\S]*?)<\/parameter>/gi)) args[p[1]] = p[2].trim();
     chamadas.push({ nome: m[1], args });
   }
+  // outro formato que o modelo às vezes inventa: <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+  for (const m of texto.matchAll(/<tool_call>\s*(\{[\s\S]*?\})\s*(?:<\/tool_call>|$)/gi)) {
+    try {
+      const j = JSON.parse(m[1]) as { name?: string; arguments?: unknown; input?: unknown; parameters?: unknown };
+      const a = (j.arguments ?? j.input ?? j.parameters ?? {}) as Record<string, unknown>;
+      const args = typeof a === "string" ? JSON.parse(a) : a;
+      if (j.name) chamadas.push({ nome: j.name, args: Object.fromEntries(Object.entries(args || {}).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])) });
+    } catch { /* JSON quebrado: só some do texto */ }
+  }
   const limpo = texto
+    .replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, "")
     .replace(/<(?:antml:)?function_calls>[\s\S]*?(?:<\/(?:antml:)?function_calls>|$)/gi, "")
     .replace(/<invoke\s+name="[\w-]+"\s*>[\s\S]*?(?:<\/invoke>|$)/gi, "")
-    .replace(/<\/?(?:invoke|parameter|function_calls)[^>]*>/gi, "").trim();
+    .replace(/<\/?(?:antml:)?(?:invoke|parameter|function_calls?|tool_calls?|tool_use|tool_result)[^>]*>/gi, "").trim();
   return { limpo, chamadas };
 }
 
