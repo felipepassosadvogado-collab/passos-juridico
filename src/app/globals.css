@@ -970,3 +970,11 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .wa-claude{margin:8px 14px 0;padding:10px 12px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;gap:6px}
 .wa-claude-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .djen-hist-t{padding:4px 0;text-align:left;font-size:14px;color:var(--fg)}
+/* resumo numa linha da caixa Audiências e coletas (cada número filtra a lista) */
+.ag-resumo{display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px 10px;border-bottom:1px solid var(--line)}
+.ag-num{display:inline-flex;align-items:baseline;gap:5px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;font:inherit;font-size:12.5px}
+.ag-num b{color:var(--fg);font-size:13.5px}
+.ag-num.ok b{color:var(--ok)}.ag-num.soon b{color:var(--soon)}.ag-num.late b{color:var(--late)}
+.ag-num.on{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
+.ag-num:disabled{opacity:.5;cursor:default}
+.ag-num:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

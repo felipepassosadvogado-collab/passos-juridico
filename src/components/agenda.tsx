@@ -124,18 +124,28 @@ export function AtosDoProcesso({ numero, abrirForm, onFecharForm }: { numero: st
 /** caixa de Meus expedientes: audiências e coletas ainda não realizadas (de toda a equipe) */
 export function CaixaAgenda({ onAbrir, recolhida, onRecolher }: { onAbrir?: () => void; recolhida?: boolean; onRecolher?: () => void } = {}) {
   const { avisos, v } = useDados(); const j = useJanelas();
-  const [verFeitos, setVerFeitos] = useState(false);
-  const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em))
-    .sort((a, b) => verFeitos ? (b.realizado_em || "").localeCompare(a.realizado_em || "") : (a.data_evento || "9").localeCompare(b.data_evento || "9")), [avisos, verFeitos, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [verFeitos, setVerFeitos] = useState(false); const [filtro, setFiltro] = useState<"" | "avisados" | "aguardando" | "naoEnviada">("");
+  // resumo numa linha: das próximas (não realizadas), quantos clientes foram avisados, quantos faltam confirmar e quantas mensagens faltam
+  const proximas = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && !a.realizado_em), [avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const conta = { avisados: proximas.filter((a) => a.status === "avisado").length, aguardando: proximas.filter((a) => a.status === "avisado" && !a.confirmado_em).length, naoEnviada: proximas.filter((a) => a.status === "pendente").length };
+  const passa = (a: Aviso) => !filtro || (filtro === "avisados" ? a.status === "avisado" : filtro === "aguardando" ? a.status === "avisado" && !a.confirmado_em : a.status === "pendente");
+  const lista = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && (verFeitos ? !!a.realizado_em : !a.realizado_em && passa(a)))
+    .sort((a, b) => verFeitos ? (b.realizado_em || "").localeCompare(a.realizado_em || "") : (a.data_evento || "9").localeCompare(b.data_evento || "9")), [avisos, verFeitos, filtro, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const feitos = useMemo(() => [...avisos.values()].filter((a) => ehAgenda(a) && a.realizado_em).length, [avisos, v]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className={"panel agenda" + (recolhida ? " recolhida" : "")} id="sec-agenda">
       <div className="ph"><h3>Audiências e coletas</h3><span className="muted" style={{ fontSize: 12 }}>{verFeitos ? "já realizadas" : "de toda a equipe · agende pela publicação ou dentro do processo"}</span>
-        {(feitos > 0 || verFeitos) && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setVerFeitos(!verFeitos)}>{verFeitos ? "Ver as próximas" : `Realizadas (${feitos})`}</button>}
-        <button className="btn" style={feitos > 0 || verFeitos ? undefined : { marginLeft: "auto" }} title="Agendar uma audiência ou coleta de padrão grafotécnico" onClick={() => j.agendarAto()}><span aria-hidden="true">📅</span> Agendar</button>
+        <button className="btn" style={{ marginLeft: "auto" }} title="Agendar uma audiência ou coleta de padrão grafotécnico" onClick={() => j.agendarAto()}><span aria-hidden="true">📅</span> Agendar</button>
         {onAbrir && <button className="btn ghost" onClick={onAbrir} title="Abrir na tela inteira" aria-label="Abrir a caixa Audiências e coletas em tela inteira"><span aria-hidden="true">⤢</span> Abrir caixa</button>}
         {onRecolher && <button className="btn ghost rec-btn" onClick={onRecolher} aria-expanded={!recolhida} aria-controls="sec-agenda" aria-label={(recolhida ? "Expandir a caixa Audiências e coletas" : "Minimizar a caixa Audiências e coletas") + (recolhida && lista.length ? `, ${lista.length} agendamento(s)` : "")} title={recolhida ? "Mostrar o conteúdo desta caixa" : "Esconder o conteúdo desta caixa (fica lembrado neste navegador)"}>{recolhida ? <>{lista.length > 0 && <span className="count" aria-hidden="true">{lista.length}</span>}<span aria-hidden="true">▸</span> Expandir</> : <><span aria-hidden="true">▾</span> Minimizar</>}</button>}</div>
-      {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} comCliente />)}</div> : <div className="empty">{verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, ou dentro do processo, clique em “Agendar audiência / coleta”.</>}</div>}
+      {!recolhida && (proximas.length > 0 || feitos > 0) && <div className="ag-resumo" role="group" aria-label="Resumo dos agendamentos (clique para filtrar)">
+        {([["", proximas.length, proximas.length === 1 ? "agendamento" : "agendamentos", ""], ["avisados", conta.avisados, conta.avisados === 1 ? "cliente avisado" : "clientes avisados", "ok"],
+          ["aguardando", conta.aguardando, "aguardando confirmação", "soon"], ["naoEnviada", conta.naoEnviada, conta.naoEnviada === 1 ? "mensagem não enviada" : "mensagens não enviadas", "late"]] as const).map(([k, n, rot, cor]) =>
+          <button key={k || "todos"} className={"ag-num " + cor + (!verFeitos && filtro === k ? " on" : "")} aria-pressed={!verFeitos && filtro === k} disabled={!n && k !== ""}
+            title={k ? "Mostrar só estes" : "Mostrar todas as próximas"} onClick={() => { setVerFeitos(false); setFiltro(filtro === k ? "" : k); }}><b>{n}</b>{rot}</button>)}
+        <button className={"ag-num" + (verFeitos ? " on" : "")} aria-pressed={verFeitos} disabled={!feitos && !verFeitos} title="Mostrar os já realizados" onClick={() => { setFiltro(""); setVerFeitos(!verFeitos); }}><b>{feitos}</b>{feitos === 1 ? "realizado" : "realizados"}</button>
+      </div>}
+      {lista.length ? <div className="rows">{lista.map((a) => <LinhaAto key={a.id} a={a} comCliente />)}</div> : <div className="empty">{filtro && !verFeitos ? <>Nenhum agendamento neste filtro. <button className="reflink" onClick={() => setFiltro("")}>Ver todos</button></> : verFeitos ? "Nada realizado ainda." : <><strong>Nenhuma audiência ou coleta agendada.</strong>Na publicação que marcou o ato, ou dentro do processo, clique em “Agendar audiência / coleta”.</>}</div>}
     </section>
   );
 }
