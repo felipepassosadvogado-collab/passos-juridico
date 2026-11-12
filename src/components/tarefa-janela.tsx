@@ -15,6 +15,7 @@ import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas"
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
 import { useVisor } from "./visor";
+import { JornadaAtendimento } from "./jornada";
 import { ProtocolarCaso } from "./FichaCliente";
 import { BlocoAviso, ConfirmacaoCliente, useCriarAviso } from "./avisos";
 import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
@@ -67,7 +68,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   };
   const comentarios = evs.filter((e) => e.tipo === "comentario").slice().reverse();
   // com fluxo de correção na tela, a aba mostra só o que ele não mostra (edições, atribuições, anexos avulsos…)
-  const temFluxo = evs.some((e) => e.tipo === "correcao_enviada") || ["revisao", "ajustes", "aprovada"].includes(t.status);
+  const temFluxo = !!t.caso_id || evs.some((e) => e.tipo === "correcao_enviada") || ["revisao", "ajustes", "aprovada"].includes(t.status);
   const NO_FLUXO = ["tarefa_criada", "correcao_enviada", "correcao_devolvida", "correcao_aprovada", "protocolo_avisado", "tarefa_concluida"];
   const historico = evs.filter((e) => e.tipo !== "comentario" && (!temFluxo || !NO_FLUXO.includes(e.tipo))).slice().reverse();
   const wa = foneWhatsapp(cli?.telefone);
@@ -126,7 +127,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
               </ol>
               <div className="tools"><button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
-            <FluxoCorrecao t={t} evs={evs} nome={nome} eu={eu.id} />
+            {t.caso_id ? <JornadaAtendimento t={t} eu={eu.id} /> : <FluxoCorrecao t={t} evs={evs} nome={nome} eu={eu.id} />}
             {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{(() => { const ult = [...evs].reverse().find((e) => e.tipo === (t.status === "revisao" ? "correcao_enviada" : "correcao_devolvida")); const quem = ult ? ` por ${ult.por === eu.id ? "você" : nome(ult.por).split(" ")[0]} em ${dataHoraBR(ult.em)}` : ""; return t.status === "revisao" ? `Recado de quem enviou${quem}:` : `Ajustes pedidos${quem}. O que fazer agora:`; })()}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
             {!souResp && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</div>}
