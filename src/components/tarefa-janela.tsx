@@ -14,6 +14,7 @@ import { tarefaDeOrigem } from "@/lib/tarefasAtivas";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
+import { useVisor } from "./visor";
 import { ProtocolarCaso } from "./FichaCliente";
 import { BlocoAviso, ConfirmacaoCliente, useCriarAviso } from "./avisos";
 import { Avatar, Ic, RostoOuIniciais, SelResp, useConfirmar } from "./ui";
@@ -65,7 +66,10 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
     if (ev) setEvs((l) => [...l, ev]); else { setTxt(v); aviso("O comentário não foi salvo. Tente de novo."); }
   };
   const comentarios = evs.filter((e) => e.tipo === "comentario").slice().reverse();
-  const historico = evs.filter((e) => e.tipo !== "comentario").slice().reverse();
+  // com fluxo de correção na tela, a aba mostra só o que ele não mostra (edições, atribuições, anexos avulsos…)
+  const temFluxo = evs.some((e) => e.tipo === "correcao_enviada") || ["revisao", "ajustes", "aprovada"].includes(t.status);
+  const NO_FLUXO = ["tarefa_criada", "correcao_enviada", "correcao_devolvida", "correcao_aprovada", "protocolo_avisado", "tarefa_concluida"];
+  const historico = evs.filter((e) => e.tipo !== "comentario" && (!temFluxo || !NO_FLUXO.includes(e.tipo))).slice().reverse();
   const wa = foneWhatsapp(cli?.telefone);
   const situacao = done ? <span className="pill ok">Cumprida{t.feito_em ? " em " + dataHoraBR(t.feito_em) : ""}</span>
     : <><span className={"pill " + (t.status === "aberto" ? s.cor : t.status === "aprovada" ? "ok" : t.status === "andamento" ? "acc" : "soon")}>{STATUS_NOME[t.status]}</span> <span className={"pill " + s.cor}>{s.texto}</span></>;
@@ -146,7 +150,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             </div>}
             <div className="tj-abas" role="tablist">
               <button role="tab" aria-selected={aba === "atividade"} onClick={() => setAba("atividade")}>Atividade{comentarios.length ? ` (${comentarios.length})` : ""}</button>
-              <button role="tab" aria-selected={aba === "historico"} onClick={() => setAba("historico")}>Histórico completo</button>
+              {(!temFluxo || historico.length > 0) && <button role="tab" aria-selected={aba === "historico"} onClick={() => setAba("historico")}>{temFluxo ? `Outras alterações (${historico.length})` : "Histórico completo"}</button>}
             </div>
             {aba === "atividade" ? <>
               <div className="tj-comp">
@@ -205,7 +209,11 @@ function AvisoProtocolo({ numero }: { numero: string | null }) {
 
 /** fluxo da peça entre quem elabora e quem corrige: com quem está agora, o que falta e cada ida e volta, em ordem */
 function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (id: string | null | undefined) => string; eu: string }) {
-  const { tarefas } = useDados(); const j = useJanelas();
+  const { tarefas, anexos } = useDados(); const j = useJanelas(); const visor = useVisor();
+  const anexosDaTarefa = [...anexos.values()].filter((a) => a.tarefa_id === t.id);
+  // o arquivo que foi junto em cada ida/volta (pelo nome gravado no evento; se repetir o nome, o mais próximo da hora)
+  const arquivosDe = (e: Evento) => (((e.dados || {}) as { arquivos?: string[] }).arquivos || []).map((n) => anexosDaTarefa.filter((a) => a.nome === n)
+    .sort((a, b) => Math.abs(Date.parse(a.em) - Date.parse(e.em)) - Math.abs(Date.parse(b.em) - Date.parse(e.em)))[0] || { nome: n, caminho: "", mime: "" });
   const pri = (id: string | null | undefined) => (id === eu ? "você" : nome(id).split(" ")[0]);
   const origem = tarefaDeOrigem(t, [...tarefas.values()]); // tarefa que pediu esta peça, quando esta foi criada separada ao gerar a minuta
   const idas = evs.filter((e) => ["tarefa_criada", "correcao_enviada", "correcao_devolvida", "correcao_aprovada", "protocolo_avisado", "tarefa_concluida"].includes(e.tipo));
@@ -246,7 +254,10 @@ function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (
             : <><span className="pill soon">tarefa original ainda aberta</span> <button className="reflink" onClick={() => j.abrirTarefa(origem.id)}>abrir</button> <span className="muted">· conclua ou exclua para não ficar duplicada</span></>}</div></div></li>}
         {idas.map((e) => { const x = passo(e); return (
           <li key={e.id} className={x.cor}><span className="pt" aria-hidden="true" /><div><b>{x.rot.replace(/^./, (c) => c.toUpperCase())}</b> <span className="muted s">· {dataHoraBR(e.em)}</span>
-            {x.nota && e.id !== ultimaNota && <div className="s nota">“{x.nota.length > 160 ? x.nota.slice(0, 160) + "…" : x.nota}”</div>}</div></li>); })}
+            {x.nota && e.id !== ultimaNota && <div className="s nota">“{x.nota.length > 160 ? x.nota.slice(0, 160) + "…" : x.nota}”</div>}
+            {(e.tipo === "correcao_enviada" || e.tipo === "correcao_devolvida") && arquivosDe(e).length > 0 && <div className="tj-fluxo-arqs">{arquivosDe(e).map((a, k) =>
+              a.caminho ? <button key={k} className="anexo mini" title="Ver este documento ao lado" onClick={() => visor.verGuardado(a.caminho, a.nome, a.mime)}><span className="ext">{(a.nome.split(".").pop() || "").toUpperCase()}</span><span className="an">{a.nome}</span></button>
+                : <span key={k} className="muted s">{a.nome}</span>)}</div>}</div></li>); })}
         {!["feito"].includes(t.status) && <li className="prox"><span className="pt" aria-hidden="true" /><div className="muted"><b>Próximo passo:</b> {t.status === "revisao" ? `${pri(rev)} aprova ou devolve` : t.status === "ajustes" ? `${pri(resp)} ajusta e reenvia para ${pri(rev)}` : t.status === "aprovada" ? `${pri(resp)} protocola` : `${pri(resp)} envia para correção`}</div></li>}
       </ol>
     </div>

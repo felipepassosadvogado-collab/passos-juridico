@@ -1037,3 +1037,6 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .tj-fluxo-passos li.prox .pt{background:transparent;border:2px dashed var(--muted)}
 .tj-fluxo-passos .nota{font-style:italic;color:var(--fg);opacity:.9;margin-top:2px}
 .tj-fluxo-passos li.orig .pt{background:var(--fg)}
+.tj-fluxo-arqs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.anexo.mini{padding:3px 8px;font-size:12.5px;gap:6px}
+.anexo.mini .ext{font-size:10px;padding:1px 4px}
