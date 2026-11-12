@@ -102,7 +102,7 @@ export async function enviarWhatsapp(corpo: { conversaId?: string; telefone?: st
 
 // ───── conexão (QR-code) ─────
 export function useConexaoWa() {
-  const { config } = useDados(); const [st, setSt] = useState<{ configurado: boolean; estado: string; erro?: string } | null>(null);
+  const { config } = useDados(); const [st, setSt] = useState<{ configurado: boolean; estado: string; erro?: string; recebimento?: { ok: boolean; problema: string; ultimaRecebida: string | null } } | null>(null);
   const consultar = () => fetch("/api/whatsapp/conectar").then((r) => r.json()).then(setSt).catch(() => setSt({ configurado: true, estado: "erro", erro: "Sem resposta do sistema." }));
   useEffect(() => { consultar(); }, []);
   const doWebhook = (config.whatsapp || {}) as { estado?: string; qr?: string | null; em?: string };
@@ -116,22 +116,34 @@ export function PainelConexao({ compacto }: { compacto?: boolean }) {
   useEffect(() => { if (qrWebhook) setQr(qrWebhook); }, [qrWebhook]);
   useEffect(() => { if (conectado) setQr(null); }, [conectado]);
   useEffect(() => { if (!qr) return; const t = setInterval(consultar, 4000); return () => clearInterval(t); }, [qr]); // eslint-disable-line react-hooks/exhaustive-deps
-  const acao = async (a: "conectar" | "desconectar") => {
+  const acao = async (a: "conectar" | "desconectar" | "webhook") => {
     setOcupado(true);
     try {
       const r = await fetch("/api/whatsapp/conectar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: a }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { aviso(j.erro || "Não consegui falar com o servidor do WhatsApp."); return; }
-      if (a === "desconectar") { aviso("WhatsApp desconectado do sistema."); setQr(null); } else if (j.qr) setQr(j.qr); else if (j.estado === "open") aviso("WhatsApp já está conectado.");
+      if (a === "webhook") aviso(j.recebimento?.ok ? "Recebimento religado: as mensagens novas voltam a chegar aqui." : "Religuei, mas ainda há problema: " + (j.recebimento?.problema || "verifique de novo"));
+      else if (a === "desconectar") { aviso("WhatsApp desconectado do sistema."); setQr(null); } else if (j.qr) setQr(j.qr); else if (j.estado === "open") aviso("WhatsApp já está conectado.");
       consultar();
     } finally { setOcupado(false); }
   };
   if (!st) return <div className="wa-con muted">Verificando a conexão do WhatsApp…</div>;
   if (!st.configurado) return (
     <div className="wa-con aviso"><strong>WhatsApp ainda não configurado.</strong> Falta o servidor da Evolution API e as variáveis na Vercel (EVOLUTION_URL, EVOLUTION_API_KEY e WHATSAPP_WEBHOOK_SECRET). Veja o passo a passo que o Claude passou.</div>);
+  const rec = st.recebimento;
+  if (conectado && rec && !rec.ok) return ( // conectado ao celular, mas as mensagens não chegam ao sistema (e o assistente não é acionado)
+    <div className="wa-con aviso" role="alert">
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <strong>WhatsApp conectado, mas as mensagens não estão chegando ao sistema</strong>
+        {titular ? <button className="btn primary" style={{ marginLeft: "auto" }} disabled={ocupado} onClick={() => acao("webhook")}>{ocupado ? "Religando…" : "Religar o recebimento"}</button>
+          : <span className="muted s" style={{ marginLeft: "auto" }}>Peça ao titular para religar.</span>}
+      </div>
+      <div className="s" style={{ marginTop: 6 }}>Motivo: {rec.problema}. Por isso o assistente também não responde.{rec.ultimaRecebida ? ` Última mensagem recebida: ${new Date(rec.ultimaRecebida).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.` : ""} O botão grava de novo, no servidor do WhatsApp, o endereço do sistema; não desconecta o celular.</div>
+    </div>);
   if (conectado) return compacto ? null : (
-    <div className="wa-con ok"><span className="ponto-on" style={{ position: "static" }} /> <strong>WhatsApp conectado</strong> <span className="muted s">· as mensagens chegam aqui em tempo real</span>
-      {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} disabled={ocupado} onClick={() => acao("desconectar")}>Desconectar</button>}</div>);
+    <div className="wa-con ok"><span className="ponto-on" style={{ position: "static" }} /> <strong>WhatsApp conectado</strong> <span className="muted s">· as mensagens chegam aqui em tempo real{rec?.ultimaRecebida ? ` · última recebida ${new Date(rec.ultimaRecebida).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}</span>
+      {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} disabled={ocupado} title="Grava de novo o endereço de entrega das mensagens no servidor do WhatsApp (não desconecta)" onClick={() => acao("webhook")}>Religar o recebimento</button>}
+      {titular && <button className="btn ghost" disabled={ocupado} onClick={() => acao("desconectar")}>Desconectar</button>}</div>);
   // o servidor da Evolution (Hostinger) não responde: não adianta QR-code, primeiro é preciso religar o servidor
   if (st.erro && /falar com o servidor|recusou a chave/i.test(st.erro)) return (
     <div className="wa-con aviso">
