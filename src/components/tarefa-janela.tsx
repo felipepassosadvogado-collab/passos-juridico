@@ -121,7 +121,8 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
               </ol>
               <div className="tools"><button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
-            {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{t.status === "revisao" ? "Recado de quem enviou:" : "Ajustes pedidos:"}</span>
+            <FluxoCorrecao t={t} evs={evs} nome={nome} eu={eu.id} />
+            {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{(() => { const ult = [...evs].reverse().find((e) => e.tipo === (t.status === "revisao" ? "correcao_enviada" : "correcao_devolvida")); const quem = ult ? ` por ${ult.por === eu.id ? "você" : nome(ult.por).split(" ")[0]} em ${dataHoraBR(ult.em)}` : ""; return t.status === "revisao" ? `Recado de quem enviou${quem}:` : `Ajustes pedidos${quem}. O que fazer agora:`; })()}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
             {!souResp && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</div>}
             {form === "enviar" && <FormRevisao t={t} modo="enviar" onFim={() => setForm("")} />}
@@ -199,4 +200,43 @@ function AvisoProtocolo({ numero }: { numero: string | null }) {
     <div className="tj-corr-h"><strong>Avisar o cliente do protocolo</strong><span className="muted s">mensagem com o nº do processo e o juízo, pelo WhatsApp</span></div>
     <div className="tools"><button className="btn primary" disabled={criando} onClick={async () => { setCriando(true); await criar({ processo_numero: numero, tipo_evento: PROTOCOLO_ACAO, data_evento: hojeBR() }); setCriando(false); }}>{criando ? "Abrindo…" : "Avisar o cliente"}</button></div>
   </div>;
+}
+
+/** fluxo da peça entre quem elabora e quem corrige: com quem está agora, o que falta e cada ida e volta, em ordem */
+function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (id: string | null | undefined) => string; eu: string }) {
+  const idas = evs.filter((e) => ["tarefa_criada", "correcao_enviada", "correcao_devolvida", "correcao_aprovada", "protocolo_avisado", "tarefa_concluida"].includes(e.tipo));
+  const rodadas = idas.filter((e) => e.tipo === "correcao_enviada").length;
+  // a nota da última ida/volta aparece inteira na caixa logo abaixo (com quem pediu e quando); aqui não repete
+  const ultimaNota = t.nota_correcao && ["revisao", "ajustes"].includes(t.status) ? [...idas].reverse().find((e) => e.tipo === "correcao_enviada" || e.tipo === "correcao_devolvida")?.id : undefined;
+  if (!rodadas && !["revisao", "ajustes", "aprovada"].includes(t.status)) return null; // tarefa sem correção: nada a mostrar
+  const pri = (id: string | null | undefined) => (id === eu ? "você" : nome(id).split(" ")[0]);
+  const resp = t.responsavel, rev = t.revisor;
+  const agora: [string, string, string] = t.status === "revisao" ? ["acc", `Com ${pri(rev)} para corrigir`, `${pri(resp) === "você" ? "Você enviou" : pri(resp) + " enviou"} a peça; ${pri(rev) === "você" ? "você precisa" : pri(rev) + " precisa"} aprovar ou devolver com ajustes.`]
+    : t.status === "ajustes" ? ["soon", `Voltou para ${pri(resp)} ajustar`, `${pri(rev) === "você" ? "Você pediu" : pri(rev) + " pediu"} ajustes; ${pri(resp) === "você" ? "você precisa" : pri(resp) + " precisa"} corrigir e reenviar para correção.`]
+    : t.status === "aprovada" ? ["ok", `Aprovada · com ${pri(resp)} para protocolar`, "A peça foi aprovada; falta protocolar e informar o protocolo."]
+    : t.status === "feito" ? ["ok", "Concluída", "Fluxo encerrado."]
+    : ["acc", `Com ${pri(resp)} elaborando`, "Ainda não foi enviada para correção."];
+  const passo = (e: Evento) => {
+    const d = (e.dados || {}) as Record<string, string>;
+    switch (e.tipo) {
+      case "tarefa_criada": return { cor: "", rot: (d.responsavel || resp) === e.por ? `${pri(e.por)} criou a tarefa` : `${pri(e.por)} criou a tarefa para ${pri(d.responsavel || resp)}`, nota: "" };
+      case "correcao_enviada": return { cor: "acc", rot: `${pri(e.por)} enviou para correção`, nota: d.nota || "" };
+      case "correcao_devolvida": return { cor: "soon", rot: `${pri(e.por)} devolveu com ajustes`, nota: d.nota || "" };
+      case "correcao_aprovada": return { cor: "ok", rot: `${pri(e.por)} aprovou`, nota: "" };
+      case "protocolo_avisado": return { cor: "ok", rot: `${pri(e.por)} protocolou`, nota: d.numero || "" };
+      default: return { cor: "ok", rot: `${pri(e.por)} concluiu`, nota: "" };
+    }
+  };
+  return (
+    <div className={"tj-fluxo " + agora[0]}>
+      <div className="tj-fluxo-agora"><span className={"pill " + agora[0]}>{agora[1]}</span>{rodadas > 1 && <span className="muted s">{rodadas}ª rodada de correção</span>}
+        <div className="s">{agora[2]}</div></div>
+      <ol className="tj-fluxo-passos" aria-label="Idas e voltas da peça">
+        {idas.map((e) => { const x = passo(e); return (
+          <li key={e.id} className={x.cor}><span className="pt" aria-hidden="true" /><div><b>{x.rot.replace(/^./, (c) => c.toUpperCase())}</b> <span className="muted s">· {dataHoraBR(e.em)}</span>
+            {x.nota && e.id !== ultimaNota && <div className="s nota">“{x.nota.length > 160 ? x.nota.slice(0, 160) + "…" : x.nota}”</div>}</div></li>); })}
+        {!["feito"].includes(t.status) && <li className="prox"><span className="pt" aria-hidden="true" /><div className="muted"><b>Próximo passo:</b> {t.status === "revisao" ? `${pri(rev)} aprova ou devolve` : t.status === "ajustes" ? `${pri(resp)} ajusta e reenvia para ${pri(rev)}` : t.status === "aprovada" ? `${pri(resp)} protocola` : `${pri(resp)} envia para correção`}</div></li>}
+      </ol>
+    </div>
+  );
 }

@@ -1022,3 +1022,17 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .colch-tutela-st.tem{color:var(--ok)}.colch-tutela-st.falta{color:var(--late);font-weight:600}
 .colch-tutela-chk{display:flex;gap:8px;align-items:center;font-weight:700;cursor:pointer}
 .colch-tutela-chk input{width:18px;height:18px;accent-color:var(--late)}
+/* fluxo de correção na janela da tarefa: com quem está agora e as idas e voltas */
+.tj-fluxo{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:12px 14px;display:grid;gap:10px;background:var(--surface)}
+.tj-fluxo.soon{border-left-color:var(--soon)}.tj-fluxo.ok{border-left-color:var(--ok)}
+.tj-fluxo-agora{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tj-fluxo-agora .pill{font-size:13.5px;font-weight:700;padding:4px 10px}
+.tj-fluxo-agora .s{flex-basis:100%}
+.tj-fluxo-passos{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.tj-fluxo-passos li{display:grid;grid-template-columns:18px 1fr;gap:8px;position:relative;padding-bottom:8px;font-size:13.5px}
+.tj-fluxo-passos li::before{content:"";position:absolute;left:5px;top:14px;bottom:-2px;width:2px;background:var(--line)}
+.tj-fluxo-passos li:last-child::before{display:none}
+.tj-fluxo-passos .pt{width:12px;height:12px;border-radius:50%;margin-top:3px;background:var(--muted);position:relative;z-index:1}
+.tj-fluxo-passos li.acc .pt{background:var(--accent)}.tj-fluxo-passos li.soon .pt{background:var(--soon)}.tj-fluxo-passos li.ok .pt{background:var(--ok)}
+.tj-fluxo-passos li.prox .pt{background:transparent;border:2px dashed var(--muted)}
+.tj-fluxo-passos .nota{font-style:italic;color:var(--fg);opacity:.9;margin-top:2px}
