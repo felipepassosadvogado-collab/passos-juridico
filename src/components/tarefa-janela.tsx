@@ -10,6 +10,7 @@ import { bancoCurto, dataBR, dataHoraBR, foneWhatsapp, iniciais, nomeBonito } fr
 import { hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { PROTOCOLO_ACAO, STATUS_NOME, atoPub, destinoProtocolo, faseCRM } from "@/lib/regras";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
+import { tarefaDeOrigem } from "@/lib/tarefasAtivas";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
@@ -204,12 +205,20 @@ function AvisoProtocolo({ numero }: { numero: string | null }) {
 
 /** fluxo da peça entre quem elabora e quem corrige: com quem está agora, o que falta e cada ida e volta, em ordem */
 function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (id: string | null | undefined) => string; eu: string }) {
+  const { tarefas } = useDados(); const j = useJanelas();
+  const pri = (id: string | null | undefined) => (id === eu ? "você" : nome(id).split(" ")[0]);
+  const origem = tarefaDeOrigem(t, [...tarefas.values()]); // tarefa que pediu esta peça, quando esta foi criada separada ao gerar a minuta
   const idas = evs.filter((e) => ["tarefa_criada", "correcao_enviada", "correcao_devolvida", "correcao_aprovada", "protocolo_avisado", "tarefa_concluida"].includes(e.tipo));
   const rodadas = idas.filter((e) => e.tipo === "correcao_enviada").length;
   // a nota da última ida/volta aparece inteira na caixa logo abaixo (com quem pediu e quando); aqui não repete
   const ultimaNota = t.nota_correcao && ["revisao", "ajustes"].includes(t.status) ? [...idas].reverse().find((e) => e.tipo === "correcao_enviada" || e.tipo === "correcao_devolvida")?.id : undefined;
-  if (!rodadas && !["revisao", "ajustes", "aprovada"].includes(t.status)) return null; // tarefa sem correção: nada a mostrar
-  const pri = (id: string | null | undefined) => (id === eu ? "você" : nome(id).split(" ")[0]);
+  if (!rodadas && !["revisao", "ajustes", "aprovada"].includes(t.status)) {
+    // tarefa original: a minuta foi gerada fora dela e corre em outra tarefa
+    const derivada = t.status !== "feito" ? [...tarefas.values()].find((x) => x.id !== t.id && tarefaDeOrigem(x, [...tarefas.values()])?.id === t.id) : undefined;
+    if (!derivada) return null;
+    return <div className="tj-fluxo soon"><div className="tj-fluxo-agora"><span className="pill soon">A minuta desta tarefa está em outra tarefa</span>
+      <div className="s">{pri(derivada.responsavel).replace(/^./, (c) => c.toUpperCase())} gerou a peça fora desta tarefa e o sistema abriu <b>“{derivada.descricao}”</b> ({STATUS_NOME[derivada.status]?.toLowerCase()}). <button className="reflink" onClick={() => j.abrirTarefa(derivada.id)}>Abrir a tarefa da minuta</button>. Quando a peça for protocolada, conclua esta para não ficar duplicada.</div></div></div>;
+  }
   const resp = t.responsavel, rev = t.revisor;
   const agora: [string, string, string] = t.status === "revisao" ? ["acc", `Com ${pri(rev)} para corrigir`, `${pri(resp) === "você" ? "Você enviou" : pri(resp) + " enviou"} a peça; ${pri(rev) === "você" ? "você precisa" : pri(rev) + " precisa"} aprovar ou devolver com ajustes.`]
     : t.status === "ajustes" ? ["soon", `Voltou para ${pri(resp)} ajustar`, `${pri(rev) === "você" ? "Você pediu" : pri(rev) + " pediu"} ajustes; ${pri(resp) === "você" ? "você precisa" : pri(resp) + " precisa"} corrigir e reenviar para correção.`]
@@ -219,7 +228,7 @@ function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (
   const passo = (e: Evento) => {
     const d = (e.dados || {}) as Record<string, string>;
     switch (e.tipo) {
-      case "tarefa_criada": return { cor: "", rot: (d.responsavel || resp) === e.por ? `${pri(e.por)} criou a tarefa` : `${pri(e.por)} criou a tarefa para ${pri(d.responsavel || resp)}`, nota: "" };
+      case "tarefa_criada": return { cor: "", rot: origem && e.por === resp ? `${pri(e.por)} gerou a minuta e o sistema abriu esta tarefa para a correção` : (d.responsavel || resp) === e.por ? `${pri(e.por)} criou a tarefa` : `${pri(e.por)} criou a tarefa para ${pri(d.responsavel || resp)}`, nota: "" };
       case "correcao_enviada": return { cor: "acc", rot: `${pri(e.por)} enviou para correção`, nota: d.nota || "" };
       case "correcao_devolvida": return { cor: "soon", rot: `${pri(e.por)} devolveu com ajustes`, nota: d.nota || "" };
       case "correcao_aprovada": return { cor: "ok", rot: `${pri(e.por)} aprovou`, nota: "" };
@@ -232,6 +241,9 @@ function FluxoCorrecao({ t, evs, nome, eu }: { t: Tarefa; evs: Evento[]; nome: (
       <div className="tj-fluxo-agora"><span className={"pill " + agora[0]}>{agora[1]}</span>{rodadas > 1 && <span className="muted s">{rodadas}ª rodada de correção</span>}
         <div className="s">{agora[2]}</div></div>
       <ol className="tj-fluxo-passos" aria-label="Idas e voltas da peça">
+        {origem && <li className="orig"><span className="pt" aria-hidden="true" /><div><b>{pri(origem.criado_por).replace(/^./, (c) => c.toUpperCase())} criou a tarefa “{origem.descricao}” para {pri(origem.responsavel)}</b> <span className="muted s">· {origem.criado_em ? dataHoraBR(origem.criado_em) : ""}{origem.publicacao_id ? " · da intimação" : ""}</span>
+          <div className="s">{origem.status === "feito" ? <span className="muted">tarefa original concluída</span>
+            : <><span className="pill soon">tarefa original ainda aberta</span> <button className="reflink" onClick={() => j.abrirTarefa(origem.id)}>abrir</button> <span className="muted">· conclua ou exclua para não ficar duplicada</span></>}</div></div></li>}
         {idas.map((e) => { const x = passo(e); return (
           <li key={e.id} className={x.cor}><span className="pt" aria-hidden="true" /><div><b>{x.rot.replace(/^./, (c) => c.toUpperCase())}</b> <span className="muted s">· {dataHoraBR(e.em)}</span>
             {x.nota && e.id !== ultimaNota && <div className="s nota">“{x.nota.length > 160 ? x.nota.slice(0, 160) + "…" : x.nota}”</div>}</div></li>); })}

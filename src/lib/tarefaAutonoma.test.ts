@@ -38,3 +38,21 @@ describe("aviso de tutela na peça", () => {
     expect(temTutela("Manifesta-se sobre o laudo pericial, que concluiu pela falsidade da assinatura.")).toBe(false);
   });
 });
+
+import { tarefaDeOrigem, tarefasParaLigar } from "./tarefasAtivas";
+describe("peça gerada fora da tarefa", () => {
+  const F = "felipe", A = "amanda", N = "50005533020264047201";
+  const orig = { id: "o1", status: "andamento", processo_numero: N, responsavel: A, criado_por: F, criado_em: "2026-11-05T12:00:00Z", publicacao_id: 77, descricao: "Recurso inominado", tipo: "Recurso inominado" };
+  const nova = { id: "n1", status: "ajustes", processo_numero: N, responsavel: A, criado_por: A, criado_em: "2026-11-10T15:19:00Z", publicacao_id: null, descricao: "Recurso Inominado: corrigir a minuta", tipo: "Recurso inominado" };
+  it("acha a tarefa que pediu a peça", () => {
+    expect(tarefaDeOrigem(nova, [orig, nova])?.id).toBe("o1");
+    expect(tarefaDeOrigem(orig, [orig, nova])).toBeNull(); // a original foi criada por outra pessoa: não tem origem
+    expect(tarefaDeOrigem(nova, [{ ...orig, processo_numero: "outro" }, nova])).toBeNull();
+  });
+  it("ao enviar para correção, sugere ligar à tarefa já aberta (a da intimação primeiro)", () => {
+    const outra = { ...orig, id: "o2", publicacao_id: null, descricao: "Juntar comprovante", criado_em: "2026-11-09T12:00:00Z" };
+    expect(tarefasParaLigar([outra, orig], N, A, 77).map((t) => t.id)).toEqual(["o1", "o2"]);
+    expect(tarefasParaLigar([{ ...orig, status: "revisao" }], N, A, 77)).toEqual([]);
+    expect(tarefasParaLigar([orig], N, F, 77)).toEqual([]); // não é minha
+  });
+});

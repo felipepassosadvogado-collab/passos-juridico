@@ -7,6 +7,7 @@ import { obterIndices } from "@/lib/indicesBcb";
 // e manda as duas para correção.
 import { useEffect, useMemo, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
+import { tarefasParaLigar } from "@/lib/tarefasAtivas";
 import { moeda, nomeBonito, numeroBR } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
 import { LIMITE_VISUAL, contarPaginas, textoDoPdf, type TextoPdf } from "@/lib/pdftexto";
@@ -148,12 +149,14 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
     finally { setGerando(""); }
   };
   const podeUsarTarefa = !!tarefa && tarefa.responsavel === eu.id && !["revisao", "feito"].includes(tarefa.status);
+  const minhasAbertas = podeUsarTarefa ? [] : tarefasParaLigar([...tarefas.values()], ctx.numero, eu.id, null, /cumprimento|c[aá]lculo|liquida/i);
+  const [ligar, setLigar] = useState<string>(() => minhasAbertas[0]?.id || "");
   const enviar = async () => {
     if (!docx || !pdf) { aviso("Gere a petição e o cálculo antes de enviar."); return; }
     if (!env.revisor) { aviso("Escolha quem vai corrigir."); return; }
     setEnviando(true);
     try {
-      let t = podeUsarTarefa ? tarefa! : null;
+      let t = podeUsarTarefa ? tarefa! : ligar ? tarefas.get(ligar) || null : null;
       if (!t) {
         const { data, error } = await sb.from("tarefas").insert({ processo_numero: ctx.numero, tipo: "Cumprimento de sentença / cálculos", descricao: "Cumprimento de sentença: corrigir a petição e o cálculo de liquidação", vencimento: env.ate || null, responsavel: eu.id }).select().single();
         if (error || !data) { aviso(msgErro(error)); return; }
@@ -279,6 +282,10 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
             </div>))}
           {enviada ? <div className="banner ok">Enviado para correção de {nome(env.revisor)}, com a petição e o cálculo anexados.</div> : <div className="triage">
             <div className="wide" style={{ fontWeight: 600 }}>Enviar para correção</div>
+            {minhasAbertas.length > 0 && <label className="f wide">Ligar à tarefa<select value={ligar} onChange={(e) => setLigar(e.target.value)}>
+              {minhasAbertas.map((x) => <option key={x.id} value={x.id}>{x.descricao}{x.criado_por && x.criado_por !== eu.id ? " · criada por " + nome(x.criado_por).split(" ")[0] : ""}</option>)}
+              <option value="">Criar uma tarefa nova</option></select>
+              <span className="muted" style={{ fontWeight: 400, fontSize: 12.5 }}>A petição e o cálculo vão anexados nessa tarefa e ela segue para correção; assim não fica uma tarefa duplicada aberta.</span></label>}
             <label className="f">Quem corrige<SelResp valor={env.revisor} vazio="— escolher —" excluir={eu.papel === "titular" ? [] : [eu.id]} onChange={(v) => setEnv({ ...env, revisor: v || "" })} /></label>
             <label className="f">Corrigir até<input type="date" value={env.ate} min={hojeBR()} onChange={(e) => setEnv({ ...env, ate: e.target.value })} /></label>
             <label className="f wide">Recado (opcional)<input value={env.recado} placeholder="Ex.: conferir as competências do extrato e o piso dos honorários" onChange={(e) => setEnv({ ...env, recado: e.target.value })} /></label>

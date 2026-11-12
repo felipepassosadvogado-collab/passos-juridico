@@ -4,6 +4,7 @@
 import { avisarColchetes } from "./colchetes";
 import { Cronometro } from "./carregando";
 import { useState } from "react";
+import { tarefasParaLigar } from "@/lib/tarefasAtivas";
 import { useDados, msgErro } from "@/lib/dados";
 import { nomeBonito } from "@/lib/formato";
 import { enviarParaLeitura } from "@/lib/leitura";
@@ -39,6 +40,9 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
   const souTitular = eu.papel === "titular"; const titularId = equipe.find((x) => x.papel === "titular" && x.ativo && x.id !== eu.id)?.id || (souTitular ? eu.id : "");
   const [env, setEnv] = useState({ revisor: titularId, recado: "", ate: isoData(proximoDiaUtil(paraData(hojeBR()))) }); const [enviando, setEnviando] = useState(false); const [enviada, setEnviada] = useState(false);
   const podeEnviar = !!tarefa && tarefa.responsavel === eu.id && !["revisao", "feito"].includes(tarefa.status);
+  // aberta fora da tarefa: oferece ligar a uma tarefa minha já aberta neste processo (a da intimação primeiro), em vez de criar outra
+  const minhasAbertas = podeEnviar ? [] : tarefasParaLigar([...tarefas.values()], ctx.numero, eu.id, ctx.publicacaoId);
+  const [ligar, setLigar] = useState<string>(() => minhasAbertas[0]?.id || "");
   const enviarCorrecao = async () => {
     if (!env.revisor) { aviso("Escolha quem vai corrigir."); return; }
     if (!minuta) return;
@@ -47,7 +51,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       // ligada a uma tarefa minha: a minuta já está nos anexos dela
       if (podeEnviar && minuta.doc) { if (await acoes.enviar(tarefa!, [], env.recado.trim(), env.revisor, env.ate)) setEnviada(true); return; }
       // sem tarefa: cria uma no processo e envia com a minuta anexada
-      let t = podeEnviar ? tarefa! : null;
+      let t = podeEnviar ? tarefa! : ligar ? tarefas.get(ligar) || null : null;
       if (!t) {
         const { data, error } = await sb.from("tarefas").insert({ processo_numero: ctx.numero, publicacao_id: ctx.publicacaoId || null, tipo: res?.tipo || null, descricao: (res?.titulo ? nomeBonito(res.titulo) : "Petição") + ": corrigir a minuta", vencimento: env.ate || null, responsavel: eu.id }).select().single();
         if (error || !data) { aviso(msgErro(error)); return; }
@@ -148,6 +152,10 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
       {res && minuta && (enviada || (podeEnviar && tarefa?.status === "revisao") ? <div className="banner ok">Enviada para correção de {nome(env.revisor)}, com a minuta anexada.</div>
         : <section className="triage">
           <div className="wide" style={{ fontWeight: 600 }}>Enviar para correção</div>
+          {minhasAbertas.length > 0 && <label className="f wide">Ligar à tarefa<select value={ligar} onChange={(e) => setLigar(e.target.value)}>
+            {minhasAbertas.map((x) => <option key={x.id} value={x.id}>{x.descricao}{x.criado_por && x.criado_por !== eu.id ? " · criada por " + nome(x.criado_por).split(" ")[0] : ""}{x.vencimento ? " · vence " + x.vencimento.split("-").reverse().join("/") : ""}</option>)}
+            <option value="">Criar uma tarefa nova</option></select>
+            <span className="muted" style={{ fontWeight: 400, fontSize: 12.5 }}>A minuta vai anexada nessa tarefa e ela segue para correção; assim não fica uma tarefa duplicada aberta.</span></label>}
           <label className="f">Quem corrige<SelResp valor={env.revisor} vazio="— escolher —" excluir={souTitular ? [] : [eu.id]} onChange={(v) => setEnv({ ...env, revisor: v || "" })} /></label>
           <label className="f">Corrigir até<input type="date" value={env.ate} min={hojeBR()} onChange={(e) => setEnv({ ...env, ate: e.target.value })} /></label>
           <label className="f wide">Recado (opcional)<input value={env.recado} placeholder="Ex.: conferir o pedido de reinclusão do INSS" onChange={(e) => setEnv({ ...env, recado: e.target.value })} /></label>
