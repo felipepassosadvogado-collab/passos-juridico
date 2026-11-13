@@ -9,7 +9,7 @@ import { datasDeProtocolo, type EventoMin, type Protocolo, type PubMin } from "@
 import { PERIODOS, cidadesDeOrigem, intervalo, protocoladoEm, resumirProtocolos, type ProcProt } from "@/lib/protocolos";
 import { Janela, baixar } from "@/components/ui";
 import { bancoCurto, dataBR, nomeBonito, semAcento } from "@/lib/formato";
-import { hojeBR, situacaoPrazo } from "@/lib/prazos";
+import { foroDe, hojeBR, situacaoPrazo } from "@/lib/prazos";
 import { soDigitos } from "@/lib/cnj";
 import { faseCRM } from "@/lib/regras";
 import { useColunas } from "@/components/colunasCrm";
@@ -66,6 +66,17 @@ export default function Processos() {
           {per === "periodo" && <><input type="date" aria-label="Protocolados a partir de" value={deU} onChange={(e) => setDe(e.target.value)} /><input type="date" aria-label="Protocolados até" value={ateU} onChange={(e) => setAte(e.target.value)} /></>}
           <button className="btn" title="PDF com quantos processos foram protocolados, em quais cidades e varas e em que mês, com os filtros da tela" onClick={() => setRelat(true)}>Relatório de protocolos (PDF)</button></div></div>
       {erroHist && <div className="banner">{erroHist}</div>}
+      {per && prot && (faixa.de || faixa.ate) && (() => { // quantos foram protocolados no período, sem contar linha por linha
+        const fed = l.filter((p) => foroDe(p.numero, p.tribunal) !== "tjsc").length;
+        const reus = [...l.reduce((m, p) => m.set(bancoCurto(p.banco), (m.get(bancoCurto(p.banco)) || 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+        return <div className="prot-total" role="status">
+          <div className="prot-n"><b>{l.length}</b><span>{l.length === 1 ? "processo protocolado" : "processos protocolados"}<small>{rotPer.replace(/^Protocolados /, "").replace(/^./, (c) => c)}{per !== "periodo" && faixa.de ? ` · ${dataBR(faixa.de)} a ${dataBR(faixa.ate)}` : ""}</small></span></div>
+          {l.length > 0 && <div className="pub-res">
+            <span className="pub-chip"><b>{fed}</b>Justiça Federal</span><span className="pub-chip"><b>{l.length - fed}</b>Justiça Estadual</span>
+            {reus.slice(0, 6).map(([r, n]) => <button key={r} className={"pub-chip" + (banco === r ? " on" : "")} title={banco === r ? "Tirar o filtro de réu" : "Mostrar só os contra " + r} onClick={() => setBanco(banco === r ? "" : r)}><b>{n}</b>{r}</button>)}
+          </div>}
+        </div>;
+      })()}
       {relat && <RelatorioProtocolos onFechar={() => setRelat(false)} lista={l} prot={prot} titulo={per ? rotPer + (per !== "periodo" && faixa.de ? ` (${dataBR(faixa.de)} a ${dataBR(faixa.ate)})` : "") : "Todos os processos"}
         cidadeDe={cidadeDe} filtros={[banco ? "Réu: " + banco : "", fase ? "Fase: " + (fase === "none" ? "sem fase definida" : fase) : "", q ? "Busca: " + q : ""].filter(Boolean)} emitidoPor={eu.nome} />}
       {!processos.size ? <div className="panel"><div className="empty"><strong>Nenhum processo ainda.</strong>Importe os dados do painel antigo (Importar dados) ou aguarde a busca do DJEN.</div></div> :

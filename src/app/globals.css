@@ -1040,3 +1040,10 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .tj-fluxo-arqs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .anexo.mini{padding:3px 8px;font-size:12.5px;gap:6px}
 .anexo.mini .ext{font-size:10px;padding:1px 4px}
+/* aba Processos: total de protocolados no período escolhido */
+.prot-total{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--surface);border-radius:10px;padding:12px 16px;margin-bottom:12px}
+.prot-n{display:flex;align-items:center;gap:10px}
+.prot-n b{font-size:34px;line-height:1;font-weight:800;color:var(--accent)}
+.prot-n span{display:flex;flex-direction:column;font-weight:600}
+.prot-n small{font-weight:400;color:var(--muted);font-size:12.5px}
+.pub-chip.on{border-color:var(--accent);background:var(--accent-soft)}
