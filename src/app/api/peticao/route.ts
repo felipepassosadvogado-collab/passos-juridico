@@ -26,7 +26,8 @@ async function tratar(req: Request) {
   if (falta.length) return erro("Falta: " + falta.join(", ") + ".");
 
   const F = pi.genero === "F", a = F ? "a" : "o";
-  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral), causa = (numeroBR(pi.indebitoAtualizado) || dobro) + moral;
+  // pedido de danos materiais = indébito atualizado (dobro com correção e juros, do cálculo); sem cálculo, o dobro nominal
+  const tot = numeroBR(pi.total), dobro = tot * 2, moral = numeroBR(pi.moral), material = numeroBR(pi.indebitoAtualizado) || dobro, causa = material + moral;
   const anos = idade(cli.nascimento); const um = cs.length === 1;
   const fatos = um
     ? "ao contrato nº " + cs[0].numero + (cs[0].parcela ? ", no valor de parcela mensal de R$ " + moeda(cs[0].parcela) : "") + (cs[0].inclusao ? ", incluído em " + dataBR(cs[0].inclusao) : "")
@@ -41,7 +42,7 @@ async function tratar(req: Request) {
     BANCO_NOME: pi.banco.toUpperCase(), BANCO_QUALIF: bq.startsWith(",") ? bq : ", " + bq, BANCO_NOME_CURTO: pi.banco,
     ESPECIE: pi.especie, NB: pi.nb, CONTRATOS_FATOS: fatos, FIRMADO: (um ? ", firmado" : ", firmados") + ", em tese, com o banco réu.",
     DO_CONTRATO: um ? "do contrato nº" : "dos contratos nºs", AO_CONTRATO: um ? "ao contrato nº" : "aos contratos nºs", CONTRATOS_NUM: nums,
-    TOTAL: moeda(tot), TOTAL_EXT: porExtenso(tot), DOBRO: moeda(dobro), DOBRO_EXT: porExtenso(dobro), MORAL: moeda(moral), MORAL_EXT: porExtenso(moral),
+    TOTAL: moeda(tot), TOTAL_EXT: porExtenso(tot), DOBRO: moeda(material), DOBRO_EXT: porExtenso(material), MORAL: moeda(moral), MORAL_EXT: porExtenso(moral),
     CAUSA: moeda(causa), CAUSA_EXT: porExtenso(causa), BANCO_PAGADOR: pi.pagador || "[banco pagador]",
     DATA_EXTENSO: new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "numeric", month: "long", year: "numeric" }),
   };

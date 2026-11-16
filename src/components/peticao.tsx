@@ -166,11 +166,12 @@ export function JanelaInicial({ ctx, onFechar, onIntermediaria, onCumprimento }:
                 <tr><td><strong>Total</strong></td><td>{res.linhas.length}</td><td className="num"><strong>{moeda(res.tot.valor)}</strong></td><td className="num">{moeda(res.tot.base)}</td><td className="num">{moeda(res.tot.correcao)}</td><td className="num">{moeda(res.tot.juros)}</td><td className="num"><strong>R$ {moeda(res.tot.total)}</strong></td></tr></tbody></table>
             <div className="tools" style={{ marginTop: 8 }}>
               <span className="muted" style={{ fontSize: 12.5 }}>Atualizado até {mesBR(res.ultimoMes)}.{res.faltam.length ? " Índices ainda não divulgados (contados como zero): " + res.faltam.slice(0, 4).join(", ") + "." : ""}</span>
-              <label className="chk"><input type="checkbox" checked={calc.usarNaCausa} onChange={(e) => setCalc({ ...calc, usarNaCausa: e.target.checked })} /> Usar o valor atualizado no valor da causa</label>
+              <label className="chk"><input type="checkbox" checked={calc.usarNaCausa} onChange={(e) => setCalc({ ...calc, usarNaCausa: e.target.checked })} /> Usar o valor atualizado no pedido de danos materiais e no valor da causa</label>
             </div>
           </div>}
         </div></section>
-      <div className="valores"><span>Restituição em dobro: <strong>R$ {moeda(dobro)}</strong></span>{atualizado ? <span>Indébito atualizado: <strong>R$ {moeda(atualizado)}</strong></span> : null}<span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
+      <div className="valores"><span>Restituição em dobro (nominal): <strong>R$ {moeda(dobro)}</strong></span>{atualizado ? <span>Indébito atualizado: <strong>R$ {moeda(atualizado)}</strong></span> : null}<span>Pedido de danos materiais (g): <strong>R$ {moeda(atualizado || dobro)}</strong></span><span>Valor da causa: <strong>R$ {moeda(causa)}</strong></span><span className="muted">({porExtenso(causa)})</span></div>
+      {tot > 0 && !atualizado && <div className="banner erro" role="alert"><b>Sem o cálculo atualizado:</b> o pedido de danos materiais e o valor da causa vão sair só com o dobro nominal (R$ {moeda(dobro)}), sem correção e juros. Preencha o “Cálculo atualizado” acima{res ? " e marque “Usar o valor atualizado…”" : ""} antes de gerar.</div>}
       <PastaProtocolo clienteId={cli.id} nomeCliente={cli.nome} banco={pi.banco} atualizar={kitV} numero={ctx.numero} casoId={ctx.casoId} />
     </Janela>
   );
