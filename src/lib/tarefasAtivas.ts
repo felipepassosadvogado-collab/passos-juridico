@@ -34,3 +34,15 @@ export function tarefaDeOrigem<X extends TL>(t: TL, tarefas: X[]): X | null {
   const mesmaPub = cands.filter((x) => t.publicacao_id && x.publicacao_id === t.publicacao_id);
   return (mesmaPub.length ? mesmaPub : cands).sort((a, b) => (b.criado_em || "").localeCompare(a.criado_em || ""))[0] || null;
 }
+
+/**
+ * Peça aprovada → arquivos que vão para a tarefa de protocolo: só a ÚLTIMA leva de arquivos (a versão final),
+ * não as versões de rodadas anteriores. Leva = arquivos guardados juntos (até 10 min do mais recente).
+ * A pasta .zip da inicial vai sempre (a mais recente).
+ */
+export function versaoFinal<D extends { id: string; nome: string; em: string }>(docs: D[]): D[] {
+  const pecas = docs.filter((d) => !/\.zip$/i.test(d.nome)).sort((a, b) => b.em.localeCompare(a.em));
+  const zips = docs.filter((d) => /\.zip$/i.test(d.nome)).sort((a, b) => b.em.localeCompare(a.em));
+  const lim = pecas.length ? Date.parse(pecas[0].em) - 10 * 60000 : 0;
+  return [...pecas.filter((d) => Date.parse(d.em) >= lim), ...zips.slice(0, 1)];
+}

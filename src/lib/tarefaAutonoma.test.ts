@@ -56,3 +56,14 @@ describe("peça gerada fora da tarefa", () => {
     expect(tarefasParaLigar([orig], N, F, 77)).toEqual([]); // não é minha
   });
 });
+
+import { versaoFinal } from "./tarefasAtivas";
+describe("peça aprovada: só a versão final vai para o protocolo", () => {
+  it("pega a última leva e a pasta .zip mais recente", () => {
+    const d = (id: string, nome: string, em: string) => ({ id, nome, em });
+    const docs = [d("v1", "Peticao_Valor_Incontroverso.docx", "2026-11-12T10:00:00Z"), d("v2", "Peticao_Valor_Incontroverso_corrigida.docx", "2026-11-16T19:05:00Z"),
+      d("b", "Dados bancarios.docx", "2026-11-16T19:06:00Z"), d("z1", "Documentos.zip", "2026-11-10T10:00:00Z")];
+    expect(versaoFinal(docs).map((x) => x.id).sort()).toEqual(["b", "v2", "z1"]);
+    expect(versaoFinal([docs[0]]).map((x) => x.id)).toEqual(["v1"]);
+  });
+});

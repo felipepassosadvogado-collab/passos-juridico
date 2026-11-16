@@ -10,7 +10,7 @@ import { bancoCurto, dataBR, dataHoraBR, foneWhatsapp, iniciais, nomeBonito } fr
 import { hojeBR, isoData, paraData, proximoDiaUtil, situacaoPrazo } from "@/lib/prazos";
 import { PROTOCOLO_ACAO, STATUS_NOME, atoPub, destinoProtocolo, faseCRM } from "@/lib/regras";
 import type { Evento, Publicacao, Tarefa } from "@/lib/tipos";
-import { tarefaDeOrigem } from "@/lib/tarefasAtivas";
+import { tarefaDeOrigem, versaoFinal } from "@/lib/tarefasAtivas";
 import { FormEdicao, FormRevisao, ListaAnexos, useAcoesTarefa } from "./tarefas";
 import { CorpoEvento } from "./processo";
 import { useJanelas } from "./janelas";
@@ -34,6 +34,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   const t = tarefas.get(id);
   const [form, setForm] = useState<"" | "enviar" | "devolver" | "editar" | "protocolo" | "aprovar">(""); const [prot, setProt] = useState({ numero: "", obs: "" }); const [salvando, setSalvando] = useState(false);
   const [aba, setAba] = useState<"atividade" | "historico">("atividade");
+  const [vaiProt, setVaiProt] = useState<string[] | null>(null); // arquivos escolhidos para o protocolo (null = a versão final sugerida)
   const [protAte, setProtAte] = useState(() => isoData(proximoDiaUtil(paraData(hojeBR()))));
   const [evs, setEvs] = useState<Evento[]>([]); const [pub, setPub] = useState<Publicacao | null>(null); const [txt, setTxt] = useState("");
   useEffect(() => {
@@ -53,7 +54,11 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   const done = t.status === "feito"; const souResp = t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
   const dest = destinoProtocolo(t, eu.id); const podeEditar = titular || t.criado_por === eu.id; const s = situacaoPrazo(t.vencimento);
   const alterna = (x: typeof form) => setForm(form === x ? "" : x);
-  const aprovar = async () => { setSalvando(true); try { if (await acoes.aprovar(t, protAte)) setForm(""); } finally { setSalvando(false); } };
+  // arquivos que vão para a tarefa de protocolo: a versão final já vem marcada; as anteriores ficam desmarcadas
+  const docsPeca = [...anexos.values()].filter((a) => a.tarefa_id === t.id).sort((a, b) => b.em.localeCompare(a.em));
+  const finais = new Set(versaoFinal(docsPeca).map((d) => d.id));
+  const marcados = vaiProt ?? [...finais];
+  const aprovar = async () => { setSalvando(true); try { if (await acoes.aprovar(t, protAte, marcados)) { setForm(""); setVaiProt(null); } } finally { setSalvando(false); } };
   const ehProtocolo = t.tipo === "Protocolo da inicial" || t.tipo === "Protocolo da peça";
   const podeProtocolar = souResp && !t.protocolo_avisado_em && !["revisao", "ajustes"].includes(t.status);
   const registrarProtocolo = async () => {
@@ -127,6 +132,9 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
               </ol>
               <div className="tools"><button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "✓ Aprovar"}</button><button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button></div>
             </div>}
+            {ehProtocolo && t.status !== "feito" && docsPeca.filter((d) => !/\.zip$/i.test(d.nome)).length > 1 && <div className="banner erro" role="alert">
+              <b>Atenção: esta tarefa tem {docsPeca.filter((d) => !/\.zip$/i.test(d.nome)).length} arquivos anexados.</b> Antes de protocolar, confira qual é a <b>versão final aprovada</b>; pode haver versão anterior junto.
+              {t.origem_id && tarefas.get(t.origem_id) && <> <button className="reflink" onClick={() => j.abrirTarefa(t.origem_id!)}>Ver as rodadas de correção</button></>}</div>}
             {t.caso_id ? <JornadaAtendimento t={t} eu={eu.id} /> : <FluxoCorrecao t={t} evs={evs} nome={nome} eu={eu.id} />}
             {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{(() => { const ult = [...evs].reverse().find((e) => e.tipo === (t.status === "revisao" ? "correcao_enviada" : "correcao_devolvida")); const quem = ult ? ` por ${ult.por === eu.id ? "você" : nome(ult.por).split(" ")[0]} em ${dataHoraBR(ult.em)}` : ""; return t.status === "revisao" ? `Recado de quem enviou${quem}:` : `Ajustes pedidos${quem}. O que fazer agora:`; })()}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
@@ -136,7 +144,13 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             {form === "aprovar" && <div className="triage edit-t">
               <div className="wide" style={{ fontWeight: 600 }}>Aprovar {ehProtocolo ? "" : "e criar a tarefa de protocolo"}</div>
               {!ehProtocolo && <label className="f">Protocolar até<input type="date" value={protAte} min={hojeBR()} onChange={(e) => setProtAte(e.target.value)} /></label>}
-              <div className="muted wide" style={{ fontSize: 12.5 }}>{ehProtocolo ? "" : `Cria a tarefa “${t.tipo === "Elaboração de inicial" && !t.processo_numero ? "Protocolo da inicial" : "Protocolar"}” para ${nome(t.responsavel).split(" ")[0]}, com a peça ${[...anexos.values()].some((a) => a.tarefa_id === t.id && a.etapa === "devolucao") ? "corrigida" : "enviada"} anexada, vencendo no dia escolhido.`}{t.vencimento ? ` Prazo fatal da peça: ${dataBR(t.vencimento)}.` : ""}{t.vencimento && protAte > t.vencimento ? " Atenção: a data escolhida passa do prazo fatal." : ""}</div>
+              <div className="muted wide" style={{ fontSize: 12.5 }}>{ehProtocolo ? "" : `Cria a tarefa “${t.tipo === "Elaboração de inicial" && !t.processo_numero ? "Protocolo da inicial" : "Protocolar"}” para ${nome(t.responsavel).split(" ")[0]}, com a versão final da peça anexada (confira abaixo), vencendo no dia escolhido.`}{t.vencimento ? ` Prazo fatal da peça: ${dataBR(t.vencimento)}.` : ""}{t.vencimento && protAte > t.vencimento ? " Atenção: a data escolhida passa do prazo fatal." : ""}</div>
+              {!ehProtocolo && docsPeca.length > 0 && <div className="wide tj-vai">
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Vai para a tarefa de protocolo <span className="muted" style={{ fontWeight: 400 }}>· só o que estiver marcado</span></div>
+                {docsPeca.map((d) => <label key={d.id} className={"chk" + (finais.has(d.id) ? "" : " antiga")}><input type="checkbox" checked={marcados.includes(d.id)} onChange={(e) => setVaiProt(e.target.checked ? [...marcados, d.id] : marcados.filter((x) => x !== d.id))} />
+                  <span className="an">{d.nome}</span> <span className="muted s">· {nome(d.por).split(" ")[0]} · {dataHoraBR(d.em)}</span> {finais.has(d.id) ? <span className="pill ok">versão final</span> : <span className="pill soon">versão anterior</span>}</label>)}
+                {!marcados.length && <div className="s late">Nenhum arquivo marcado: a tarefa de protocolo vai sem a peça.</div>}
+              </div>}
               <div className="wide tools"><button className="btn primary" disabled={salvando} onClick={aprovar}>{salvando ? "Aprovando…" : "✓ Confirmar aprovação"}</button></div>
             </div>}
             {form === "editar" && <FormEdicao t={t} onFim={() => setForm("")} />}

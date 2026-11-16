@@ -1047,3 +1047,6 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .prot-n span{display:flex;flex-direction:column;font-weight:600}
 .prot-n small{font-weight:400;color:var(--muted);font-size:12.5px}
 .pub-chip.on{border-color:var(--accent);background:var(--accent-soft)}
+.tj-vai{display:grid;gap:4px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.tj-vai .chk{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tj-vai .chk.antiga .an{opacity:.7}

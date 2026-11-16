@@ -1,4 +1,5 @@
 "use client";
+import { versaoFinal } from "@/lib/tarefasAtivas";
 // Tarefas: criação, lista enxuta, tabela de atividades e o detalhe com todo o fluxo
 // (iniciar, enviar para correção com anexos, aprovar, devolver, protocolar, concluir).
 // Quem pode o quê é conferido pelo banco; aqui os botões só aparecem para quem pode.
@@ -38,7 +39,7 @@ export function CirculoStatus({ t }: { t: Tarefa }) {
 
 /** ações das tarefas, todas gravando no banco e atualizando a tela na hora */
 export function useAcoesTarefa() {
-  const { sb, eu, aplicar, remover, aviso, nome, tarefas, anexos } = useDados(); const protAte = useRef<string | undefined>(undefined);
+  const { sb, eu, aplicar, remover, aviso, nome, tarefas, anexos } = useDados(); const protAte = useRef<string | undefined>(undefined); const protArq = useRef<string[] | undefined>(undefined);
   /** peça aprovada: cria a tarefa de protocolo para quem fez a peça, com a versão final anexada e o vencimento escolhido na aprovação */
   const criarProtocolo = async (t: Tarefa, ate?: string) => {
     if (!t.responsavel || t.tipo === "Protocolo da inicial" || t.tipo === "Protocolo da peça") return "";
@@ -53,8 +54,9 @@ export function useAcoesTarefa() {
     if (r.error || !n) return " Não consegui criar a tarefa de protocolo: " + msgErro(r.error);
     aplicar("tarefas", n);
     // vai a versão corrigida (se houver); senão, o que foi enviado para correção (e a pasta .zip da inicial)
-    let copiados = 0; const docs = [...anexos.values()].filter((a) => a.tarefa_id === t.id); const dev = docs.filter((a) => a.etapa === "devolucao");
-    for (const a of (dev.length ? [...dev, ...docs.filter((x) => x.etapa !== "devolucao" && /\.zip$/i.test(x.nome))] : docs)) {
+    // só a versão final (escolhida na aprovação; senão, a última leva de arquivos): versões antigas não vão, para ninguém protocolar a errada
+    let copiados = 0; const docs = [...anexos.values()].filter((a) => a.tarefa_id === t.id); const escolha = protArq.current; protArq.current = undefined;
+    for (const a of (escolha ? docs.filter((d) => escolha.includes(d.id)) : versaoFinal(docs))) {
       const caminho = `tarefas/${n.id}/${Date.now().toString(36)}-${a.caminho.split("/").pop()}`;
       const cp = await sb.storage.from("documentos").copy(a.caminho, caminho); if (cp.error) continue;
       const rd = await sb.from("documentos").insert({ tarefa_id: n.id, etapa: "envio", nome: a.nome, caminho, tamanho: a.tamanho, mime: a.mime }).select().single();
@@ -102,7 +104,7 @@ export function useAcoesTarefa() {
     flag: (t: Tarefa, campo: "importante" | "urgente") => gravar(t, { [campo]: !t[campo] }),
     editar: (t: Tarefa, campos: Partial<Tarefa>) => gravar(t, campos, "Tarefa atualizada."),
     /** aprova; "ate" é o vencimento da tarefa de protocolo que nasce da aprovação */
-    aprovar: (t: Tarefa, ate?: string) => { protAte.current = ate; return gravar(t, { status: "aprovada" }, "Aprovada."); },
+    aprovar: (t: Tarefa, ate?: string, arquivos?: string[]) => { protAte.current = ate; protArq.current = arquivos; return gravar(t, { status: "aprovada" }, "Aprovada."); },
     /** registra o protocolo (nº e observação); data e hora são carimbadas pelo servidor no clique */
     protocolo: (t: Tarefa, concluir: boolean, numero = "", obs = "") => {
       const dest = destinoProtocolo(t, eu.id);
