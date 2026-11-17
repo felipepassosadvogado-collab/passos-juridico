@@ -1050,3 +1050,23 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .tj-vai{display:grid;gap:4px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
 .tj-vai .chk{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .tj-vai .chk.antiga .an{opacity:.7}
+/* prestação de contas */
+.pc-linha{display:grid;grid-template-columns:1fr 130px auto auto;gap:6px;align-items:center;margin-top:6px}
+.pc-grade{display:grid;grid-template-columns:200px 1fr 150px;gap:8px}
+.pc-res{display:grid;grid-template-columns:1fr auto;gap:4px 18px;max-width:560px}
+.pc-res>div{display:contents}
+.pc-res .t span,.pc-res .t b{font-weight:700;border-top:1px solid var(--line);padding-top:4px}
+.pc-res .fim span,.pc-res .fim b{font-size:16px;color:var(--ok)}
+.pc-res .fim.late span,.pc-res .fim.late b{color:var(--late)}
+.pc-res b{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.pc-grade{grid-template-columns:1fr}.pc-linha{grid-template-columns:1fr 100px auto}}
+/* Financeiro */
+.fin-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.fin-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface);display:flex;flex-direction:column;gap:4px;border-top:3px solid var(--line)}
+.fin-card span{color:var(--muted);font-size:13px}.fin-card b{font-size:22px;font-variant-numeric:tabular-nums}.fin-card small{color:var(--muted);font-size:12px;min-height:14px}
+.fin-card.ok{border-top-color:var(--ok)}.fin-card.ok b{color:var(--ok)}.fin-card.soon{border-top-color:var(--soon)}.fin-card.late{border-top-color:var(--late)}.fin-card.late b{color:var(--late)}.fin-card.acc{border-top-color:var(--accent)}
+.fin-cat{display:grid;gap:6px}.fin-cat>div{display:grid;grid-template-columns:240px 1fr 130px;gap:10px;align-items:center;font-size:13.5px}
+.fin-cat .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}.fin-cat .bar i{display:block;height:100%}.fin-cat .bar i.rec{background:var(--ok)}.fin-cat .bar i.desp{background:var(--late)}
+.fin-cat b{text-align:right;font-variant-numeric:tabular-nums}
+td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
+@media (max-width:800px){.fin-cards{grid-template-columns:1fr 1fr}.fin-cat>div{grid-template-columns:1fr 100px}.fin-cat .bar{display:none}}

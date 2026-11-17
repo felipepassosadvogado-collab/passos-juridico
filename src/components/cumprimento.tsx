@@ -25,7 +25,7 @@ type Lido = { enderecamento: string; jef: boolean; executado: string; inss: "sub
 const mesOk = (s: unknown) => (typeof s === "string" && /^\d{4}-\d\d/.test(s) ? s.slice(0, 7) : "");
 const n2 = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : typeof v === "string" ? numeroBR(v) : 0);
 
-export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }: { ctx: CtxCumprimento; onFechar: () => void; onInicial?: () => void; onIntermediaria?: (n: string) => void }) {
+export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria, onPrestacao }: { ctx: CtxCumprimento; onFechar: () => void; onInicial?: () => void; onIntermediaria?: (n: string) => void; onPrestacao?: (n: string) => void }) {
   const { processos, clientes, tarefas, sb, eu, aviso, equipe, nome, aplicar, registrar } = useDados(); const acoes = useAcoesTarefa(); const visor = useVisor();
   const p = processos.get(ctx.numero); const cli = p?.cliente_id ? clientes.get(p.cliente_id) : undefined;
   const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
@@ -173,7 +173,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria }:
   return (
     <Janela largo onFechar={onFechar} titulo="Cumprimento de sentença" sub={nomeBonito(p.cliente_nome || "") + " · " + p.mascara}
       acoes={<><button className="btn" disabled={!!gerando || calculando} onClick={gerarPdf}>{gerando === "pdf" ? "Gerando…" : "Gerar cálculo (PDF)"}</button><button className="btn primary" disabled={!!gerando || calculando} onClick={gerarDocx}>{gerando === "docx" ? "Gerando…" : "Gerar petição (Word)"}</button></>}>
-      {(onInicial || onIntermediaria) && <AbasPeticao modo="cumprimento" clienteId={p.cliente_id} numero={ctx.numero} onInicial={onInicial} onIntermediaria={onIntermediaria} />}
+      {(onInicial || onIntermediaria) && <AbasPeticao modo="cumprimento" clienteId={p.cliente_id} numero={ctx.numero} onInicial={onInicial} onIntermediaria={onIntermediaria} onPrestacao={onPrestacao} />}
       <div className="muted" style={{ fontSize: 13 }}>Exequente: <b>{nomeBonito(cli?.nome || p.cliente_nome)}</b>{cli?.cpf ? " · CPF " + cli.cpf : ""} · Executado: <b>{lido.executado || "—"}</b>{lido.inss !== "nenhuma" ? " e INSS" + (lido.inss === "subsidiaria" ? " (subsidiário)" : "") : ""} · Juízo: {p.orgao || "—"}</div>
 
       <section className="novo-cli">

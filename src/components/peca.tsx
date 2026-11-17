@@ -21,7 +21,7 @@ const MAX_PAGINAS = 40; const MAX_ESCANEADAS = 10; // modo econômico das petiç
 
 export type CtxPeca = { numero: string; publicacaoId?: number | null; tarefaId?: string | null; tipo?: string | null; orientacoes?: string };
 
-export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: CtxPeca; onFechar: () => void; onInicial?: () => void; onCumprimento?: (numero: string) => void }) {
+export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento, onPrestacao }: { ctx: CtxPeca; onFechar: () => void; onInicial?: () => void; onCumprimento?: (numero: string) => void; onPrestacao?: (numero: string) => void }) {
   const { processos, caixa, tarefas, sb, eu, aviso, equipe, nome, aplicar } = useDados(); const acoes = useAcoesTarefa(); const visor = useVisor();
   const p = processos.get(ctx.numero); const pub = ctx.publicacaoId ? caixa.get(ctx.publicacaoId) : undefined;
   const tarefa = ctx.tarefaId ? tarefas.get(ctx.tarefaId) : undefined;
@@ -110,7 +110,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
   return (
     <Janela largo onFechar={onFechar} titulo="Petição intermediária" sub={nomeBonito(p?.cliente_nome || "") + (p ? " · " + p.mascara : "")}
       acoes={<button className="btn primary" disabled={gerando} onClick={gerar}>{gerando ? <>O Claude está redigindo… <Cronometro /></> : "Gerar Word (.docx)"}</button>}>
-      {onInicial && <AbasPeticao modo="intermediaria" clienteId={p?.cliente_id} numero={ctx.numero} onInicial={onInicial} onCumprimento={onCumprimento} />}
+      {onInicial && <AbasPeticao modo="intermediaria" clienteId={p?.cliente_id} numero={ctx.numero} onInicial={onInicial} onCumprimento={onCumprimento} onPrestacao={onPrestacao} />}
       {p && <div className="muted" style={{ fontSize: 13 }}>Dados do processo que vão para a peça: <b>Autor(a):</b> {nomeBonito(p.cliente_nome || "—")} · <b>Réus:</b> {(p.reus || []).join("; ") || "—"} · <b>Juízo:</b> {p.orgao || "—"} · <b>Processo:</b> {p.mascara}</div>}
       <div className="muted" style={{ fontSize: 13.5, maxWidth: "70ch" }}>O Claude redige a minuta a partir {pub ? "da publicação " + rotuloPub(pub) + ", " : ""}das publicações do processo e dos documentos que você anexar, no papel timbrado do escritório. O que ele não souber fica entre [colchetes] para você completar. Leva de 1 a 2 minutos.
         {" "}Já vão junto, sem precisar repetir: {ctx.tarefaId ? "a descrição da tarefa e o recado de quem a enviou, " : ""}a análise do Claude, as anotações fixas e as anotações da equipe na linha do tempo.</div>
@@ -167,15 +167,16 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento }: { ctx: C
 }
 
 /** alternância no topo da janela de petição: inicial (modelo do escritório) ou intermediária (o Claude redige no processo) */
-export function AbasPeticao({ modo, clienteId, numero, onInicial, onIntermediaria, onCumprimento }: {
-  modo: "inicial" | "intermediaria" | "cumprimento"; clienteId: string | null | undefined; numero?: string | null;
-  onInicial?: () => void; onIntermediaria?: (numero: string) => void; onCumprimento?: (numero: string) => void;
+export function AbasPeticao({ modo, clienteId, numero, onInicial, onIntermediaria, onCumprimento, onPrestacao }: {
+  modo: "inicial" | "intermediaria" | "cumprimento" | "prestacao"; clienteId: string | null | undefined; numero?: string | null;
+  onInicial?: () => void; onIntermediaria?: (numero: string) => void; onCumprimento?: (numero: string) => void; onPrestacao?: (numero: string) => void;
 }) {
   const { processos, aviso } = useDados(); const [escolher, setEscolher] = useState(false);
   const doCliente = [...processos.values()].filter((p) => clienteId && p.cliente_id === clienteId);
-  const [destino, setDestino] = useState<"intermediaria" | "cumprimento">("intermediaria");
-  const ir = (alvo: "intermediaria" | "cumprimento") => {
-    const f = alvo === "intermediaria" ? onIntermediaria : onCumprimento;
+  const [destino, setDestino] = useState<"intermediaria" | "cumprimento" | "prestacao">("intermediaria");
+  const fDe = (alvo: "intermediaria" | "cumprimento" | "prestacao") => (alvo === "intermediaria" ? onIntermediaria : alvo === "cumprimento" ? onCumprimento : onPrestacao);
+  const ir = (alvo: "intermediaria" | "cumprimento" | "prestacao") => {
+    const f = fDe(alvo);
     if (modo === alvo || !f) return;
     if (numero && processos.get(numero)) { f(numero); return; }
     if (doCliente.length === 1) { f(doCliente[0].numero); return; }
@@ -188,10 +189,11 @@ export function AbasPeticao({ modo, clienteId, numero, onInicial, onIntermediari
         <button role="tab" aria-selected={modo === "inicial"} onClick={() => modo !== "inicial" && onInicial?.()}>Petição inicial</button>
         <button role="tab" aria-selected={modo === "intermediaria"} onClick={() => ir("intermediaria")}>Petição intermediária</button>
         <button role="tab" aria-selected={modo === "cumprimento"} onClick={() => ir("cumprimento")}>Cumprimento de sentença</button>
+        {(onPrestacao || modo === "prestacao") && <button role="tab" aria-selected={modo === "prestacao"} onClick={() => ir("prestacao")}>Prestação de contas</button>}
       </div>
       {escolher && <div className="banner" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span>Em qual processo?</span>
-        <div className="tools">{doCliente.map((p) => <button key={p.numero} className="btn" onClick={() => (destino === "cumprimento" ? onCumprimento : onIntermediaria)?.(p.numero)}>{p.mascara}{p.banco ? " · x " + p.banco.split(/\s/)[0] : ""}</button>)}</div>
+        <div className="tools">{doCliente.map((p) => <button key={p.numero} className="btn" onClick={() => fDe(destino)?.(p.numero)}>{p.mascara}{p.banco ? " · x " + p.banco.split(/\s/)[0] : ""}</button>)}</div>
       </div>}
     </div>
   );

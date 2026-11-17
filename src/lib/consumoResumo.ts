@@ -13,6 +13,7 @@ export function nomeFuncao(op: string): string {
   if (op.startsWith("peticao.peca")) return "Petições intermediárias";
   if (op.startsWith("peticao.inicial") || op === "peticao") return "Petição inicial";
   if (op.startsWith("cumprimento")) return "Cumprimento de sentença";
+  if (op.startsWith("prestacao")) return "Prestação de contas";
   if (op.startsWith("whatsapp.agente")) return "Assistente do WhatsApp";
   if (op.startsWith("djen") || op === "claude.analisar") return "Análise das publicações";
   if (op === "claude.ler") return "Leitura de documentos e extratos";
