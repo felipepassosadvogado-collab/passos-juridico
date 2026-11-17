@@ -11,6 +11,8 @@ import { calcularPrestacao, lancamentosDaPrestacao } from "@/lib/prestacao";
 import { hojeBR } from "@/lib/prazos";
 import { Janela, baixar } from "./ui";
 import { AbasPeticao } from "./peca";
+import { useJanelas } from "./janelas";
+import { PRESTACAO_CONTAS } from "@/lib/regras";
 import { Cronometro } from "./carregando";
 
 export type CtxPrestacao = { numero: string; tarefaId?: string | null };
@@ -28,6 +30,7 @@ export function JanelaPrestacao({ ctx, onFechar, onInicial, onIntermediaria, onC
   const [emp, setEmp] = useState({ valor: "", descricao: "" }); const [pct, setPct] = useState("30");
   const [despesas, setDespesas] = useState<Linha[]>([]); const [resumo, setResumo] = useState(""); const [alertas, setAlertas] = useState<string[]>([]);
   const [gerando, setGerando] = useState(false); const [lido, setLido] = useState(false);
+  const [gerado, setGerado] = useState<{ caminho: string; nome: string; tamanho: number } | null>(null); const [avisando, setAvisando] = useState(false); const j = useJanelas();
   if (!p) return <Janela onFechar={onFechar} titulo="Prestação de contas"><div className="empty">Processo não encontrado.</div></Janela>;
   const nomeCli = nomeBonito(cli?.nome || p.cliente_nome || "");
   const dados = { creditos: creditos.filter((c) => n2(c.valor) > 0).map((c) => ({ descricao: c.descricao || "Crédito no processo", valor: n2(c.valor), data: c.data || null, sucumbencia: !!c.sucumbencia })),
@@ -83,6 +86,7 @@ export function JanelaPrestacao({ ctx, onFechar, onInicial, onIntermediaria, onC
         if (up.error) caminho = "";
         else { const rd = await sb.from("documentos").insert({ cliente_id: cli.id, tipo: "Prestação de contas", nome: nomeArq, caminho, tamanho: blob.size, mime: "application/pdf" }).select().single(); if (rd.data) aplicar("anexos", rd.data); }
       }
+      if (caminho) setGerado({ caminho, nome: nomeArq, tamanho: blob.size });
       registrar({ processo_numero: p.numero, tipo: "comentario", dados: { texto: `Prestação de contas gerada: recebido ${brl(r.liquidoCliente)}, honorários contratuais ${brl(r.honorarios)} (${pct}% sobre ${brl(r.base)}), ${r.aDevolver ? "cliente deve " + brl(r.aDevolver) : "repasse ao cliente " + brl(r.repasse)}.` } });
       // lança no Financeiro (só o titular; se já houver lançamento desta prestação, pergunta antes)
       if (!titular) { aviso("Prestação gerada e guardada na pasta do cliente. O lançamento no Financeiro é feito pelo titular."); return; }
@@ -98,6 +102,28 @@ export function JanelaPrestacao({ ctx, onFechar, onInicial, onIntermediaria, onC
     finally { setGerando(false); }
   };
 
+  /** cria o aviso ao cliente já como "Prestação de contas", com o PDF guardado e o valor na mensagem, e abre para enviar */
+  const avisar = async () => {
+    if (!gerado) return; setAvisando(true);
+    try {
+      const orient = r.aDevolver ? "" : `Valor a repassar para você: ${brl(r.repasse)}. É o que foi recebido no processo (${brl(r.liquidoCliente)}), menos os honorários contratuais de ${pct}%${r.despesas ? " e as despesas" : ""}, como mostra a prestação de contas.`;
+      const msg = r.aDevolver ? [`Olá, ${nomeCli.split(" ")[0]}! Aqui é do escritório Passos Advocacia.`,
+        `Os valores do seu processo contra o ${nomeBonito(banco).split(" ").slice(0, 2).join(" ")} foram liberados. Estou enviando em anexo a prestação de contas, com tudo o que foi recebido e cada desconto explicado.`,
+        `Como os honorários combinados incidem também sobre o valor do empréstimo que ficou com você, ficou um saldo de ${brl(r.aDevolver)} a pagar ao escritório. Podemos combinar a melhor forma de pagamento.`,
+        "Se quiser conversar sobre a prestação de contas, você pode marcar um horário aqui no escritório para falar diretamente com o Dr. Felipe. É só responder com o melhor dia e horário.",
+        "Por favor, responda confirmando que recebeu."].join("\n\n") : null;
+      const anexos = [{ caminho: gerado.caminho, nome: gerado.nome, mime: "application/pdf", tamanho: gerado.tamanho }];
+      const base = { processo_numero: p.numero, tipo_evento: PRESTACAO_CONTAS, orientacoes: orient || null, mensagem: msg, status: "pendente" };
+      let ins = await sb.from("avisos_cliente").insert({ ...base, anexos }).select().single();
+      if (ins.error && /anexos/.test(ins.error.message)) { // etapa 0029 ainda não rodou: guarda o anexo neste navegador
+        ins = await sb.from("avisos_cliente").insert(base).select().single();
+        if (ins.data) try { localStorage.setItem("aviso.anexos." + ins.data.id, JSON.stringify(anexos)); } catch { /* sem armazenamento */ }
+      }
+      if (ins.error || !ins.data) { aviso("Não consegui criar o aviso: " + msgErro(ins.error)); return; }
+      aplicar("avisos", ins.data); j.abrirAviso(ins.data.id);
+    } finally { setAvisando(false); }
+  };
+
   const linhaEd = (l: Linha[], set: (x: Linha[]) => void, i: number, comSuc: boolean) => (
     <div key={i} className="pc-linha">
       <input aria-label="Descrição" placeholder={comSuc ? "Ex.: Alvará — depósito do banco (evento 98)" : "Ex.: Honorários periciais"} value={l[i].descricao} onChange={(e) => set(l.map((x, k) => k === i ? { ...x, descricao: e.target.value } : x))} />
@@ -108,7 +134,9 @@ export function JanelaPrestacao({ ctx, onFechar, onInicial, onIntermediaria, onC
 
   return (
     <Janela largo onFechar={onFechar} titulo="Prestação de contas" sub={`${nomeCli} · ${p.mascara} · x ${nomeBonito(banco)}`}
-      acoes={<button className="btn primary" disabled={gerando || !dados.creditos.length} onClick={gerar}>{gerando ? "Gerando…" : "Gerar prestação de contas (PDF)"}</button>}>
+      acoes={<>
+        {gerado && <button className="btn primary" disabled={avisando} title="Cria o aviso ao cliente como Prestação de contas, com o PDF anexado e a mensagem pedindo PIX ou dados bancários" onClick={avisar}>{avisando ? "Abrindo o aviso…" : "Enviar ao cliente pelo WhatsApp"}</button>}
+        <button className={"btn" + (gerado ? "" : " primary")} disabled={gerando || !dados.creditos.length} onClick={gerar}>{gerando ? "Gerando…" : gerado ? "Gerar de novo" : "Gerar prestação de contas (PDF)"}</button></>}>
       {(onInicial || onIntermediaria || onCumprimento) && <AbasPeticao modo="prestacao" clienteId={p.cliente_id} numero={ctx.numero} onInicial={onInicial} onIntermediaria={onIntermediaria} onCumprimento={onCumprimento} />}
       <section className="panel"><div className="ph"><h3>1. Ler os valores pagos</h3><span className="muted" style={{ fontSize: 12.5 }}>alvarás, RPV, depósitos, empréstimo creditado ou compensado (opcional: dá para preencher à mão)</span></div>
         <div className="pb" style={{ display: "grid", gap: 8 }}>

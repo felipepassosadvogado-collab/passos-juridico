@@ -37,6 +37,8 @@ export type Aviso = {
   local: string | null; orientacoes: string | null; mensagem: string | null; status: "pendente" | "avisado" | "dispensado"; canal: string | null;
   aberto_em: string | null; avisado_em: string | null; avisado_por: string | null; criado_por: string | null; criado_em: string;
   modalidade?: Modalidade | null; link?: string | null; realizado_em?: string | null; realizado_por?: string | null;
+  /** arquivos guardados para irem junto da mensagem (ex.: PDF da prestação de contas) */
+  anexos?: { caminho: string; nome: string; mime: string; tamanho?: number }[] | null;
   confirmado_em?: string | null; confirmado_por?: string | null; dificuldade?: string | null; dificuldade_em?: string | null;
 };
 export type Notificacao = {

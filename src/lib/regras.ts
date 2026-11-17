@@ -33,6 +33,9 @@ export const BANCOS = ["Banco C6 Consignado S.A.", "Itaú Unibanco S.A.", "Banco
   "Banco Santander S.A.", "Banco Mercantil do Brasil S.A.", "Facta Financeira S.A.", "Crefisa S.A."];
 export const PROTOCOLO_ACAO = "Protocolo da ação";
 export const TIPOS_EV = ["Perícia", "Coleta de padrão grafotécnico", "Audiência", "Comparecimento", PROTOCOLO_ACAO, "Outro"];
+export const PRESTACAO_CONTAS = "Prestação de contas";
+/** o que dá para escolher no aviso ao cliente (a prestação de contas não vem de publicação: é do escritório) */
+export const TIPOS_AVISO = [...TIPOS_EV.slice(0, -1), PRESTACAO_CONTAS, "Outro"];
 /** atos que entram na caixa "Audiências e coletas" de Meus expedientes */
 export const ATOS_AGENDA = ["Audiência", "Coleta de padrão grafotécnico"];
 export const MODALIDADES: Record<Modalidade, { nome: string; curto: string }> = {
@@ -102,6 +105,15 @@ export function dataExtenso(iso?: string | null) {
 /** mensagem padrão do WhatsApp para avisar o cliente */
 export function mensagemPadrao(av: Pick<Aviso, "tipo_evento" | "data_evento" | "hora" | "local" | "orientacoes" | "modalidade" | "link">, nomeCliente: string, banco?: string | null, dproc?: { mascara?: string | null; orgao?: string | null }) {
   const nome = primeiroNome(nomeCliente); const b = bancoCurto(banco || "");
+  if (av.tipo_evento === PRESTACAO_CONTAS) {
+    const contra = b && b !== "—" ? ` contra o ${b}` : "";
+    return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`,
+      `Boa notícia: os valores do seu processo${contra} foram liberados. Estou enviando em anexo a prestação de contas, com tudo o que foi recebido e cada desconto explicado.`,
+      av.orientacoes || "",
+      "Para fazermos o depósito, por favor nos envie a sua chave PIX ou, se preferir, os dados bancários: banco, agência, conta e CPF do titular da conta.",
+      "Se quiser conversar sobre a prestação de contas, você pode marcar um horário aqui no escritório para falar diretamente com o Dr. Felipe. É só responder com o melhor dia e horário.",
+      "Por favor, responda confirmando que recebeu."].filter(Boolean).join("\n\n");
+  }
   if (av.tipo_evento === PROTOCOLO_ACAO) {
     const contra = b && b !== "—" ? ` contra o ${b} e o INSS` : "";
     return [`Olá, ${nome || "tudo bem"}! Aqui é do escritório Passos Advocacia.`,

@@ -7,7 +7,7 @@ import { enviarWhatsapp } from "./whatsapp";
 import { useEffect, useRef, useState } from "react";
 import { useDados, msgErro } from "@/lib/dados";
 import { dataBR, dataHoraBR, foneWhatsapp, nomeBonito } from "@/lib/formato";
-import { MODALIDADES, PROTOCOLO_ACAO, TIPOS_EV, ehAgenda, mensagemPadrao } from "@/lib/regras";
+import { MODALIDADES, PROTOCOLO_ACAO, TIPOS_AVISO, ehAgenda, mensagemPadrao } from "@/lib/regras";
 import { diferencaDias, hojeBR, isoData, paraData, proximoDiaUtil, somaDias } from "@/lib/prazos";
 import type { Modalidade } from "@/lib/tipos";
 import type { Aviso } from "@/lib/tipos";
@@ -51,17 +51,32 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
   const [instrucoes, setInstrucoesEstado] = useState(() => { try { return localStorage.getItem(chaveInstr) || ""; } catch { return ""; } });
   const setInstrucoes = (v: string) => { setInstrucoesEstado(v); try { if (v) localStorage.setItem(chaveInstr, v); else localStorage.removeItem(chaveInstr); } catch { /* sem armazenamento */ } };
   const [anexos, setAnexos] = useState<File[]>([]); const entradaArq = useRef<HTMLInputElement>(null);
+  // arquivos já guardados no aviso (ex.: o PDF da prestação de contas): vão junto, sem precisar anexar de novo
+  const chaveGuard = "aviso.anexos." + av.id;
+  const guardados: NonNullable<typeof av.anexos> = av.anexos?.length ? av.anexos : (() => { try { return JSON.parse(localStorage.getItem(chaveGuard) || "[]"); } catch { return []; } })();
+  const tirarGuardado = async (caminho: string) => {
+    const resto = guardados.filter((g) => g.caminho !== caminho);
+    const { error } = await sb.from("avisos_cliente").update({ anexos: resto }).eq("id", av.id);
+    if (error) { try { localStorage.setItem(chaveGuard, JSON.stringify(resto)); } catch { /* sem armazenamento */ } }
+    aplicar("avisos", { ...av, anexos: resto });
+  };
   const juntarArquivos = (l: File[]) => {
     const grandes = l.filter((f) => f.size > 15 * 1024 * 1024); if (grandes.length) aviso(`Maior que 15 MB, não dá para mandar pelo WhatsApp: ${grandes.map((f) => f.name).join(", ")}.`);
     setAnexos((x) => [...x, ...l.filter((f) => f.size <= 15 * 1024 * 1024 && !x.some((y) => y.name === f.name && y.size === f.size))].slice(0, 5));
   };
   /** manda a mensagem e, em seguida, cada anexo (o WhatsApp entrega o arquivo como documento ou imagem) */
   const enviarComAnexos = async (destino: { telefone: string; clienteId?: string; avulso?: boolean; nome?: string }): Promise<string> => {
-    setEtapaEnvio(anexos.length ? "Enviando a mensagem…" : "");
+    const total = guardados.length + anexos.length;
+    setEtapaEnvio(total ? "Enviando a mensagem…" : "");
     const r0 = await enviarWhatsapp({ ...destino, texto, origem: "aviso" }); // se a mensagem falhar, o erro sobe e nada é marcado
     const enviados: string[] = []; const falhas: string[] = [];
+    for (const [k, g] of guardados.entries()) {
+      setEtapaEnvio(`Enviando anexo ${k + 1} de ${total}…`);
+      try { await enviarWhatsapp({ conversaId: r0.conversaId, anexo: { caminho: g.caminho, nome: g.nome, mime: g.mime || "application/pdf" }, origem: "aviso" }); enviados.push(g.nome); }
+      catch { falhas.push(g.nome); }
+    }
     for (const [k, f] of anexos.entries()) {
-      setEtapaEnvio(`Enviando anexo ${k + 1} de ${anexos.length}…`);
+      setEtapaEnvio(`Enviando anexo ${guardados.length + k + 1} de ${total}…`);
       const caminho = `avisos/${av.id}/${Date.now()}-${f.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.\-]+/g, "_").slice(-80)}`;
       const up = await sb.storage.from("documentos").upload(caminho, f, { contentType: f.type || undefined });
       if (up.error) { falhas.push(f.name); continue; }
@@ -121,7 +136,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
     <div className={"aviso-cli" + (feito ? " ok" : "")}>
       {topo}
       <div className="triage">
-        <label className="f">O que foi marcado<select value={av.tipo_evento || ""} onChange={(e) => salvar({ tipo_evento: e.target.value || null })}><option value="">— escolher —</option>{TIPOS_EV.map((t) => <option key={t}>{t}</option>)}</select></label>
+        <label className="f">O que foi marcado<select value={av.tipo_evento || ""} onChange={(e) => salvar({ tipo_evento: e.target.value || null })}><option value="">— escolher —</option>{TIPOS_AVISO.map((t) => <option key={t}>{t}</option>)}</select></label>
         <label className="f wide2">Como vai ser<select value={av.modalidade || ""} onChange={(e) => salvar({ modalidade: (e.target.value || null) as Modalidade | null })}><option value="">— não se aplica —</option>{(Object.keys(MODALIDADES) as Modalidade[]).map((k) => <option key={k} value={k}>{MODALIDADES[k].nome}</option>)}</select></label>
         <label className="f">{av.modalidade === "jf_balcao" ? "Até o dia" : "Data"}<input type="date" defaultValue={av.data_evento || ""} onChange={anota("data_evento")} onBlur={(e) => { if (e.target.value !== (av.data_evento || "")) { salvar({ data_evento: e.target.value || null }); ac.ajustarLembrete(av, e.target.value || null); } }} /></label>
         <label className="f">Hora<input type="time" defaultValue={(av.hora || "").slice(0, 5)} onChange={anota("hora")} onBlur={(e) => e.target.value !== (av.hora || "").slice(0, 5) && salvar({ hora: e.target.value || null })} /></label>
@@ -135,10 +150,12 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
       <div className="av-anexos">
         <button type="button" className="btn ghost" onClick={() => entradaArq.current?.click()} title="Arquivos que vão junto com a mensagem pelo WhatsApp do sistema (PDF, imagem, Word; até 15 MB cada)"><span aria-hidden="true">📎</span> Anexar arquivo</button>
         <input ref={entradaArq} type="file" hidden multiple accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={(e) => { juntarArquivos(Array.from(e.target.files || [])); e.target.value = ""; }} />
+        {guardados.map((g) => <span key={g.caminho} className="anexo" title="Guardado neste aviso: vai junto com a mensagem"><span className="an">{g.nome}</span><span className="muted s">guardado</span>
+          <button className="icb" title={"Tirar " + g.nome} aria-label={"Tirar o anexo " + g.nome} onClick={() => tirarGuardado(g.caminho)}><span aria-hidden="true">✕</span></button></span>)}
         {anexos.map((f, i) => <span key={f.name + i} className="anexo"><span className="an">{f.name}</span><span className="muted s">{(f.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB</span>
           <button className="icb" title={"Tirar " + f.name} aria-label={"Tirar o anexo " + f.name} onClick={() => setAnexos(anexos.filter((_, k) => k !== i))}><span aria-hidden="true">✕</span></button></span>)}
-        {anexos.length > 0 && !waSistema && <span className="muted s">O WhatsApp do sistema está desconectado: envie o arquivo à parte depois de abrir a conversa.</span>}
-        {anexos.length > 0 && waSistema && <span className="muted s">Vai junto ao clicar em “Enviar pelo WhatsApp do sistema”. Em “Abrir no WhatsApp” e “Copiar”, anexe o arquivo à mão.</span>}
+        {anexos.length + guardados.length > 0 && !waSistema && <span className="muted s">O WhatsApp do sistema está desconectado: envie o arquivo à parte depois de abrir a conversa.</span>}
+        {anexos.length + guardados.length > 0 && waSistema && <span className="muted s">Vai junto ao clicar em “Enviar pelo WhatsApp do sistema”. Em “Abrir no WhatsApp” e “Copiar”, anexe o arquivo à mão.</span>}
       </div>
       <label className="f">Mensagem<textarea rows={6} value={texto} onChange={(e) => { setTexto(e.target.value); setMexeu(true); }} /></label>
       <div className="tools">
@@ -161,7 +178,7 @@ export function BlocoAviso({ av, inicioAberto }: { av: Aviso; inicioAberto?: boo
             try { const falha = await enviarComAnexos({ telefone: wa, clienteId: cli?.id, avulso: !cli }); await marcar(true); if (falha) aviso(falha); }
             catch (e) { aviso((e as Error).message); }
             finally { setEnviandoWa(false); setEtapaEnvio(""); }
-          }}>{enviandoWa ? etapaEnvio || "Enviando…" : anexos.length ? `Enviar pelo WhatsApp do sistema (com ${anexos.length} anexo${anexos.length > 1 ? "s" : ""})` : "Enviar pelo WhatsApp do sistema"}</button>}
+          }}>{enviandoWa ? etapaEnvio || "Enviando…" : anexos.length + guardados.length ? `Enviar pelo WhatsApp do sistema (com ${anexos.length + guardados.length} anexo${anexos.length + guardados.length > 1 ? "s" : ""})` : "Enviar pelo WhatsApp do sistema"}</button>}
         {waSistema && <button className="btn" onClick={() => setOutro(outro ? null : { fone: "", nome: "" })}>{outro ? "Cancelar outro número" : "Enviar para outro WhatsApp"}</button>}
         <a className="btn wa" href={wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent(texto) : "#"} target="_blank" rel="noopener noreferrer"
           onClick={(e) => { if (!wa) { e.preventDefault(); aviso("Informe o WhatsApp do cliente."); return; } salvar({ mensagem: texto, aberto_em: new Date().toISOString() }); }}>Abrir no WhatsApp</a>
