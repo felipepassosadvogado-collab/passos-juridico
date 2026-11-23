@@ -275,8 +275,11 @@ export function FormTarefa({ numero, casoId, pub, tipo, desc, dias, resp, extra,
 export function FormRevisao({ t, modo, onFim }: { t: Tarefa; modo: "enviar" | "devolver"; onFim: () => void }) {
   const { eu, equipe, aviso } = useDados();
   const acoes = useAcoesTarefa();
-  const ops = equipe.filter((p) => p.ativo && (p.id !== eu.id || eu.papel === "titular"));
-  const padrao = t.criado_por && t.criado_por !== eu.id ? t.criado_por : t.revisor && t.revisor !== eu.id ? t.revisor : ops[0]?.id || "";
+  // quem corrige não pode ser o responsável pela peça (só o titular corrige a própria); quem envia pode ser o responsável ou quem criou a tarefa
+  const resp = t.responsavel || eu.id;
+  const ops = equipe.filter((p) => p.ativo && (p.id !== resp || eu.papel === "titular"));
+  const ok = (id?: string | null) => !!id && id !== eu.id && ops.some((p) => p.id === id);
+  const padrao = ok(t.criado_por) ? t.criado_por! : ok(t.revisor) ? t.revisor! : ops.find((p) => p.id !== eu.id)?.id || ops[0]?.id || "";
   const [files, setFiles] = useState<File[]>([]); const [nota, setNota] = useState(""); const [rev, setRev] = useState(padrao); const [ocupado, setOcupado] = useState(false);
   const [ate, setAte] = useState(() => isoData(proximoDiaUtil(paraData(hojeBR()))));
   const ir = async () => {

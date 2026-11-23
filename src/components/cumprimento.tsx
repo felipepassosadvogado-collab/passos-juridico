@@ -148,7 +148,7 @@ export function JanelaCumprimento({ ctx, onFechar, onInicial, onIntermediaria, o
     } catch (e) { aviso((e as Error).message || "Não consegui gerar a petição."); return null; }
     finally { setGerando(""); }
   };
-  const podeUsarTarefa = !!tarefa && tarefa.responsavel === eu.id && !["revisao", "feito"].includes(tarefa.status);
+  const podeUsarTarefa = !!tarefa && (tarefa.responsavel === eu.id || tarefa.criado_por === eu.id) && !["revisao", "feito"].includes(tarefa.status);
   const minhasAbertas = podeUsarTarefa ? [] : tarefasParaLigar([...tarefas.values()], ctx.numero, eu.id, null, /cumprimento|c[aá]lculo|liquida/i);
   const [ligar, setLigar] = useState<string>(() => minhasAbertas[0]?.id || "");
   const enviar = async () => {

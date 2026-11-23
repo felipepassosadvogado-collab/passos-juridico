@@ -39,7 +39,7 @@ export function JanelaPeca({ ctx, onFechar, onInicial, onCumprimento, onPrestaca
   // depois de gerar: a minuta já vai anexada na tarefa e dá para mandar para correção daqui mesmo
   const souTitular = eu.papel === "titular"; const titularId = equipe.find((x) => x.papel === "titular" && x.ativo && x.id !== eu.id)?.id || (souTitular ? eu.id : "");
   const [env, setEnv] = useState({ revisor: titularId, recado: "", ate: isoData(proximoDiaUtil(paraData(hojeBR()))) }); const [enviando, setEnviando] = useState(false); const [enviada, setEnviada] = useState(false);
-  const podeEnviar = !!tarefa && tarefa.responsavel === eu.id && !["revisao", "feito"].includes(tarefa.status);
+  const podeEnviar = !!tarefa && (tarefa.responsavel === eu.id || tarefa.criado_por === eu.id) && !["revisao", "feito"].includes(tarefa.status);
   // aberta fora da tarefa: oferece ligar a uma tarefa minha já aberta neste processo (a da intimação primeiro), em vez de criar outra
   const minhasAbertas = podeEnviar ? [] : tarefasParaLigar([...tarefas.values()], ctx.numero, eu.id, ctx.publicacaoId);
   const [ligar, setLigar] = useState<string>(() => minhasAbertas[0]?.id || "");

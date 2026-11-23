@@ -51,7 +51,9 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   if (!t) return <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onFechar()}><div className="modal" style={{ height: "auto" }}><div className="empty">Tarefa não encontrada (talvez tenha sido excluída). <button className="reflink" onClick={onFechar}>Fechar</button></div></div></div>;
   const p = t.processo_numero ? processos.get(t.processo_numero) : undefined; const caso = t.caso_id ? casos.get(t.caso_id) : undefined;
   const cli = p?.cliente_id ? clientes.get(p.cliente_id) : caso?.cliente_id ? clientes.get(caso.cliente_id) : undefined;
-  const done = t.status === "feito"; const souResp = t.responsavel === eu.id; const souRev = t.status === "revisao" && t.revisor === eu.id;
+  const done = t.status === "feito"; const souResp = t.responsavel === eu.id; const souCriador = t.criado_por === eu.id;
+  // quem pode mover a tarefa: o responsável, quem a criou e o titular (aprovar/devolver continua só com quem corrige)
+  const movo = souResp || souCriador || titular; const souRev = t.status === "revisao" && t.revisor === eu.id;
   const dest = destinoProtocolo(t, eu.id); const podeEditar = titular || t.criado_por === eu.id; const s = situacaoPrazo(t.vencimento);
   const alterna = (x: typeof form) => setForm(form === x ? "" : x);
   // arquivos que vão para a tarefa de protocolo: a versão final já vem marcada; as anteriores ficam desmarcadas
@@ -60,7 +62,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
   const marcados = vaiProt ?? [...finais];
   const aprovar = async () => { setSalvando(true); try { if (await acoes.aprovar(t, protAte, marcados)) { setForm(""); setVaiProt(null); } } finally { setSalvando(false); } };
   const ehProtocolo = t.tipo === "Protocolo da inicial" || t.tipo === "Protocolo da peça";
-  const podeProtocolar = souResp && !t.protocolo_avisado_em && !["revisao", "ajustes"].includes(t.status);
+  const podeProtocolar = movo && !t.protocolo_avisado_em && !["revisao", "ajustes"].includes(t.status);
   const registrarProtocolo = async () => {
     if (!prot.numero.trim() && !confirmar("p" + t.id, aviso, "Sem o nº do protocolo? Clique de novo em “Registrar” para salvar assim mesmo.")) return;
     setSalvando(true); const ok = await acoes.protocolo(t, true, prot.numero, prot.obs); setSalvando(false);
@@ -83,15 +85,15 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
     <div className="modal-bg" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
       <div className="modal largo tj" role="dialog" aria-modal="true" aria-label={"Tarefa: " + t.descricao}>
         <div className="tj-barra">
-          {souResp && t.status !== "revisao" && <button className={done ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "↺ Reabrir" : "✓ Concluir"}</button>}
-          {souResp && t.status === "aberto" && <button className="btn" onClick={() => acoes.status(t, "andamento")}>Iniciar</button>}
-          {souResp && !done && t.status !== "revisao" && <button className="btn" onClick={() => alterna("enviar")}>{form === "enviar" ? "Cancelar envio" : "Enviar p/ correção"}</button>}
+          {movo && t.status !== "revisao" && <button className={done ? "btn" : "btn primary"} onClick={() => acoes.status(t, done ? "aberto" : "feito")}>{done ? "↺ Reabrir" : "✓ Concluir"}</button>}
+          {movo && t.status === "aberto" && <button className="btn" onClick={() => acoes.status(t, "andamento")}>Iniciar</button>}
+          {movo && !done && t.status !== "revisao" && <button className="btn" onClick={() => alterna("enviar")}>{form === "enviar" ? "Cancelar envio" : "Enviar p/ correção"}</button>}
           {souRev && <button className="btn primary" onClick={() => alterna("aprovar")}>{form === "aprovar" ? "Cancelar" : "Aprovar"}</button>}
           {souRev && <button className="btn" onClick={() => alterna("devolver")}>{form === "devolver" ? "Cancelar" : "Devolver com ajustes"}</button>}
           {podeProtocolar && <button className={t.status === "aprovada" ? "btn primary" : "btn"} onClick={() => alterna("protocolo")}>{form === "protocolo" ? "Cancelar protocolo" : <>{S('<path d="M4 10.5l4 4 8-9"/>')}Protocolado</>}</button>}
-          {t.processo_numero && !done && (souResp || souRev || titular) && <button className="btn" onClick={() => /presta[cç][aã]o de contas/i.test((t.tipo || "") + " " + t.descricao) ? j.gerarPrestacao({ numero: t.processo_numero!, tarefaId: t.id }) : /cumprimento/i.test((t.tipo || "") + " " + t.descricao) ? j.gerarCumprimento({ numero: t.processo_numero!, tarefaId: t.id }) : j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}{/presta[cç][aã]o de contas/i.test((t.tipo || "") + " " + t.descricao) ? "Gerar prestação de contas" : /cumprimento/i.test((t.tipo || "") + " " + t.descricao) ? "Gerar cumprimento" : "Gerar petição"}</button>}
+          {t.processo_numero && !done && (movo || souRev) && <button className="btn" onClick={() => /presta[cç][aã]o de contas/i.test((t.tipo || "") + " " + t.descricao) ? j.gerarPrestacao({ numero: t.processo_numero!, tarefaId: t.id }) : /cumprimento/i.test((t.tipo || "") + " " + t.descricao) ? j.gerarCumprimento({ numero: t.processo_numero!, tarefaId: t.id }) : j.gerarPeca({ numero: t.processo_numero!, publicacaoId: t.publicacao_id, tarefaId: t.id, tipo: t.tipo })}>{Ic.claude}{/presta[cç][aã]o de contas/i.test((t.tipo || "") + " " + t.descricao) ? "Gerar prestação de contas" : /cumprimento/i.test((t.tipo || "") + " " + t.descricao) ? "Gerar cumprimento" : "Gerar petição"}</button>}
           <button className="btn ghost" onClick={async () => { const u = location.origin + "/agenda?tarefa=" + t.id; try { await navigator.clipboard.writeText(u); aviso("Link da tarefa copiado."); } catch { aviso(u); } }}>{S('<path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9"/>')}Copiar link</button>
-          {podeEditar && !done && <button className="btn ghost" title={form === "editar" ? "Fechar a edição sem salvar" : "Editar prazo, responsável e descrição desta tarefa"} aria-expanded={form === "editar"} onClick={() => alterna("editar")}>{S('<path d="M13.5 3.5l3 3L7 16H4v-3z"/>')}{form === "editar" ? "Fechar edição" : "Editar"}</button>}
+          {podeEditar && <button className="btn ghost" title={form === "editar" ? "Fechar a edição sem salvar" : "Editar prazo, responsável e descrição desta tarefa"} aria-expanded={form === "editar"} onClick={() => alterna("editar")}>{S('<path d="M13.5 3.5l3 3L7 16H4v-3z"/>')}{form === "editar" ? "Fechar edição" : "Editar"}</button>}
           {podeEditar && <button className="btn ghost" title="Excluir esta tarefa (pede um segundo clique para confirmar)" onClick={() => { if (confirmar("x" + t.id, aviso, "Clique de novo em “Excluir” para confirmar.")) { acoes.excluir(t); onFechar(); } }}>{S('<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/>')}Excluir</button>}
           <button className="icb tj-x" title="Fechar" aria-label="Fechar" onClick={onFechar}>✕</button>
         </div>
@@ -138,7 +140,7 @@ export function JanelaTarefa({ id, onFechar }: { id: string; onFechar: () => voi
             {t.caso_id ? <JornadaAtendimento t={t} eu={eu.id} /> : <FluxoCorrecao t={t} evs={evs} nome={nome} eu={eu.id} />}
             {t.nota_correcao && ["revisao", "ajustes"].includes(t.status) && <div className="ai tj-nota"><span className="muted">{(() => { const ult = [...evs].reverse().find((e) => e.tipo === (t.status === "revisao" ? "correcao_enviada" : "correcao_devolvida")); const quem = ult ? ` por ${ult.por === eu.id ? "você" : nome(ult.por).split(" ")[0]} em ${dataHoraBR(ult.em)}` : ""; return t.status === "revisao" ? `Recado de quem enviou${quem}:` : `Ajustes pedidos${quem}. O que fazer agora:`; })()}</span>
               <div>{t.nota_correcao.split("\n").map((l, i) => <div key={i} className={/^✓/.test(l) ? "ok-l" : /^✗/.test(l) ? "falta-l" : ""}>{l || "\u00a0"}</div>)}</div></div>}
-            {!souResp && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} pode iniciar ou concluir esta tarefa.</div>}
+            {!movo && !souRev && !done && t.responsavel && <div className="muted" style={{ fontSize: 12.5 }}>Só {nome(t.responsavel)} ou quem criou a tarefa ({nome(t.criado_por)}) pode iniciar ou concluir esta tarefa.</div>}
             {form === "enviar" && <FormRevisao t={t} modo="enviar" onFim={() => setForm("")} />}
             {form === "devolver" && <FormRevisao t={t} modo="devolver" onFim={() => setForm("")} />}
             {form === "aprovar" && <div className="triage edit-t">
