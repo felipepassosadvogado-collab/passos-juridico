@@ -1070,3 +1070,4 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 .fin-cat b{text-align:right;font-variant-numeric:tabular-nums}
 td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 @media (max-width:800px){.fin-cards{grid-template-columns:1fr 1fr}.fin-cat>div{grid-template-columns:1fr 100px}.fin-cat .bar{display:none}}
+.wa-anexos { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; max-height: 120px; overflow: auto; }

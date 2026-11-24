@@ -275,36 +275,49 @@ export function CompositorWa({ conversaId, telefone, nome, avulso, clienteId, on
   /** texto escrito pelo Claude: entra na caixa para a pessoa conferir e enviar (n muda a cada nova versão) */ rascunho?: { texto: string; n: number }; onTexto?: (t: string) => void;
   /** botão extra ao lado do 📎 (ex.: escrever com o Claude) */ acaoExtra?: ReactNode }) {
   const { sb, eu, aviso } = useDados(); const [t, setT0] = useState(""); const caixa = useRef<HTMLTextAreaElement>(null);
-  const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
+  const [arqs, setArqs] = useState<File[]>([]); const [enviando, setEnviando] = useState(""); // "" = parado; senão, o que está indo
   const setT = (v: string) => { setT0(v); onTexto?.(v); };
-  useEffect(() => { if (!rascunho?.n) return; setT(rascunho.texto); setTimeout(() => { const el = caixa.current; if (el) { el.focus(); el.style.height = "auto"; el.style.height = Math.min(320, Math.max(40, el.scrollHeight + 4)) + "px"; } }, 60); }, [rascunho?.n]); // eslint-disable-line react-hooks/exhaustive-deps const [arq, setArq] = useState<File | null>(null); const [enviando, setEnviando] = useState(false);
+  useEffect(() => { if (!rascunho?.n) return; setT(rascunho.texto); setTimeout(() => { const el = caixa.current; if (el) { el.focus(); el.style.height = "auto"; el.style.height = Math.min(320, Math.max(40, el.scrollHeight + 4)) + "px"; } }, 60); }, [rascunho?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** junta os arquivos escolhidos (vários de uma vez, ou em mais de uma escolha), sem repetir o mesmo arquivo */
+  const juntar = (l: FileList | null) => {
+    if (!l?.length) return; const novos = [...l]; const grandes = novos.filter((f) => f.size > 15 * 1024 * 1024);
+    if (grandes.length) aviso((grandes.length > 1 ? "Ficaram de fora (maiores que 15 MB): " : "Ficou de fora (maior que 15 MB): ") + grandes.map((f) => f.name).join(", "));
+    setArqs((v) => [...v, ...novos.filter((f) => f.size <= 15 * 1024 * 1024 && !v.some((x) => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified))]);
+  };
+  // texto primeiro, depois cada arquivo numa mensagem (o WhatsApp manda um arquivo por mensagem); o que já foi sai da lista
   const envia = async () => {
-    const x = t.trim(); if ((!x && !arq) || enviando || desativado) return;
-    setEnviando(true);
+    const x = t.trim(); if ((!x && !arqs.length) || enviando || desativado) return;
+    let conv = conversaId; const fila = [...arqs];
+    const manda = async (corpo: { texto?: string; anexo?: { caminho: string; nome: string; mime: string } }) => {
+      const r = await enviarWhatsapp(conv ? { conversaId: conv, ...corpo } : { telefone: telefone || "", nome, avulso, clienteId, ...corpo });
+      conv = r.conversaId; onEnviada(r.mensagem, r.conversaId);
+    };
     try {
-      let anexo: { caminho: string; nome: string; mime: string } | undefined;
-      if (arq) {
-        if (arq.size > 15 * 1024 * 1024) { aviso("Arquivo maior que 15 MB."); return; }
-        const caminho = `whatsapp/saida/${eu.id}/${Date.now()}-${arq.name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.\-]+/g, "_").slice(-80)}`;
+      if (x) { setEnviando(fila.length ? "texto" : "…"); await manda({ texto: x }); setT(""); }
+      for (let i = 0; i < fila.length; i++) {
+        const arq = fila[i]; setEnviando(fila.length > 1 ? `${i + 1}/${fila.length}` : "…");
+        const caminho = `whatsapp/saida/${eu.id}/${Date.now()}-${arq.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.\-]+/g, "_").slice(-80)}`;
         const up = await sb.storage.from("documentos").upload(caminho, arq, { contentType: arq.type || undefined });
-        if (up.error) { aviso("Não consegui enviar o arquivo: " + up.error.message); return; }
-        anexo = { caminho, nome: arq.name, mime: arq.type || "application/octet-stream" };
+        if (up.error) throw new Error("Não consegui enviar " + arq.name + ": " + up.error.message);
+        await manda({ anexo: { caminho, nome: arq.name, mime: arq.type || "application/octet-stream" } });
+        setArqs((v) => v.filter((f) => f !== arq));
       }
-      const r = await enviarWhatsapp(conversaId ? { conversaId, texto: x, anexo } : { telefone: telefone || "", nome, avulso, clienteId, texto: x, anexo });
-      setT(""); setArq(null); onEnviada(r.mensagem, r.conversaId);
-    } catch (e) { aviso(msgErro(e, (e as Error).message)); }
-    finally { setEnviando(false); }
+    } catch (e) { aviso(msgErro(e, (e as Error).message) + (arqs.length > 1 ? " Os arquivos que não foram continuam na lista; clique em Enviar de novo." : "")); }
+    finally { setEnviando(""); }
   };
   return (
     <div className="chat-comp-w"><div className="chat-comp">
-      <label className="icb" title="Anexar foto ou documento" aria-label="Anexar foto ou documento" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.click(); } }}><span aria-hidden="true">📎</span><input type="file" hidden onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} /></label>
+      <label className="icb" title="Anexar fotos ou documentos (pode escolher vários de uma vez)" aria-label="Anexar fotos ou documentos" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.click(); } }}><span aria-hidden="true">📎</span><input type="file" multiple hidden onChange={(e) => { juntar(e.target.files); e.target.value = ""; }} /></label>
       {acaoExtra}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-        {arq && <span className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" title="Tirar o anexo da mensagem" aria-label={"Tirar o anexo " + arq.name} onClick={() => setArq(null)}>Tirar</button></span>}
+        {arqs.length > 0 && <div className="wa-anexos">
+          {arqs.map((arq, i) => <span key={i} className="anexo"><span className="an">{arq.name}</span><button className="btn ghost" disabled={!!enviando} title="Tirar este arquivo da mensagem" aria-label={"Tirar o anexo " + arq.name} onClick={() => setArqs((v) => v.filter((f) => f !== arq))}>Tirar</button></span>)}
+          {arqs.length > 1 && <span className="muted s">{arqs.length} arquivos · vão um por mensagem{t.trim() ? ", depois do texto" : ""} <button className="reflink" disabled={!!enviando} onClick={() => setArqs([])}>tirar todos</button></span>}
+        </div>}
         <textarea ref={caixa} rows={1} value={t} disabled={!!desativado} placeholder={desativado || "Mensagem pelo WhatsApp do escritório… (Enter envia, Shift+Enter quebra linha)"} onChange={(e) => setT(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envia(); } }} style={{ resize: "vertical", minHeight: 40 }} />
       </div>
-      <button className="btn primary" title="Enviar pelo WhatsApp do escritório (ou tecle Enter)" disabled={enviando || !!desativado || (!t.trim() && !arq)} onClick={envia}>{enviando ? "Enviando…" : "Enviar"}</button>
+      <button className="btn primary" title="Enviar pelo WhatsApp do escritório (ou tecle Enter)" disabled={!!enviando || !!desativado || (!t.trim() && !arqs.length)} onClick={envia}>{enviando ? (/\//.test(enviando) ? "Enviando " + enviando + "…" : "Enviando…") : arqs.length > 1 ? `Enviar (${arqs.length} arquivos)` : "Enviar"}</button>
     </div></div>
   );
 }
