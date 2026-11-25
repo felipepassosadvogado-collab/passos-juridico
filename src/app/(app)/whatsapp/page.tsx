@@ -4,9 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { useDados, msgErro } from "@/lib/dados";
 import { bancoCurto, dataHoraBR, iniciais, nomeBonito, semAcento } from "@/lib/formato";
 import { hojeBR } from "@/lib/prazos";
+import { intervalo, PERIODOS } from "@/lib/protocolos";
+import { limitesISO, resumirEnviadas, type MsgEnviada } from "@/lib/enviadas";
+import { pdfEnviadas } from "@/lib/enviadasPdf";
 import { useJanelas } from "@/components/janelas";
 import { AgenteNaConversa } from "@/components/agente";
-import { Ic } from "@/components/ui";
+import { Ic, baixar } from "@/components/ui";
 import { BuscaCliente, ClaudeNaConversa, CompositorWa, FioWa, PainelConexao, foneBR, useConexaoWa, useNomeConversa, useWaConversas, useWaMensagens, type WaConversa } from "@/components/whatsapp";
 
 type Filtro = "todas" | "naolidas" | "equipe" | "clientes" | "sem";
@@ -157,11 +160,42 @@ function EnviadasPor({ onAbrir }: { onAbrir: (conversaId: string) => void }) {
   };
   useEffect(() => { setMs(null); buscar(0); }, [pessoa]); // eslint-disable-line react-hooks/exhaustive-deps
   const conversa = (id: string) => lista.find((c) => c.id === id) || extra.get(id);
+  // relatório em PDF do período escolhido
+  const hoje = hojeBR(); const [per, setPer] = useState("semana"); const [pde, setPde] = useState(hoje.slice(0, 8) + "01"); const [pate, setPate] = useState(hoje); const [gerando, setGerando] = useState(false);
+  const exportar = async () => {
+    const lim = per === "hoje" ? { de: hoje, ate: hoje } : intervalo(per, hoje, pde, pate);
+    if (!lim.de || !lim.ate || lim.de > lim.ate) { aviso("Escolha um período válido."); return; }
+    setGerando(true);
+    try {
+      const { ini, fim: ate } = limitesISO(lim.de, lim.ate); const todas: MsgEnviada[] = [];
+      for (let de = 0; ; de += 1000) {
+        const r = await sb.from("wa_mensagens").select("id,conversa_id,texto,tipo,anexo_nome,em,agente").eq("enviado_por", pessoa).eq("de_mim", true).gte("em", ini).lte("em", ate).order("em", { ascending: false }).range(de, de + 999);
+        if (r.error) throw r.error; todas.push(...((r.data || []) as MsgEnviada[])); if ((r.data || []).length < 1000) break;
+      }
+      const convs = new Map<string, WaConversa>([...lista, ...extra.values()].map((c) => [c.id, c]));
+      const faltam = [...new Set(todas.map((m) => m.conversa_id))].filter((id) => !convs.has(id));
+      for (let i = 0; i < faltam.length; i += 200) { const { data } = await sb.from("wa_conversas").select("*").in("id", faltam.slice(i, i + 200)); for (const c of (data || []) as WaConversa[]) convs.set(c.id, c); }
+      const quem = nomeBonito(ativos.find((p) => p.id === pessoa)?.nome || "");
+      const rotPer = per === "hoje" ? "Hoje" : (PERIODOS.find((x) => x[0] === per)?.[1] || "Período").replace(/^Protocolados /, "").replace(/^n/, "N").replace("Escolher período…", "Período");
+      const r = resumirEnviadas(todas, lim.de, lim.ate, hoje);
+      const pdf = await pdfEnviadas({ pessoa: quem, periodo: rotPer, de: lim.de, ate: lim.ate, r, msgs: todas, nomeConversa: (id) => { const c = convs.get(id); return c ? nomeDe(c) : "Conversa"; }, emitidoPor: nomeBonito(eu.nome) });
+      baixar(`Mensagens enviadas - ${quem} - ${lim.de} a ${lim.ate}.pdf`, new Blob([pdf as BlobPart], { type: "application/pdf" }), "application/pdf");
+      aviso(`Relatório gerado: ${r.total} mensagem(ns) para ${r.conversas} cliente(s).`);
+    } catch (e) { aviso(msgErro(e, (e as Error).message)); }
+    finally { setGerando(false); }
+  };
   return (
     <div className="panel wa-env">
       <div className="wa-env-h"><strong>Mensagens enviadas por</strong>
         <select value={pessoa} onChange={(e) => setPessoa(e.target.value)} aria-label="Pessoa da equipe">{ativos.map((p) => <option key={p.id} value={p.id}>{nomeBonito(p.nome)}{p.id === eu.id ? " (você)" : ""}</option>)}</select>
-        <span className="muted s">da mais recente para a mais antiga · clique para abrir a conversa</span></div>
+        <span className="muted s">da mais recente para a mais antiga · clique para abrir a conversa</span>
+        <span className="wa-env-pdf">
+          <select value={per} onChange={(e) => setPer(e.target.value)} aria-label="Período do relatório">
+            <option value="hoje">Hoje</option><option value="semana">Esta semana</option><option value="semana_passada">Semana passada</option>
+            <option value="mes">Este mês</option><option value="mes_passado">Mês passado</option><option value="periodo">Escolher período…</option></select>
+          {per === "periodo" && <><input type="date" value={pde} max={pate} onChange={(e) => setPde(e.target.value)} aria-label="De" /><input type="date" value={pate} min={pde} onChange={(e) => setPate(e.target.value)} aria-label="Até" /></>}
+          <button className="btn" disabled={gerando} onClick={exportar} title="Baixar o relatório em PDF: resumo, mensagens por dia e a lista das mensagens">{gerando ? "Gerando…" : "Exportar PDF"}</button>
+        </span></div>
       {!ms ? <div className="muted s">Carregando…</div> : !ms.length ? <div className="empty">Nenhuma mensagem enviada por essa pessoa.</div> : <>
         <ul className="wa-env-l">{ms.map((m) => { const c = conversa(m.conversa_id); return (
           <li key={m.id}><button onClick={() => onAbrir(m.conversa_id)} title="Abrir a conversa">
