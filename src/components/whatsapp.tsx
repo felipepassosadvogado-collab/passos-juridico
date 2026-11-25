@@ -184,6 +184,9 @@ const hm = (s: string) => new Date(s).toLocaleString("pt-BR", { timeZone: "Ameri
  */
 export function VigiaWa({ compacto }: { compacto?: boolean }) {
   const { config, titular, aviso } = useDados(); const v = config.whatsapp_vigia as VigiaUi | undefined; const [rodando, setRodando] = useState(false);
+  // minimizar (tela do WhatsApp): vira um selinho pequeno, lembrado neste navegador
+  const [min, setMinS] = useState(() => { try { return localStorage.getItem("wa.vigia.min") === "1"; } catch { return false; } });
+  const setMin = (x: boolean) => { setMinS(x); try { localStorage.setItem("wa.vigia.min", x ? "1" : "0"); } catch { /* sem armazenamento */ } };
   const reiniciar = async () => {
     setRodando(true);
     try {
@@ -203,9 +206,15 @@ export function VigiaWa({ compacto }: { compacto?: boolean }) {
   };
   const botoes = titular && <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
     <button className="btn ghost" onClick={agora} disabled={rodando} title="Confere agora: estado, entrega das mensagens, resposta do WhatsApp e mensagens que ficaram no servidor. Se nenhuma mensagem chegou nos últimos 20 minutos, já reinicia a conexão.">{rodando ? "Verificando…" : "Verificar agora"}</button>
-    <button className="btn ghost" onClick={reiniciar} disabled={rodando} title="Reinicia a conexão no servidor do WhatsApp. Não desconecta o celular e não pede QR-code. Use quando as mensagens chegam no celular e não aqui.">Reiniciar conexão</button></span>;
+    <button className="btn ghost" onClick={reiniciar} disabled={rodando} title="Reinicia a conexão no servidor do WhatsApp. Não desconecta o celular e não pede QR-code. Use quando as mensagens chegam no celular e não aqui.">Reiniciar conexão</button>{compacto && <button className="btn ghost" onClick={() => setMin(true)} title="Minimizar o vigia e deixar mais espaço para as conversas" aria-label="Minimizar o vigia">▴</button>}</span>;
   if (!v) return compacto && !titular ? null : <div className="wa-vigia"><div className="wa-vigia-h"><span className="muted s">Vigia da conexão: ainda não rodou (roda sozinho a cada 10 minutos com o sistema aberto).</span>{botoes}</div></div>;
   const velho = Date.now() - new Date(v.em).getTime() > 40 * 60e3;
+  if (compacto && min) {
+    const rec2 = v.historico.filter((h) => Date.now() - new Date(h.em).getTime() < 2 * 3600e3 && h.tipo !== "ok").length;
+    const cls = v.ok ? (rec2 ? "conserto" : "ok") : "problema";
+    return <button className={"wa-vigia-mini " + cls} onClick={() => setMin(false)} title={(v.ok ? "Vigia: " : "Vigia: problema · ") + v.resumo + " · clique para abrir"} aria-label="Abrir o vigia da conexão">
+      <span className="pt" /> Vigia {v.ok ? (rec2 ? "consertou" : "ok") : "com problema"} · {hm(v.em)} ▾</button>;
+  }
   const recentes = v.historico.filter((h) => Date.now() - new Date(h.em).getTime() < 2 * 3600e3 && h.tipo !== "ok");
   if (compacto && v.ok && !recentes.length) return titular ? (
     <div className="wa-vigia slim"><div className="wa-vigia-h"><span className="ponto-on" style={{ position: "static" }} /><span className="muted s">Vigia: verificado {hm(v.em)}{v.ultimaRecebidaSistema ? " · última mensagem recebida " + hm(v.ultimaRecebidaSistema) : ""}</span>{botoes}</div></div>) : null;

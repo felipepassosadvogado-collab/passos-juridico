@@ -1088,3 +1088,9 @@ td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 .wa-vigia ul { margin: 4px 0 0; padding-left: 18px; }
 .wa-vigia li.problema { color: var(--late); }
 .wa-vigia.slim { padding: 4px 10px; }
+.wa-vigia-mini { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 10px; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted, #777); align-self: flex-start; }
+.wa-vigia-mini:hover, .wa-vigia-mini:focus-visible { background: var(--sunken); }
+.wa-vigia-mini .pt { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.wa-vigia-mini.conserto .pt { background: var(--accent); }
+.wa-vigia-mini.problema { border-color: var(--late); color: var(--late); }
+.wa-vigia-mini.problema .pt { background: var(--late); }
