@@ -21,6 +21,7 @@ const csp = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  serverExternalPackages: ["unpdf"], // lido no servidor (procurações) direto do node_modules, sem empacotar
   experimental: { serverActions: { bodySizeLimit: "12mb" } },
   async headers() {
     return [{
