@@ -15,7 +15,7 @@ function WhatsApp() {
   const sp = useSearchParams(); const { sb, clientes, processos, aviso, aplicar } = useDados(); const j = useJanelas();
   const { lista, semTabela, atualizar, carregado: loaded, temMais: maisConvs, maisCarregando: carregandoConvs, carregarMais: maisConversas } = useWaConversas(); const nomeDe = useNomeConversa(); const { conectado } = useConexaoWa();
   const [ativa, setAtiva] = useState<string | null>(sp.get("c")); const [aberto, setAberto] = useState(!!sp.get("c"));
-  const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [q, setQ] = useState(""); const [filtro, setFiltro] = useState<Filtro>("todas"); const [verEnviadas, setVerEnviadas] = useState(false);
   const [nova, setNova] = useState<{ clienteId?: string; telefone?: string; nome?: string; outroNumero?: boolean } | null>(null); const [modoNova, setModoNova] = useState<"cliente" | "avulso">("cliente"); const [av, setAv] = useState({ fone: "", nome: "", cadastrar: true, clienteId: "" }); const [criando, setCriando] = useState(false); const [ligando, setLigando] = useState(false); const [claudeAberto, setClaudeAberto] = useState(false); const [rascunho, setRascunho] = useState<{ texto: string; n: number; conv: string } | null>(null); const [textoCx, setTextoCx] = useState(""); const [buscaNova, setBuscaNova] = useState(false);
   useEffect(() => { setClaudeAberto(false); }, [ativa]); // trocar de conversa fecha o pedido ao Claude
   // veio de um link do cliente (?cliente=ID): abre a conversa que já existe ou começa uma nova com ele
@@ -55,8 +55,10 @@ function WhatsApp() {
   return (
     <>
       <div className="pg-title"><h2>WhatsApp</h2><span className="muted">Mensagens do WhatsApp do escritório</span>
-        <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { setBuscaNova(!buscaNova); }}>{buscaNova ? "Cancelar" : "+ Nova conversa"}</button></div>
+        <button className="btn ghost" style={{ marginLeft: "auto" }} aria-expanded={verEnviadas} title="Ver as mensagens que uma pessoa da equipe enviou, da mais recente para a mais antiga" onClick={() => setVerEnviadas(!verEnviadas)}>{verEnviadas ? "Fechar enviadas" : "Enviadas por…"}</button>
+        <button className="btn" onClick={() => { setBuscaNova(!buscaNova); }}>{buscaNova ? "Cancelar" : "+ Nova conversa"}</button></div>
       <PainelConexao compacto />
+      {verEnviadas && <EnviadasPor onAbrir={(id) => { setAtiva(id); setNova(null); setAberto(true); }} />}
       {buscaNova && <div className="panel" style={{ padding: 12, marginBottom: 10, display: "flex", flexDirection: "column", gap: 10 }}>
         <div className="seg" role="tablist" style={{ alignSelf: "flex-start" }}>
           <button role="tab" aria-selected={modoNova === "cliente"} onClick={() => setModoNova("cliente")}>Cliente cadastrado</button>
@@ -135,4 +137,41 @@ function WhatsApp() {
     </>
   );
 }
+type Enviada = { id: string; conversa_id: string; texto: string | null; tipo: string; anexo_nome: string | null; em: string; agente: boolean | null };
+const ROT_ANEXO: Record<string, string> = { imagem: "📷 Foto", audio: "🎤 Áudio", video: "🎬 Vídeo", documento: "📄 Documento", figurinha: "Figurinha" };
+
+/** filtro "Enviadas por": as mensagens que uma pessoa da equipe mandou pelo WhatsApp do escritório, da mais recente para a mais antiga */
+function EnviadasPor({ onAbrir }: { onAbrir: (conversaId: string) => void }) {
+  const { sb, equipe, eu, aviso } = useDados(); const { lista } = useWaConversas(); const nomeDe = useNomeConversa();
+  const ativos = equipe.filter((p) => p.ativo);
+  const [pessoa, setPessoa] = useState(() => (ativos.find((p) => p.id !== eu.id && /amanda/i.test(p.nome)) || ativos.find((p) => p.id !== eu.id) || eu).id);
+  const [ms, setMs] = useState<Enviada[] | null>(null); const [fim, setFim] = useState(false); const [extra, setExtra] = useState<Map<string, WaConversa>>(new Map());
+  const POR = 30;
+  const buscar = async (de: number) => {
+    const r = await sb.from("wa_mensagens").select("id,conversa_id,texto,tipo,anexo_nome,em,agente").eq("enviado_por", pessoa).eq("de_mim", true).order("em", { ascending: false }).range(de, de + POR - 1);
+    if (r.error) { aviso(msgErro(r.error)); return; }
+    const novas = (r.data || []) as Enviada[]; setFim(novas.length < POR); setMs((v) => (de ? [...(v || []), ...novas] : novas));
+    // conversas que ainda não estão na lista carregada (lista vem paginada)
+    const faltam = [...new Set(novas.map((m) => m.conversa_id))].filter((id) => !lista.some((c) => c.id === id) && !extra.has(id));
+    if (faltam.length) { const { data } = await sb.from("wa_conversas").select("*").in("id", faltam); if (data) setExtra((m) => { const n = new Map(m); for (const c of data as WaConversa[]) n.set(c.id, c); return n; }); }
+  };
+  useEffect(() => { setMs(null); buscar(0); }, [pessoa]); // eslint-disable-line react-hooks/exhaustive-deps
+  const conversa = (id: string) => lista.find((c) => c.id === id) || extra.get(id);
+  return (
+    <div className="panel wa-env">
+      <div className="wa-env-h"><strong>Mensagens enviadas por</strong>
+        <select value={pessoa} onChange={(e) => setPessoa(e.target.value)} aria-label="Pessoa da equipe">{ativos.map((p) => <option key={p.id} value={p.id}>{nomeBonito(p.nome)}{p.id === eu.id ? " (você)" : ""}</option>)}</select>
+        <span className="muted s">da mais recente para a mais antiga · clique para abrir a conversa</span></div>
+      {!ms ? <div className="muted s">Carregando…</div> : !ms.length ? <div className="empty">Nenhuma mensagem enviada por essa pessoa.</div> : <>
+        <ul className="wa-env-l">{ms.map((m) => { const c = conversa(m.conversa_id); return (
+          <li key={m.id}><button onClick={() => onAbrir(m.conversa_id)} title="Abrir a conversa">
+            <span className="wa-env-q"><b>{c ? nomeDe(c) : "Conversa"}</b><span className="muted s">{dataHoraBR(m.em)}{m.agente ? " · pelo assistente" : ""}</span></span>
+            <span className="wa-env-t">{m.tipo !== "texto" ? (m.anexo_nome ? "📄 " + m.anexo_nome : ROT_ANEXO[m.tipo] || m.tipo) + (m.texto ? " · " : "") : ""}{m.texto || ""}</span>
+          </button></li>); })}</ul>
+        {!fim && <button className="btn ghost" onClick={() => buscar(ms.length)}>Ver mais antigas</button>}
+      </>}
+    </div>
+  );
+}
+
 export default function Pagina() { return <Suspense><WhatsApp /></Suspense>; }

@@ -1080,3 +1080,11 @@ td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 .prc-resumo { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
 .prc-resumo button.chip { cursor: pointer; border: 1px solid var(--line); }
 .prc-resumo button.chip.on { border-color: var(--accent); background: var(--accent-soft); }
+/* WhatsApp: enviadas por */
+.wa-env { padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.wa-env-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.wa-env-l { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; border-top: 1px solid var(--line); }
+.wa-env-l li button { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.wa-env-l li button:hover, .wa-env-l li button:focus-visible { background: var(--sunken); }
+.wa-env-q { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+.wa-env-t { white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size: 13px; }
