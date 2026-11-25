@@ -1071,3 +1071,12 @@ label.icb[role=button]:focus-visible{outline:2px solid var(--accent)}
 td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 @media (max-width:800px){.fin-cards{grid-template-columns:1fr 1fr}.fin-cat>div{grid-template-columns:1fr 100px}.fin-cat .bar{display:none}}
 .wa-anexos { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; max-height: 120px; overflow: auto; }
+/* procurações sem processo */
+.prc-caixa { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.prc-ler { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
+.prc-barra { position: relative; margin-top: 8px; height: 22px; border-radius: 6px; background: var(--sunken); overflow: hidden; min-width: 280px; }
+.prc-barra > div { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: .35; transition: width .3s; }
+.prc-barra > span { position: relative; font-size: 12px; padding: 0 8px; line-height: 22px; }
+.prc-resumo { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.prc-resumo button.chip { cursor: pointer; border: 1px solid var(--line); }
+.prc-resumo button.chip.on { border-color: var(--accent); background: var(--accent-soft); }
