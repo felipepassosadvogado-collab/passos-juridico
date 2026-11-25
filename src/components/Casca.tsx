@@ -1,4 +1,5 @@
 "use client";
+import { useBatimentoWa } from "@/components/whatsapp";
 import { substituidasPorProtocolo } from "@/lib/tarefasAtivas";
 import { AlertaDjen } from "./djen";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
@@ -212,6 +213,7 @@ function BotaoAlterna({ classe, chave, valores, className, rotulo, expandido, ch
 
 export function Casca({ children }: { children: React.ReactNode }) {
   const { eu, pronto, erroCarga, carregou, recarregar } = useDados(); const p = usePathname();
+  useBatimentoWa(); // vigia do WhatsApp (conexão que cai calada)
   const cheio = p.startsWith("/crm") || p.startsWith("/chat") || p.startsWith("/whatsapp");
   return (
     <>

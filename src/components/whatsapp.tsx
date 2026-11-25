@@ -140,10 +140,11 @@ export function PainelConexao({ compacto }: { compacto?: boolean }) {
       </div>
       <div className="s" style={{ marginTop: 6 }}>Motivo: {rec.problema}. Por isso o assistente também não responde.{rec.ultimaRecebida ? ` Última mensagem recebida: ${new Date(rec.ultimaRecebida).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.` : ""} O botão grava de novo, no servidor do WhatsApp, o endereço do sistema; não desconecta o celular.</div>
     </div>);
-  if (conectado) return compacto ? null : (
+  if (conectado) return compacto ? <VigiaWa compacto /> : (<>
     <div className="wa-con ok"><span className="ponto-on" style={{ position: "static" }} /> <strong>WhatsApp conectado</strong> <span className="muted s">· as mensagens chegam aqui em tempo real{rec?.ultimaRecebida ? ` · última recebida ${new Date(rec.ultimaRecebida).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}</span>
       {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} disabled={ocupado} title="Grava de novo o endereço de entrega das mensagens no servidor do WhatsApp (não desconecta)" onClick={() => acao("webhook")}>Religar o recebimento</button>}
-      {titular && <button className="btn ghost" disabled={ocupado} onClick={() => acao("desconectar")}>Desconectar</button>}</div>);
+      {titular && <button className="btn ghost" disabled={ocupado} onClick={() => acao("desconectar")}>Desconectar</button>}</div>
+    <VigiaWa /></>);
   // o servidor da Evolution (Hostinger) não responde: não adianta QR-code, primeiro é preciso religar o servidor
   if (st.erro && /falar com o servidor|recusou a chave/i.test(st.erro)) return (
     <div className="wa-con aviso">
@@ -170,6 +171,51 @@ export function PainelConexao({ compacto }: { compacto?: boolean }) {
         <ol><li>No celular do escritório, abra o WhatsApp.</li><li>Toque em <b>⋮ (ou Configurações) → Aparelhos conectados → Conectar um aparelho</b>.</li><li>Aponte a câmera para este QR-code. Ele muda a cada poucos segundos: se expirar, gere de novo.</li></ol></div>}
     </div>
   );
+}
+
+type EventoVigiaUi = { em: string; tipo: "ok" | "conserto" | "problema"; texto: string };
+type VigiaUi = { em: string; estado: string; ok: boolean; resumo: string; sonda: string; ultimaRecebidaServidor: string | null; ultimaRecebidaSistema: string | null; ultimoReinicio: string | null; historico: EventoVigiaUi[] };
+const hm = (s: string) => new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Vigia do WhatsApp: a cada ~10 min o sistema confere se a conexão está viva de verdade (não só "conectada"),
+ * conserta a entrega, reinicia a conexão travada e recupera mensagens que ficaram no servidor.
+ * Compacto (tela do WhatsApp): só aparece se houver problema ou conserto nas últimas 2 horas.
+ */
+export function VigiaWa({ compacto }: { compacto?: boolean }) {
+  const { config, titular, aviso } = useDados(); const v = config.whatsapp_vigia as VigiaUi | undefined; const [rodando, setRodando] = useState(false);
+  const agora = async () => {
+    setRodando(true);
+    try { const r = await fetch("/api/whatsapp/vigia?agora=1"); const j = await r.json().catch(() => ({})); if (!r.ok) aviso(j.erro || "Não consegui verificar."); else if (j.vigia) aviso(j.vigia.ok ? "Verificado: " + j.vigia.resumo : "Atenção: " + j.vigia.resumo); }
+    finally { setRodando(false); }
+  };
+  if (!v) return compacto ? null : <div className="wa-vigia muted s">Vigia da conexão: ainda não rodou (roda sozinho a cada 10 minutos com o sistema aberto).{titular && <button className="reflink" onClick={agora} disabled={rodando}> {rodando ? "verificando…" : "Verificar agora"}</button>}</div>;
+  const velho = Date.now() - new Date(v.em).getTime() > 40 * 60e3;
+  const recentes = v.historico.filter((h) => Date.now() - new Date(h.em).getTime() < 2 * 3600e3 && h.tipo !== "ok");
+  if (compacto && v.ok && !recentes.length) return null;
+  const ultimos = [...v.historico].reverse().slice(0, compacto ? 3 : 12);
+  return (
+    <div className={"wa-vigia " + (v.ok ? (recentes.length ? "conserto" : "ok") : "problema")} role={v.ok ? undefined : "alert"}>
+      <div className="wa-vigia-h">
+        <strong>{v.ok ? (recentes.length ? "Vigia: conexão consertada" : "Vigia: conexão viva") : "Vigia: problema na conexão"}</strong>
+        <span className="muted s">verificado {hm(v.em)}{velho ? " (há mais de 40 min)" : ""}{v.sonda === "ok" ? " · WhatsApp respondendo" : v.sonda === "falhou" ? " · WhatsApp não respondeu" : ""}
+          {v.ultimaRecebidaSistema ? " · última mensagem recebida " + hm(v.ultimaRecebidaSistema) : ""}{v.ultimoReinicio ? " · último reinício " + hm(v.ultimoReinicio) : ""}</span>
+        {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={agora} disabled={rodando} title="Confere agora: estado, entrega das mensagens, resposta do WhatsApp e mensagens que ficaram no servidor">{rodando ? "Verificando…" : "Verificar agora"}</button>}
+      </div>
+      {!v.ok && <div className="s">{v.resumo}</div>}
+      {ultimos.length > 0 && <details open={!v.ok || (compacto && recentes.length > 0)}><summary className="s">O que o vigia fez</summary>
+        <ul className="s">{ultimos.map((h, i) => <li key={i} className={h.tipo}><span className="muted">{hm(h.em)}</span> {h.texto}</li>)}</ul></details>}
+    </div>
+  );
+}
+
+/** o sistema aberto chama o vigia a cada 10 minutos (o servidor decide se roda: no máx. a cada 8 min, para todos) */
+export function useBatimentoWa() {
+  useEffect(() => {
+    const bate = () => { if (document.visibilityState === "visible") fetch("/api/whatsapp/vigia").catch(() => {}); };
+    const t0 = setTimeout(bate, 20000); const t = setInterval(bate, 10 * 60e3);
+    return () => { clearTimeout(t0); clearInterval(t); };
+  }, []);
 }
 
 // ───── mensagens ─────

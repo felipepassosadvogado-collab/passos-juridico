@@ -1080,3 +1080,10 @@ td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 .wa-env-q { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
 .wa-env-t { white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size: 13px; }
 .wa-env-pdf { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+/* vigia do WhatsApp */
+.wa-vigia { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.wa-vigia.problema { border-color: var(--late); background: color-mix(in srgb, var(--late-soft) 60%, var(--surface)); }
+.wa-vigia.conserto { border-color: var(--accent); }
+.wa-vigia-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.wa-vigia ul { margin: 4px 0 0; padding-left: 18px; }
+.wa-vigia li.problema { color: var(--late); }

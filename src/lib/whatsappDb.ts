@@ -1,6 +1,6 @@
 // Gravação das conversas do WhatsApp no banco (lado do servidor).
 import type { supabaseAdmin } from "@/lib/supabase/server";
-import { chaveFone, soFone } from "./whatsapp";
+import { RESUMO_TIPO, chaveFone, lerMensagem, soFone, telefoneDaChave } from "./whatsapp";
 import { padraoDigitos } from "./lista";
 
 export type Adm = Awaited<ReturnType<typeof supabaseAdmin>>;
@@ -68,4 +68,35 @@ export function foneBate(telefoneFicha: string | null | undefined, telefoneConve
   if (!telefoneFicha || !telefoneConversa) return false;
   const k = chaveFone(telefoneConversa);
   return String(telefoneFicha).split(/[\/,;]| e /).some((t) => chaveFone(t) === k);
+}
+
+const STATUS: Record<string, string> = { PENDING: "enviando", SERVER_ACK: "enviada", DELIVERY_ACK: "entregue", READ: "lida", PLAYED: "lida", ERROR: "erro" };
+export const statusWa = (s: unknown) => STATUS[String(s || "")];
+
+/**
+ * Grava uma mensagem do WhatsApp (evento do webhook ou mensagem recuperada do servidor pelo vigia).
+ * Devolve null quando não é para gravar (grupo, reação…) ou quando já estava gravada.
+ */
+export async function gravarMensagem(adm: Adm, d: Record<string, any>, op: { recuperada?: boolean } = {}) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const key = d?.key || {}; const jid = String(key.remoteJid || "");
+  if (!jid || /@g\.us$|@broadcast$|@newsletter$|^status@/.test(jid)) return null; // grupos, status e canais ficam de fora
+  const m = lerMensagem(d.message);
+  if (m.tipo === "reacao" || (m.tipo === "outro" && !m.texto && !d.message?.contactMessage)) return null; // reações e mensagens de sistema
+  const deMim = !!key.fromMe;
+  if (op.recuperada && key.id) { const { data: ja } = await adm.from("wa_mensagens").select("id").eq("wa_id", key.id).maybeSingle(); if (ja) return null; }
+  const conv = await conversaDe(adm, jid, telefoneDaChave(key), deMim ? null : d.pushName || null);
+  if (!conv) return null;
+  const em = d.messageTimestamp ? new Date(Number(d.messageTimestamp) * 1000).toISOString() : new Date().toISOString();
+  const st = deMim ? statusWa(d.status ?? d.MessageUpdate?.[d.MessageUpdate.length - 1]?.status) || "enviada" : null;
+  const { data: ins } = await adm.from("wa_mensagens").upsert({
+    conversa_id: conv.id, wa_id: key.id || null, de_mim: deMim, texto: m.texto || null, tipo: m.tipo, anexo_nome: m.nome || null, anexo_mime: m.mime || null,
+    status: st, bruto: { key, messageType: d.messageType || null, ...(op.recuperada ? { recuperada: true } : {}) }, em,
+  }, { onConflict: "wa_id", ignoreDuplicates: true }).select();
+  if (!ins?.length) return null; // já recebida (o sistema mesmo enviou)
+  const maisNova = !conv.ultima_em || em >= conv.ultima_em; // mensagem recuperada pode ser mais antiga que a última da conversa
+  await adm.from("wa_conversas").update({
+    ...(maisNova ? { ultima_em: em, ultima_texto: (m.texto || RESUMO_TIPO[m.tipo] || "").slice(0, 200) } : {}), arquivada: false,
+    ...(deMim ? {} : { nao_lidas: (conv.nao_lidas || 0) + 1, ...(op.recuperada ? { aguardando_equipe: true } : {}) }),
+  }).eq("id", conv.id);
+  return { conv, msgId: ins[0].id as string, waId: key.id as string | undefined, deMim, em };
 }
