@@ -47,6 +47,17 @@ export async function POST(req: Request) {
       await evo(`/webhook/set/${INSTANCIA()}`, "POST", { webhook: { enabled: true, url: `${await enderecoDoSite()}/api/whatsapp/webhook?s=${encodeURIComponent(seg)}`, byEvents: false, base64: false, events: EVENTOS } });
       return NextResponse.json({ estado: "open", recebimento: await recebimento(m.sb) });
     }
+    if (acao === "reiniciar") { // reinicia a conexão na Evolution (não desconecta o celular, não pede QR-code)
+      let r: { error?: boolean; message?: string } | null;
+      try { r = await evo(`/instance/restart/${INSTANCIA()}`, "POST"); }
+      catch (e) { if (e instanceof ErroWa && [404, 405].includes(e.status)) r = await evo(`/instance/restart/${INSTANCIA()}`, "PUT"); else throw e; }
+      if (r?.error) return erro("O servidor do WhatsApp não reiniciou: " + String(r.message || "").slice(0, 200), 502);
+      // anota no histórico do vigia
+      const { data: c } = await m.sb.from("config").select("valor").eq("chave", "whatsapp_vigia").maybeSingle();
+      const v = (c?.valor || null) as { historico?: unknown[] } | null; const em = new Date().toISOString();
+      if (v) await m.sb.from("config").upsert({ chave: "whatsapp_vigia", valor: { ...v, ultimoReinicio: em, historico: [...(v.historico || []), { em, tipo: "conserto", texto: "Conexão reiniciada pelo titular no sistema." }].slice(-40) } }, { onConflict: "chave" });
+      return NextResponse.json({ estado: await estado().catch(() => "connecting") });
+    }
     if (acao === "desconectar") { await evo(`/instance/logout/${INSTANCIA()}`, "DELETE").catch(() => null); return NextResponse.json({ estado: "close" }); }
     const segredo = process.env.WHATSAPP_WEBHOOK_SECRET;
     if (!segredo) return erro("Falta cadastrar WHATSAPP_WEBHOOK_SECRET na Vercel.", 503);

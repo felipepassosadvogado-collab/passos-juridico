@@ -184,15 +184,31 @@ const hm = (s: string) => new Date(s).toLocaleString("pt-BR", { timeZone: "Ameri
  */
 export function VigiaWa({ compacto }: { compacto?: boolean }) {
   const { config, titular, aviso } = useDados(); const v = config.whatsapp_vigia as VigiaUi | undefined; const [rodando, setRodando] = useState(false);
+  const reiniciar = async () => {
+    setRodando(true);
+    try {
+      const r = await fetch("/api/whatsapp/conectar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "reiniciar" }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { aviso(j.erro || "Não consegui reiniciar a conexão."); return; }
+      aviso("Conexão reiniciada. Em uns 20 segundos confiro se voltou e busco as mensagens que ficaram no servidor.");
+      await new Promise((ok) => setTimeout(ok, 20000));
+      const v2 = await fetch("/api/whatsapp/vigia?agora=1").then((x) => x.json()).catch(() => null);
+      if (v2?.vigia) aviso(v2.vigia.ok ? "Conexão conferida: " + v2.vigia.resumo : "Atenção: " + v2.vigia.resumo);
+    } finally { setRodando(false); }
+  };
   const agora = async () => {
     setRodando(true);
     try { const r = await fetch("/api/whatsapp/vigia?agora=1"); const j = await r.json().catch(() => ({})); if (!r.ok) aviso(j.erro || "Não consegui verificar."); else if (j.vigia) aviso(j.vigia.ok ? "Verificado: " + j.vigia.resumo : "Atenção: " + j.vigia.resumo); }
     finally { setRodando(false); }
   };
-  if (!v) return compacto ? null : <div className="wa-vigia muted s">Vigia da conexão: ainda não rodou (roda sozinho a cada 10 minutos com o sistema aberto).{titular && <button className="reflink" onClick={agora} disabled={rodando}> {rodando ? "verificando…" : "Verificar agora"}</button>}</div>;
+  const botoes = titular && <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+    <button className="btn ghost" onClick={agora} disabled={rodando} title="Confere agora: estado, entrega das mensagens, resposta do WhatsApp e mensagens que ficaram no servidor. Se nenhuma mensagem chegou nos últimos 20 minutos, já reinicia a conexão.">{rodando ? "Verificando…" : "Verificar agora"}</button>
+    <button className="btn ghost" onClick={reiniciar} disabled={rodando} title="Reinicia a conexão no servidor do WhatsApp. Não desconecta o celular e não pede QR-code. Use quando as mensagens chegam no celular e não aqui.">Reiniciar conexão</button></span>;
+  if (!v) return compacto && !titular ? null : <div className="wa-vigia"><div className="wa-vigia-h"><span className="muted s">Vigia da conexão: ainda não rodou (roda sozinho a cada 10 minutos com o sistema aberto).</span>{botoes}</div></div>;
   const velho = Date.now() - new Date(v.em).getTime() > 40 * 60e3;
   const recentes = v.historico.filter((h) => Date.now() - new Date(h.em).getTime() < 2 * 3600e3 && h.tipo !== "ok");
-  if (compacto && v.ok && !recentes.length) return null;
+  if (compacto && v.ok && !recentes.length) return titular ? (
+    <div className="wa-vigia slim"><div className="wa-vigia-h"><span className="ponto-on" style={{ position: "static" }} /><span className="muted s">Vigia: verificado {hm(v.em)}{v.ultimaRecebidaSistema ? " · última mensagem recebida " + hm(v.ultimaRecebidaSistema) : ""}</span>{botoes}</div></div>) : null;
   const ultimos = [...v.historico].reverse().slice(0, compacto ? 3 : 12);
   return (
     <div className={"wa-vigia " + (v.ok ? (recentes.length ? "conserto" : "ok") : "problema")} role={v.ok ? undefined : "alert"}>
@@ -200,7 +216,7 @@ export function VigiaWa({ compacto }: { compacto?: boolean }) {
         <strong>{v.ok ? (recentes.length ? "Vigia: conexão consertada" : "Vigia: conexão viva") : "Vigia: problema na conexão"}</strong>
         <span className="muted s">verificado {hm(v.em)}{velho ? " (há mais de 40 min)" : ""}{v.sonda === "ok" ? " · WhatsApp respondendo" : v.sonda === "falhou" ? " · WhatsApp não respondeu" : ""}
           {v.ultimaRecebidaSistema ? " · última mensagem recebida " + hm(v.ultimaRecebidaSistema) : ""}{v.ultimoReinicio ? " · último reinício " + hm(v.ultimoReinicio) : ""}</span>
-        {titular && <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={agora} disabled={rodando} title="Confere agora: estado, entrega das mensagens, resposta do WhatsApp e mensagens que ficaram no servidor">{rodando ? "Verificando…" : "Verificar agora"}</button>}
+        {botoes}
       </div>
       {!v.ok && <div className="s">{v.resumo}</div>}
       {ultimos.length > 0 && <details open={!v.ok || (compacto && recentes.length > 0)}><summary className="s">O que o vigia fez</summary>

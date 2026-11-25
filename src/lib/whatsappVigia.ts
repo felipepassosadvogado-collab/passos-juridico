@@ -6,7 +6,8 @@
 //   3. "cutuca" o WhatsApp com uma consulta real (o número do escritório existe?): se não responder, a conexão está
 //      travada → reinicia a conexão na Evolution (não precisa de QR-code);
 //   4. busca no servidor as mensagens das últimas horas e grava as que não chegaram ao sistema;
-//   5. horário comercial e horas sem nenhuma mensagem recebida, nem no servidor → reinicia por precaução (no máx. a cada 3 h).
+//   5. horário comercial e 1 hora sem nenhuma mensagem recebida, nem no servidor → reinicia por precaução (no máx. 1 vez por hora).
+//   6. "Verificar agora" do titular: sem mensagem recebida há 20 min → reinicia (ele está dizendo que não chega).
 // O resultado fica em config "whatsapp_vigia" (painel do WhatsApp) e problemas sem conserto avisam o titular.
 import type { Adm } from "./whatsappDb";
 
@@ -26,7 +27,7 @@ export function horarioComercial(agora: Date) {
 
 /** precisa reiniciar por silêncio? horas sem mensagem recebida em horário comercial (contando só o tempo comercial de hoje) */
 export function silencioSuspeito(o: { agora: Date; ultimaRecebida: string | null; ultimoReinicio: string | null; horas?: number }) {
-  const horas = o.horas ?? 3;
+  const horas = o.horas ?? 1;
   if (!horarioComercial(o.agora)) return false;
   const inicioDia = new Date(o.agora.getTime() - 3 * H); inicioDia.setUTCHours(8, 0, 0, 0); const abriu = inicioDia.getTime() + 3 * H; // 8h de Brasília em UTC
   const desde = Math.max(abriu, o.ultimaRecebida ? new Date(o.ultimaRecebida).getTime() : 0);
@@ -50,7 +51,7 @@ type Deps = {
 const iso = (s: number) => new Date(s * 1000).toISOString();
 
 /** uma rodada do vigia (as dependências vêm de fora para dar para testar) */
-export async function rodadaVigia(dp: Deps, ant: EstadoVigia | null, agora = new Date()): Promise<EstadoVigia> {
+export async function rodadaVigia(dp: Deps, ant: EstadoVigia | null, agora = new Date(), op: { manual?: boolean } = {}): Promise<EstadoVigia> {
   const ev: EventoVigia[] = []; const marca = (tipo: EventoVigia["tipo"], texto: string) => ev.push({ em: agora.toISOString(), tipo, texto });
   let ultimoReinicio = ant?.ultimoReinicio || null; let sonda: EstadoVigia["sonda"] = "pulada"; let recuperadas = 0;
   const reiniciar = async (motivo: string) => {
@@ -101,7 +102,10 @@ export async function rodadaVigia(dp: Deps, ant: EstadoVigia | null, agora = new
 
   // 5. silêncio longo em horário comercial (nem o servidor recebeu nada)
   const ultimaRecebida = [ultimaServidor, ultimaSistema].filter(Boolean).sort().pop() || null;
-  if (estado === "open" && sonda === "ok" && silencioSuspeito({ agora, ultimaRecebida, ultimoReinicio })) await reiniciar("horário comercial e mais de 3 horas sem receber nenhuma mensagem");
+  if (estado === "open" && sonda === "ok" && silencioSuspeito({ agora, ultimaRecebida, ultimoReinicio })) await reiniciar("horário comercial e mais de 1 hora sem receber nenhuma mensagem");
+  // verificação pedida pelo titular ("não está chegando"): sem mensagem recebida há 20 min, reinicia (se não reiniciou há menos de 5 min)
+  else if (op.manual && (estado === "open" || estado === "connecting") && (!ultimaRecebida || agora.getTime() - new Date(ultimaRecebida).getTime() > 20 * 60e3)
+    && (!ultimoReinicio || agora.getTime() - new Date(ultimoReinicio).getTime() > 5 * 60e3)) await reiniciar("verificação pedida no sistema e nenhuma mensagem recebida nos últimos 20 minutos");
 
   const problemas = ev.filter((x) => x.tipo === "problema");
   const ok = estado === "open" && !problemas.length;
@@ -119,7 +123,7 @@ export async function rodadaVigia(dp: Deps, ant: EstadoVigia | null, agora = new
 }
 
 /** liga o vigia às peças reais (Evolution, banco) */
-export async function vigiar(adm: Adm, ant: EstadoVigia | null): Promise<EstadoVigia> {
+export async function vigiar(adm: Adm, ant: EstadoVigia | null, op: { manual?: boolean } = {}): Promise<EstadoVigia> {
   const { INSTANCIA, evo, soFone, ErroWa } = await import("./whatsapp");
   const { gravarMensagem } = await import("./whatsappDb");
   const { enderecoDoSite } = await import("./site");
@@ -181,5 +185,5 @@ export async function vigiar(adm: Adm, ant: EstadoVigia | null): Promise<EstadoV
       const { data: tit } = await adm.from("profiles").select("id").eq("papel", "titular").eq("ativo", true);
       if (tit?.length) await adm.from("notificacoes").insert(tit.map((t: { id: string }) => ({ para: t.id, de: null, tipo: "whatsapp", texto: texto.slice(0, 500) })));
     },
-  }, ant);
+  }, ant, new Date(), op);
 }

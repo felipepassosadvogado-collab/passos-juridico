@@ -1087,3 +1087,4 @@ td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 .wa-vigia-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .wa-vigia ul { margin: 4px 0 0; padding-left: 18px; }
 .wa-vigia li.problema { color: var(--late); }
+.wa-vigia.slim { padding: 4px 10px; }

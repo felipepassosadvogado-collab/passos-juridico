@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   if ((recente && !agoraPedido) || rodando) return NextResponse.json({ vigia: ant, rodou: false });
   await adm.from("config").upsert({ chave: "whatsapp_vigia_trava", valor: { em: new Date().toISOString() } }, { onConflict: "chave" });
   try {
-    const r = await medir("whatsapp.vigia", () => vigiar(adm, ant), { origem: cron ? "cron" : agoraPedido ? "titular" : "sistema" },
+    const r = await medir("whatsapp.vigia", () => vigiar(adm, ant, { manual: !!agoraPedido }), { origem: cron ? "cron" : agoraPedido ? "titular" : "sistema" },
       (x) => ({ estado: x.estado, ok: x.ok, sonda: x.sonda, recuperadas: x.recuperadas }));
     await adm.from("config").upsert({ chave: "whatsapp_vigia", valor: r }, { onConflict: "chave" });
     return NextResponse.json({ vigia: r, rodou: true });

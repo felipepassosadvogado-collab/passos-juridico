@@ -14,9 +14,9 @@ const qua15h = new Date("2026-11-25T18:00:00Z"); // quarta, 15h em Brasília
 describe("vigia do WhatsApp", () => {
   it("horário comercial", () => { expect(horarioComercial(qua15h)).toBe(true); expect(horarioComercial(new Date("2026-11-29T15:00:00Z"))).toBe(false); expect(horarioComercial(new Date("2026-11-25T23:30:00Z"))).toBe(false); });
   it("silêncio: só conta a partir das 8h e respeita o último reinício", () => {
-    expect(silencioSuspeito({ agora: new Date("2026-11-25T13:30:00Z"), ultimaRecebida: "2026-11-24T22:00:00Z", ultimoReinicio: null })).toBe(false); // 10h30: só 2h30 desde as 8h
+    expect(silencioSuspeito({ agora: new Date("2026-11-25T11:40:00Z"), ultimaRecebida: "2026-11-24T22:00:00Z", ultimoReinicio: null })).toBe(false); // 8h40: só 40 min desde as 8h
     expect(silencioSuspeito({ agora: qua15h, ultimaRecebida: "2026-11-25T14:00:00Z", ultimoReinicio: null })).toBe(true);
-    expect(silencioSuspeito({ agora: qua15h, ultimaRecebida: "2026-11-25T14:00:00Z", ultimoReinicio: "2026-11-25T17:00:00Z" })).toBe(false);
+    expect(silencioSuspeito({ agora: qua15h, ultimaRecebida: "2026-11-25T14:00:00Z", ultimoReinicio: "2026-11-25T17:30:00Z" })).toBe(false);
   });
   it("tudo certo: não mexe em nada", async () => {
     const { dp, feito } = base(); const r = await rodadaVigia(dp, null, qua15h);
@@ -44,5 +44,16 @@ describe("vigia do WhatsApp", () => {
     const { dp, feito } = base(); dp.estado = async () => "close";
     const r1 = await rodadaVigia(dp, null, qua15h); const r2 = await rodadaVigia(dp, r1, new Date(qua15h.getTime() + 20 * 60e3));
     expect(feito.filter((x) => x.startsWith("avisar")).length).toBe(1); expect(r2.ok).toBe(false); expect(feito).not.toContain("reiniciar");
+  });
+});
+
+describe("verificar agora (titular)", () => {
+  it("sem mensagem há 20 min: reinicia mesmo com tudo parecendo certo", async () => {
+    const { dp, feito } = base(); dp.ultimaNoSistema = async () => new Date(qua15h.getTime() - 25 * 60e3).toISOString();
+    await rodadaVigia(dp, null, qua15h, { manual: true }); expect(feito).toEqual(["reiniciar"]);
+  });
+  it("mensagem recebida há pouco: não reinicia", async () => {
+    const { dp, feito } = base(); dp.ultimaNoSistema = async () => new Date(qua15h.getTime() - 5 * 60e3).toISOString();
+    await rodadaVigia(dp, null, qua15h, { manual: true }); expect(feito).toEqual([]);
   });
 });
