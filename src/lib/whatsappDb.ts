@@ -53,9 +53,9 @@ export async function clientePorFone(adm: Adm, tel: string): Promise<string | nu
 
 /** envia um texto numa conversa e grava a mensagem (usado pelo agente) */
 export async function enviarTextoNaConversa(adm: Adm, conv: { id: string; jid: string; telefone: string | null }, texto: string, op: { agente?: boolean; por?: string | null } = {}) {
-  const { INSTANCIA, evo, soFone } = await import("./whatsapp");
-  const numero = conv.telefone || (/@s\.whatsapp\.net$/.test(conv.jid) ? soFone(conv.jid) : "");
-  if (!numero) throw new Error("Contato sem telefone conhecido.");
+  const { INSTANCIA, evo, destinoWa } = await import("./whatsapp");
+  const numero = destinoWa(conv);
+  if (!numero) throw new Error("Contato sem telefone nem identificador do WhatsApp.");
   const r = await evo<{ key?: { id?: string } }>(`/message/sendText/${INSTANCIA()}`, "POST", { number: numero, text: texto });
   const em = new Date().toISOString();
   const { data } = await adm.from("wa_mensagens").upsert({ conversa_id: conv.id, wa_id: r?.key?.id || null, de_mim: true, texto, tipo: "texto", status: "enviada", enviado_por: op.por || null, agente: !!op.agente, bruto: { key: r?.key || null }, em }, { onConflict: "wa_id" }).select().single();

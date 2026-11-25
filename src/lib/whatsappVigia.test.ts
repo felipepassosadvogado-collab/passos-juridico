@@ -57,3 +57,12 @@ describe("verificar agora (titular)", () => {
     await rodadaVigia(dp, null, qua15h, { manual: true }); expect(feito).toEqual([]);
   });
 });
+
+import { destinoWa } from "./whatsapp";
+describe("para onde enviar", () => {
+  it("telefone, número do jid ou o identificador @lid", () => {
+    expect(destinoWa({ telefone: "5547999990000", jid: "x@lid" })).toBe("5547999990000");
+    expect(destinoWa({ telefone: null, jid: "5547999990000@s.whatsapp.net" })).toBe("5547999990000");
+    expect(destinoWa({ telefone: null, jid: "45230921367600@lid" })).toBe("45230921367600@lid");
+  });
+});

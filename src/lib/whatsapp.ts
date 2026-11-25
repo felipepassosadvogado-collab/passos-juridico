@@ -36,6 +36,16 @@ export function soFone(s?: string | null) {
   if (d.length <= 11) d = "55" + d;
   return d;
 }
+/**
+ * Para onde enviar: o telefone, se conhecido; senão o identificador interno do WhatsApp (@lid), que a Evolution
+ * aceita como destino (contatos que escondem o número chegam só com ele).
+ */
+export function destinoWa(conv: { telefone?: string | null; jid: string }) {
+  if (conv.telefone) return conv.telefone;
+  if (/@s\.whatsapp\.net$/.test(conv.jid)) return soFone(conv.jid);
+  if (/@lid$/.test(conv.jid)) return conv.jid;
+  return "";
+}
 /** chave para comparar telefones brasileiros com ou sem o 9 extra: DDD + 8 últimos dígitos */
 export function chaveFone(s?: string | null) {
   const d = soFone(s); if (d.length < 12 || !d.startsWith("55")) return d;

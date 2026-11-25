@@ -3,7 +3,7 @@
 // Modos (config "agente"): desligado · rascunho (sugere a resposta, a equipe envia) · automatico (responde sozinho).
 import { MODELO } from "./claude";
 import { registrarUso } from "./consumo";
-import { INSTANCIA, evo } from "./whatsapp";
+import { INSTANCIA, destinoWa, evo } from "./whatsapp";
 import { dataBR, idade, nomeBonito } from "./formato";
 import { enviarTextoNaConversa, fichasComFone, foneBate, type Adm } from "./whatsappDb";
 import { padraoDigitos } from "./lista";
@@ -255,7 +255,7 @@ async function resumoCliente(adm: Adm, clienteId: string) {
 
 /** "digitando…" e as mensagens do cliente marcadas como lidas, como uma pessoa faria */
 async function presenca(conv: Conv, msgs: Msg[], ms: number) {
-  const numero = conv.telefone || conv.jid.replace(/@.*/, "");
+  const numero = destinoWa(conv);
   try {
     const lidas = msgs.filter((m) => !m.de_mim && m.bruto?.key?.id).slice(-5).map((m) => ({ remoteJid: conv.jid, fromMe: false, id: String(m.bruto!.key!.id) }));
     if (lidas.length) await evo(`/chat/markMessageAsRead/${INSTANCIA()}`, "POST", { readMessages: lidas });

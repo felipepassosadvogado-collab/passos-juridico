@@ -2,7 +2,7 @@ import { medir } from "@/lib/operacao";
 import { NextResponse } from "next/server";
 import { membroDaRota, erro } from "@/lib/rota";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { ErroWa, INSTANCIA, RESUMO_TIPO, chaveFone, evo, soFone } from "@/lib/whatsapp";
+import { ErroWa, destinoWa, INSTANCIA, RESUMO_TIPO, chaveFone, evo, soFone } from "@/lib/whatsapp";
 import { conversaDe, fichasComFone } from "@/lib/whatsappDb";
 
 export const maxDuration = 30;
@@ -30,8 +30,8 @@ async function tratar(req: Request) {
     if (conv && pd.nome?.trim() && !conv.nome) { const { data } = await adm.from("wa_conversas").update({ nome: pd.nome.trim().slice(0, 120) }).eq("id", conv.id).select().single(); if (data) conv = data; }
   }
   if (!conv) return erro("Conversa não encontrada.", 404);
-  const numero = conv.telefone || (/@s\.whatsapp\.net$/.test(conv.jid) ? soFone(conv.jid) : "");
-  if (!numero) return erro("Não sei o telefone deste contato (o WhatsApp mandou só um identificador interno). Ligue a conversa a um cliente com telefone na ficha.");
+  const numero = destinoWa(conv as { telefone?: string | null; jid: string });
+  if (!numero) return erro("Não sei para onde enviar: este contato não tem telefone nem identificador do WhatsApp. Ligue a conversa a um cliente com telefone na ficha.");
   try {
     let r: { key?: { id?: string }; status?: string };
     let tipo = "texto";
