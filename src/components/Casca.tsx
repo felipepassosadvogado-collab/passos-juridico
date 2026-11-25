@@ -1,5 +1,6 @@
 "use client";
 import { useBatimentoWa } from "@/components/whatsapp";
+import { CaixaFuncoes } from "@/components/funcoes";
 import { substituidasPorProtocolo } from "@/lib/tarefasAtivas";
 import { AlertaDjen } from "./djen";
 // Casca do sistema: menu lateral com contadores, barra superior com busca, sino e "Adicionar".
@@ -230,6 +231,7 @@ export function Casca({ children }: { children: React.ReactNode }) {
           <Busca />
           <div className="tright">
             <IndicadorAtividade />
+            <CaixaFuncoes />
             <InfoDjen />
             <BotaoAlterna classe="claro" chave="tema" valores={["escuro", "claro"]} className="icb" rotulo={(on) => (on ? "Mudar para o tema escuro" : "Mudar para o tema claro")}>{I('<path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/>')}</BotaoAlterna>
             <Sino />

@@ -1,5 +1,14 @@
 import { FormLogin } from "./form";
 import { FRASES, buscarNoticias, type Noticia } from "@/lib/noticias";
+import { FUNCOES_PADRAO, type Funcoes } from "@/lib/funcoes";
+import { ConteudoFuncoes } from "@/components/funcoesConteudo";
+import { supabaseAdmin } from "@/lib/supabase/server";
+
+/** roteiro de funções da equipe (o titular edita no sistema) */
+async function funcoes(): Promise<Funcoes> {
+  try { const adm = await supabaseAdmin(); const { data } = await adm.from("config").select("valor").eq("chave", "funcoes_equipe").maybeSingle(); const f = data?.valor as Funcoes | undefined; return f?.texto ? f : FUNCOES_PADRAO; }
+  catch { return FUNCOES_PADRAO; }
+}
 
 export const metadata = { title: "Entrar" };
 
@@ -12,7 +21,7 @@ const quando = (iso: string | null) => {
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ de?: string; erro?: string }> }) {
   const sp = await searchParams;
-  const noticias: Noticia[] = await buscarNoticias().catch(() => []);
+  const [noticias, fn] = await Promise.all([buscarNoticias().catch(() => [] as Noticia[]), funcoes()]);
   const destaque = noticias.find((n) => n.imagem) || noticias[0];
   const outras = noticias.filter((n) => n !== destaque).slice(0, 8);
   const frase = FRASES[new Date().getDate() % FRASES.length];
@@ -58,6 +67,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
               <span className="lg-tit">{n.titulo}</span>
             </a>))}</div>
         </> : <blockquote className="lg-frase"><p>“{frase.texto}”</p><cite>{frase.autor}</cite></blockquote>}
+        <details className="lg-funcoes">
+          <summary><span className="lg-sobre">Roteiro do dia da equipe</span><span className="lg-tit">{fn.titulo}</span></summary>
+          <ConteudoFuncoes f={fn} abertas={false} />
+        </details>
       </section>
     </div>
   );
