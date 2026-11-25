@@ -28,7 +28,6 @@ const ICONES: Record<string, string> = {
   "/atividades": '<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M6.5 10l2.5 2.5 4.5-5"/>',
   "/gestao": '<path d="M3 16.5h14"/><path d="M5.5 13.5V9.5M10 13.5V5.5M14.5 13.5V8"/>',
   "/financeiro": '<rect x="2.5" y="5" width="15" height="11" rx="2"/><path d="M2.5 8.5h15"/><circle cx="13.5" cy="12.3" r="1.2"/>',
-  "/procuracoes": '<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5"/><path d="M7.5 10h5M7.5 13h3"/>',
   "/chat": '<path d="M3.5 5.5A2 2 0 0 1 5.5 3.5h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3h0a2 2 0 0 1-2-2z"/>',
   "/crm": '<rect x="2.5" y="3" width="4" height="14" rx="1.2"/><rect x="8" y="3" width="4" height="9" rx="1.2"/><rect x="13.5" y="3" width="4" height="11.5" rx="1.2"/>',
   "/processos": '<path d="M2.5 6V15a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V8a1.5 1.5 0 0 0-1.5-1.5H10L8.5 4.5H4A1.5 1.5 0 0 0 2.5 6z"/>',
@@ -52,7 +51,7 @@ function Menu() {
   const itens: [string, string, number?, boolean?][] = [
     ["/whatsapp", "WhatsApp", wa.naoLidas, true],
     ["/", "Painel", c.meus, c.meusHot], ["/agenda", "Agenda", c.abertas, c.vencidas], ["/publicacoes", "Publicações", caixa.size, caixa.size > 0],
-    ...(titular ? [["/gestao", "Gestão"] as [string, string], ["/financeiro", "Financeiro"] as [string, string], ["/procuracoes", "Procurações"] as [string, string]] : []),
+    ...(titular ? [["/gestao", "Gestão"] as [string, string], ["/financeiro", "Financeiro"] as [string, string]] : []),
     ["/chat", "Chat", total, true], ["/crm", "CRM"], ["/processos", "Processos", processos.size], ["/clientes", "Clientes", clientes.size],
   ];
   const adm: [string, string][] = [["/equipe", "Equipe"], ...(titular ? [["/configuracoes", "Configurações"], ["/importar", "Importar dados"]] as [string, string][] : [])];
