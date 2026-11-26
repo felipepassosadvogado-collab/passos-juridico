@@ -17,6 +17,7 @@ import { useJanelas } from "@/components/janelas";
 import { Ic } from "@/components/ui";
 import { useCriarAviso } from "@/components/avisos";
 import { ultimosAvisos } from "@/lib/ultimoAviso";
+import type { LinhaSemAviso } from "@/lib/semAvisoPdf";
 import { PROTOCOLO_ACAO } from "@/lib/regras";
 import { foneWhatsapp } from "@/lib/formato";
 
@@ -29,6 +30,7 @@ export default function Processos() {
   // busca e filtros ficam no endereço: voltar ou recarregar a página mantém o que estava escolhido
   const [q, setQ] = useFiltroUrl("q"); const [banco, setBanco] = useFiltroUrl("reu"); const [fase, setFase] = useFiltroUrl("fase"); const topo = useRef<HTMLDivElement>(null);
   // data do protocolo da inicial (a mesma do relatório do CRM): só carrega o histórico quando alguém filtra por ela ou pede o relatório
+  const [avf, setAvf] = useFiltroUrl("aviso"); // "" | "sem" (nenhum aviso enviado) | "nenhum" (nenhum aviso criado)
   const [per, setPer] = useFiltroUrl("protocolo"); const [deU, setDe] = useFiltroUrl("de"); const [ateU, setAte] = useFiltroUrl("ate");
   const [hist, setHist] = useState<{ pubs: PubMin[]; eventos: EventoMin[] } | null>(null); const [erroHist, setErroHist] = useState(""); const [relat, setRelat] = useState(false);
   const precisaDatas = !!per || relat;
@@ -52,16 +54,31 @@ export default function Processos() {
     if (q) { const n = semAcento(q), d = soDigitos(q); x = x.filter((p) => semAcento(p.cliente_nome + " " + (p.banco || "") + " " + (p.orgao || "")).includes(n) || (d.length >= 4 && p.numero.includes(d))); }
     if (banco) x = x.filter((p) => bancoCurto(p.banco) === banco);
     if (fase) x = x.filter((p) => faseCRM(p.fase) === (fase === "none" ? "" : fase));
+    if (avf) x = x.filter((p) => { const u = ult.get(p.numero); return avf === "nenhum" ? !u : !u || u.situacao === "pendente"; });
     if (per && prot && (faixa.de || faixa.ate)) {
       x = x.filter((p) => protocoladoEm(prot.get(p.numero), faixa.de, faixa.ate));
       return [...x].sort((a, b) => (prot.get(b.numero)?.data || "").localeCompare(prot.get(a.numero)?.data || "") || a.cliente_nome.localeCompare(b.cliente_nome));
     }
     return [...x].sort((a, b) => (b.ultima_data || "").localeCompare(a.ultima_data || ""));
-  }, [todos, q, banco, fase, per, prot, faixa.de, faixa.ate]);
-  const pg = usePaginacao("processos", l.length, [q, banco, fase, per, faixa.de, faixa.ate].join("|"));
-  const filtrando = !!(q || banco || fase || per);
+  }, [todos, q, banco, fase, avf, ult, per, prot, faixa.de, faixa.ate]);
+  const pg = usePaginacao("processos", l.length, [q, banco, fase, avf, per, faixa.de, faixa.ate].join("|"));
+  const filtrando = !!(q || banco || fase || avf || per);
   const carregandoDatas = !!per && !prot;
   const rotPer = per === "periodo" ? (faixa.de || faixa.ate ? `Protocolados ${faixa.de ? "de " + dataBR(faixa.de) : ""}${faixa.ate ? " até " + dataBR(faixa.ate) : ""}` : "Escolha as datas") : PERIODOS.find(([k]) => k === per)?.[1] || "";
+  const relatorioSemAviso = async () => {
+    const base = l.filter((p) => { const u = ult.get(p.numero); return !u || u.situacao === "pendente"; });
+    const linhas: LinhaSemAviso[] = base.map((p): LinhaSemAviso => {
+      const u = ult.get(p.numero); const cli = p.cliente_id ? clientes.get(p.cliente_id) : undefined; const pr = prot?.get(p.numero);
+      const data = pr?.data || p.ultima_data || "";
+      return { cliente: nomeBonito(cli?.nome || p.cliente_nome || ""), telefone: cli?.telefone || "", processo: p.mascara, reu: bancoCurto(p.banco), fase: faseCRM(p.fase) || "",
+        data, rotData: pr ? "prot. " + dataProt(pr) : "ato " + dataBR(p.ultima_data), situacao: u ? "pendente" : "nenhum", pendente: u?.av.tipo_evento || undefined };
+    }).sort((a, b) => (a.situacao === b.situacao ? 0 : a.situacao === "nenhum" ? -1 : 1) || b.data.localeCompare(a.data) || a.cliente.localeCompare(b.cliente));
+    const { pdfSemAviso } = await import("@/lib/semAvisoPdf");
+    const logo = await fetch("/marca/fp.png").then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null);
+    const filtros = [banco ? "Réu: " + banco : "", fase ? "Fase: " + (fase === "none" ? "sem fase definida" : fase) : "", per && rotPer ? rotPer : "", q ? "Busca: " + q : ""].filter(Boolean);
+    const pdf = await pdfSemAviso(linhas, { filtros: filtros.length ? ["Filtros: " + filtros.join(" · ")] : ["Todos os processos"], emitidoPor: nomeBonito(eu.nome), logoPng: logo ? new Uint8Array(logo) : null });
+    baixar(`Clientes sem aviso - ${hojeBR()}.pdf`, new Blob([pdf as BlobPart], { type: "application/pdf" }), "application/pdf");
+  };
   const dataProt = (pr?: Protocolo) => !pr ? "—" : pr.precisao === "ano" ? pr.data.slice(0, 4) : dataBR(pr.data) + (pr.precisao === "aprox" ? "*" : "");
   return (
     <>
@@ -70,8 +87,10 @@ export default function Processos() {
           <input type="search" placeholder="Cliente, banco ou nº" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar processo" />
           <select value={banco} onChange={(e) => setBanco(e.target.value)} aria-label="Réu"><option value="">Todos os réus</option>{bancos.map((b) => <option key={b}>{b}</option>)}</select>
           <select value={fase} onChange={(e) => setFase(e.target.value)} aria-label="Fase"><option value="">Todas as fases</option><option value="none">Sem fase definida</option>{FASES.map((f) => <option key={f}>{f}</option>)}</select>
+          <select value={avf} onChange={(e) => setAvf(e.target.value)} aria-label="Aviso ao cliente"><option value="">Com ou sem aviso</option><option value="sem">Sem aviso enviado</option><option value="nenhum">Nenhum aviso criado</option></select>
           <select value={per} onChange={(e) => setPer(e.target.value)} aria-label="Data do protocolo">{PERIODOS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
           {per === "periodo" && <><input type="date" aria-label="Protocolados a partir de" value={deU} onChange={(e) => setDe(e.target.value)} /><input type="date" aria-label="Protocolados até" value={ateU} onChange={(e) => setAte(e.target.value)} /></>}
+          <button className="btn" title="PDF dos processos (com os filtros da tela) em que o cliente ainda não recebeu nenhum aviso: para cobrar e mandar para a equipe" onClick={relatorioSemAviso}>Clientes sem aviso (PDF)</button>
           <button className="btn" title="PDF com quantos processos foram protocolados, em quais cidades e varas e em que mês, com os filtros da tela" onClick={() => setRelat(true)}>Relatório de protocolos (PDF)</button></div></div>
       {erroHist && <div className="banner">{erroHist}</div>}
       {per && prot && (faixa.de || faixa.ate) && (() => { // quantos foram protocolados no período, sem contar linha por linha
@@ -88,7 +107,7 @@ export default function Processos() {
       {relat && <RelatorioProtocolos onFechar={() => setRelat(false)} lista={l} prot={prot} titulo={per ? rotPer + (per !== "periodo" && faixa.de ? ` (${dataBR(faixa.de)} a ${dataBR(faixa.ate)})` : "") : "Todos os processos"}
         cidadeDe={cidadeDe} filtros={[banco ? "Réu: " + banco : "", fase ? "Fase: " + (fase === "none" ? "sem fase definida" : fase) : "", q ? "Busca: " + q : ""].filter(Boolean)} emitidoPor={eu.nome} />}
       {!processos.size ? <div className="panel"><div className="empty"><strong>Nenhum processo ainda.</strong>Importe os dados do painel antigo (Importar dados) ou aguarde a busca do DJEN.</div></div> :
-        !l.length ? <div className="panel"><div className="empty"><strong>Nenhum processo com esses filtros.</strong><button className="btn" style={{ marginTop: 8 }} onClick={() => { setQ(""); setBanco(""); setFase(""); setPer(""); setDe(""); setAte(""); }}>Limpar busca e filtros</button></div></div> :
+        !l.length ? <div className="panel"><div className="empty"><strong>Nenhum processo com esses filtros.</strong><button className="btn" style={{ marginTop: 8 }} onClick={() => { setQ(""); setBanco(""); setFase(""); setAvf(""); setPer(""); setDe(""); setAte(""); }}>Limpar busca e filtros</button></div></div> :
         <><div className="panel tscroll" ref={topo} tabIndex={-1} aria-label="Tabela de processos"><table className="grid"><caption className="sr-only">Processos{filtrando ? " filtrados" : ""}, página {pg.pagina} de {pg.paginas}. Enter abre o processo.</caption><thead><tr><th>Cliente</th><th>Réu</th><th>Processo</th><th>Fase</th>{prot && <th title="Data do protocolo da inicial. * = aproximada (1ª publicação no DJEN); só o ano = pelo nº CNJ">Protocolo</th>}<th>Último ato</th><th title="Último aviso enviado ao cliente">Último aviso</th><th>Prazo</th><th /></tr></thead>
           <tbody>{l.slice(pg.ini, pg.fim).map((p) => { const pr = prox[p.numero]; const s = situacaoPrazo(pr); return (
             <tr key={p.numero} className="click" onClick={() => j.abrirProcesso(p.numero)} {...teclado(() => j.abrirProcesso(p.numero))}>
