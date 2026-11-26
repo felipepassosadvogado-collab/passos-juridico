@@ -1108,3 +1108,9 @@ td.ok,b.ok{color:var(--ok)}td.late,b.late{color:var(--late)}
 .lg-funcoes > summary::after { content: "abrir ▾"; font-size: 12px; color: var(--muted); }
 .lg-funcoes[open] > summary::after { content: "fechar ▴"; }
 .lg-funcoes .fn-corpo { margin-top: 10px; max-height: 50vh; overflow: auto; }
+/* processos: último aviso e mini-botões */
+.proc-acoes { display: flex; align-items: center; gap: 2px; justify-content: flex-end; white-space: nowrap; }
+.proc-acoes .icb-q { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--muted); }
+.proc-acoes .icb-q:hover { background: var(--sunken); color: var(--fg); }
+.proc-acoes .icb-q.off { opacity: .35; cursor: not-allowed; }
+.av-ult { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; font-size: 13px; }

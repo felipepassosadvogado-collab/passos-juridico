@@ -15,9 +15,17 @@ import { faseCRM } from "@/lib/regras";
 import { useColunas } from "@/components/colunasCrm";
 import { useJanelas } from "@/components/janelas";
 import { Ic } from "@/components/ui";
+import { useCriarAviso } from "@/components/avisos";
+import { ultimosAvisos } from "@/lib/ultimoAviso";
+import { PROTOCOLO_ACAO } from "@/lib/regras";
+import { foneWhatsapp } from "@/lib/formato";
+
+const svg = (d: string) => <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: d }} />;
+const IcMsg = svg('<path d="M4 16l1-3.2A6.5 6.5 0 1 1 7.3 15z"/>');
+const IcSino = svg('<path d="M6 8a4 4 0 0 1 8 0c0 4 1.5 5.5 1.5 5.5h-11S6 12 6 8z"/><path d="M8.5 16a1.6 1.6 0 0 0 3 0"/>');
 
 export default function Processos() {
-  const { processos, tarefas, casos, eu, sb, v } = useDados(); const j = useJanelas(); const router = useRouter(); const FASES = useColunas().fases;
+  const { processos, tarefas, casos, eu, sb, v, avisos, clientes } = useDados(); const criarAviso = useCriarAviso(); const ult = useMemo(() => ultimosAvisos(avisos.values()), [avisos]); const j = useJanelas(); const router = useRouter(); const FASES = useColunas().fases;
   // busca e filtros ficam no endereço: voltar ou recarregar a página mantém o que estava escolhido
   const [q, setQ] = useFiltroUrl("q"); const [banco, setBanco] = useFiltroUrl("reu"); const [fase, setFase] = useFiltroUrl("fase"); const topo = useRef<HTMLDivElement>(null);
   // data do protocolo da inicial (a mesma do relatório do CRM): só carrega o histórico quando alguém filtra por ela ou pede o relatório
@@ -81,7 +89,7 @@ export default function Processos() {
         cidadeDe={cidadeDe} filtros={[banco ? "Réu: " + banco : "", fase ? "Fase: " + (fase === "none" ? "sem fase definida" : fase) : "", q ? "Busca: " + q : ""].filter(Boolean)} emitidoPor={eu.nome} />}
       {!processos.size ? <div className="panel"><div className="empty"><strong>Nenhum processo ainda.</strong>Importe os dados do painel antigo (Importar dados) ou aguarde a busca do DJEN.</div></div> :
         !l.length ? <div className="panel"><div className="empty"><strong>Nenhum processo com esses filtros.</strong><button className="btn" style={{ marginTop: 8 }} onClick={() => { setQ(""); setBanco(""); setFase(""); setPer(""); setDe(""); setAte(""); }}>Limpar busca e filtros</button></div></div> :
-        <><div className="panel tscroll" ref={topo} tabIndex={-1} aria-label="Tabela de processos"><table className="grid"><caption className="sr-only">Processos{filtrando ? " filtrados" : ""}, página {pg.pagina} de {pg.paginas}. Enter abre o processo.</caption><thead><tr><th>Cliente</th><th>Réu</th><th>Processo</th><th>Fase</th>{prot && <th title="Data do protocolo da inicial. * = aproximada (1ª publicação no DJEN); só o ano = pelo nº CNJ">Protocolo</th>}<th>Último ato</th><th>Prazo</th><th /></tr></thead>
+        <><div className="panel tscroll" ref={topo} tabIndex={-1} aria-label="Tabela de processos"><table className="grid"><caption className="sr-only">Processos{filtrando ? " filtrados" : ""}, página {pg.pagina} de {pg.paginas}. Enter abre o processo.</caption><thead><tr><th>Cliente</th><th>Réu</th><th>Processo</th><th>Fase</th>{prot && <th title="Data do protocolo da inicial. * = aproximada (1ª publicação no DJEN); só o ano = pelo nº CNJ">Protocolo</th>}<th>Último ato</th><th title="Último aviso enviado ao cliente">Último aviso</th><th>Prazo</th><th /></tr></thead>
           <tbody>{l.slice(pg.ini, pg.fim).map((p) => { const pr = prox[p.numero]; const s = situacaoPrazo(pr); return (
             <tr key={p.numero} className="click" onClick={() => j.abrirProcesso(p.numero)} {...teclado(() => j.abrirProcesso(p.numero))}>
               <td><div style={{ fontWeight: 600 }}>{nomeBonito(p.cliente_nome) || "—"}</div><div className="s">{p.orgao || ""}</div></td>
@@ -89,8 +97,21 @@ export default function Processos() {
               <td>{faseCRM(p.fase) ? <span className="pill acc">{faseCRM(p.fase)}</span> : <span className="muted">—</span>}</td>
               {prot && <td className="mono s" title={prot.get(p.numero)?.fonte || ""}>{dataProt(prot.get(p.numero))}</td>}
               <td><div>{p.ultimo_ato || "—"}</div><div className="s mono">{dataBR(p.ultima_data)}</div></td>
+              <td onClick={(e) => e.stopPropagation()}>{(() => { const u = ult.get(p.numero);
+                if (!u) return <span className="pill late" title="Nenhum aviso foi criado para o cliente deste processo">nenhum aviso</span>;
+                const rot = (u.av.tipo_evento || "Aviso") + " · " + dataBR(u.data.slice(0, 10));
+                return <button className="reflink av-ult" title={u.situacao === "avisado" ? "Último aviso enviado ao cliente: abrir" : u.situacao === "pendente" ? "Aviso criado e ainda não enviado: abrir" : "Aviso dispensado: abrir"} onClick={() => j.abrirAviso(u.av.id)}>
+                  <span>{rot}</span>{u.situacao === "pendente" && <span className="pill soon">não enviado</span>}{u.situacao === "dispensado" && <span className="muted s">dispensado</span>}</button>; })()}</td>
               <td>{pr && <span className={"pill " + s.cor}>{s.texto}</span>}</td>
-              <td><button className="btn ghost" title="Criar tarefa" onClick={(e) => { e.stopPropagation(); j.novaTarefa(p.numero); }}>{Ic.tarefa}Tarefa</button></td>
+              <td onClick={(e) => e.stopPropagation()}><div className="proc-acoes">
+                <button className="btn ghost" title="Criar tarefa" onClick={() => j.novaTarefa(p.numero)}>{Ic.tarefa}Tarefa</button>
+                {(() => { const cli = p.cliente_id ? clientes.get(p.cliente_id) : undefined; return cli && foneWhatsapp(cli.telefone)
+                  ? <Link className="icb-q" href={"/whatsapp?cliente=" + cli.id} title={"Mandar mensagem ao cliente pelo WhatsApp do escritório (" + cli.telefone + ")"} aria-label="Mandar mensagem ao cliente">{IcMsg}</Link>
+                  : <span className="icb-q off" title="Cliente sem telefone na ficha" aria-label="Cliente sem telefone">{IcMsg}</span>; })()}
+                <button className="icb-q" title="Avisar o cliente (criar aviso deste processo)" aria-label="Avisar o cliente" onClick={async () => {
+                  const tipo = !ult.get(p.numero) && /protocolo/i.test(faseCRM(p.fase) || "") ? PROTOCOLO_ACAO : null;
+                  const id = await criarAviso({ processo_numero: p.numero, tipo_evento: tipo }); if (id) j.abrirAviso(id);
+                }}>{IcSino}</button></div></td>
             </tr>); })}</tbody></table></div>
         <Paginacao p={pg} rotulo="processos" alvo={topo} /></>}
     </>
