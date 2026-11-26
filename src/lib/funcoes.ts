@@ -5,8 +5,8 @@
 export type Funcoes = { titulo: string; texto: string; atualizado_em?: string | null; atualizado_por?: string | null };
 
 export const FUNCOES_PADRAO: Funcoes = {
-  titulo: "Roteiro de funções — Amanda Cristina Fukuhara (estagiária)",
-  texto: `> Jornada de 8 horas. Todas as tarefas que o Dr. Felipe cria e repassa vêm para você. Nenhum prazo pode vencer sem andamento registrado no sistema.
+  titulo: "Roteiro de funções — Amanda Cristina Fukuhara",
+  texto: `> Todas as tarefas que o Dr. Felipe cria e repassa vêm para você. Nenhum prazo pode vencer sem andamento registrado no sistema.
 
 # 1. Ao chegar (primeiros 30 minutos)
 - Entrar no sistema e ler este roteiro.
