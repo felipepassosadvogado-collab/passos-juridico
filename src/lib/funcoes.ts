@@ -30,6 +30,7 @@ export const FUNCOES_PADRAO: Funcoes = {
 - Voltou com ajustes: ler o quadro "Ajustes pedidos", corrigir e reenviar na mesma tarefa.
 - Aprovada: protocolar SOMENTE a versão final aprovada (nunca a anterior) e marcar "Protocolado" com a data.
 - Tarefa de protocolo com mais de uma peça: conferir qual é a versão final antes de protocolar.
+- Ação protocolada: no mesmo dia, enviar o aviso ao cliente em "Avisos", tipo "Protocolo da ação", com o número do processo.
 
 # 4. Clientes e WhatsApp do escritório
 - Responder os clientes pelo WhatsApp do sistema no mesmo dia, de forma clara e simples (são, em geral, aposentados).
@@ -39,6 +40,7 @@ export const FUNCOES_PADRAO: Funcoes = {
 - Proposta de acordo ou contato da parte contrária: não responder sozinha; repassar ao Dr. Felipe.
 
 # 5. Avisos aos clientes (audiências, perícias, coletas)
+- Protocolou a ação: avisar o cliente no mesmo dia, tipo "Protocolo da ação", com o número do processo e o que acontece a seguir.
 - Avisar o cliente assim que a audiência, perícia ou coleta for marcada, pelo "Aviso ao cliente" do sistema.
 - Cobrar a confirmação de quem não respondeu e registrar quando o cliente confirmar.
 - Coleta de padrão gráfico no balcão: avisar o prazo ("até tal dia") e acompanhar até o cliente comparecer.
